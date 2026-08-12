@@ -1,0 +1,39 @@
+# Deliberately excluded project material
+/MonopolyAgentBattle_developer_docs/
+
+# Local Python environments
+/.venv/
+/venv/
+/env/
+
+# IDE and assistant-local configuration
+/.idea/
+/.vscode/
+/.claude/
+
+# Python caches and generated artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs and OS metadata
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini

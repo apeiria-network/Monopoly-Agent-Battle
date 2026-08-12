@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "monopoly-agent-battle"
+version = "0.1.0"
+description = "A reproducible Monopoly platform for court-agent experiments."
+readme = "doc/source-index.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.10,<3",
+  "PyYAML>=6.0,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+  "coverage>=7.6,<8",
+  "pytest>=8.3,<9",
+  "pytest-cov>=6.0,<7",
+  "pyright>=1.1.390,<2",
+  "ruff>=0.9,<1",
+]
+
+[project.scripts]
+monopoly-agent-battle = "monopoly_agent_battle.cli.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/monopoly_agent_battle"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --cov=monopoly_agent_battle --cov-report=term-missing"
+
+[tool.coverage.run]
+branch = true
+source = ["monopoly_agent_battle"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pyright]
+include = ["src", "tests"]
+typeCheckingMode = "strict"
+pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
+

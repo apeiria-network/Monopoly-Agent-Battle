@@ -1,0 +1,19 @@
+game_id: phase0-demo-game
+experiment_id: phase0-demo
+seed: 20260807
+players:
+  - player_id: player-1
+    seat: 1
+  - player_id: player-2
+    seat: 2
+  - player_id: player-3
+    seat: 3
+  - player_id: player-4
+    seat: 4
+initial_cash: 1500
+max_complete_rounds: 50
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs

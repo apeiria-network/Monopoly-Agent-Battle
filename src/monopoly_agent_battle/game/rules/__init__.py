@@ -1,0 +1,1 @@
+"""Level-specific game rules."""
