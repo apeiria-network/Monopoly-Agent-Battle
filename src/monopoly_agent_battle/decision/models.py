@@ -8,7 +8,6 @@ from typing import Any
 
 
 class DecisionKind(StrEnum):
-    ROLL = "roll"
     JAIL = "jail"
     ASSET_MANAGEMENT = "asset_management"
     PAYMENT_RESOLUTION = "payment_resolution"

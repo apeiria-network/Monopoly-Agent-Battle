@@ -14,8 +14,6 @@ PLAYER_INSTRUCTION = """你正在代表玩家「{player_id}」参与一局大富
 def render_decision_prompt(request: DecisionRequest) -> str:
     """Render the complete baseline/emperor decision message from a request."""
     context = {
-        "decision_id": request.decision_id,
-        "game_id": request.game_id,
         "complete_rounds": request.complete_rounds,
         "player_id": request.player_id,
         "phase": request.phase,

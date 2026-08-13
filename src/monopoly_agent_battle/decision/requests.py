@@ -148,7 +148,7 @@ def _question(engine: GameEngine, player_id: str) -> tuple[DecisionKind, str]:
     player = engine.state.players[player_id]
     if player.jail_status.value != "free":
         return DecisionKind.JAIL, "你正在监狱中；请选择支付罚款或掷骰尝试出狱。"
-    return DecisionKind.ROLL, "请选择掷骰以继续本回合。"
+    raise RuntimeError("current game state requires automatic flow, not a decision request")
 
 
 def _legal_options(engine: GameEngine, player_id: str) -> list[DecisionOption]:
@@ -179,6 +179,8 @@ def _candidate_commands(engine: GameEngine, player_id: str) -> list[GameCommand]
     phase = engine.state.turn_phase
     commands: list[GameCommand] = []
     if phase is TurnPhase.ROLLING:
+        if player.jail_status.value == "free":
+            return commands
         commands.append(RollDice(player_id))
         commands.append(PayJailFine(player_id))
         commands.extend(
@@ -186,7 +188,7 @@ def _candidate_commands(engine: GameEngine, player_id: str) -> list[GameCommand]
             for card_id in player.community_get_out_of_jail_cards
         )
     elif phase is TurnPhase.TURN_COMPLETE:
-        commands.append(EndTurn(player_id))
+        return commands
     elif phase is TurnPhase.PAYMENT_RESOLUTION:
         commands.append(DeclareBankruptcy(player_id))
         commands.extend(SellBuilding(player_id, position) for position in sorted(player.properties))

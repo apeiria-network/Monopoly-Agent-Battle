@@ -33,11 +33,12 @@
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
 | `decision/models.py` | 定义冻结的决策请求、合法候选项、响应、校验结果及其 JSON 审计表示。 | 决策生成、提示词渲染、运行器和审计记录共享。 |
-| `decision/requests.py` | 从当前引擎状态投影玩家可见视图，并以克隆引擎执行预检生成仅包含真实合法命令的候选项。其他玩家仅暴露手牌数量；卡堆顺序、其他玩家手牌和运行时信息不会进入视图。 | 每个决策点调用 `build_decision_request(engine, sequence)`。 |
-| `decision/prompts.py` | 将决策请求稳定渲染成中文 AI Prompt，包含角色约束、上下文、可见状态、问题、候选项和 JSON-only 输出契约。 | 由真实 LLM 控制器适配器调用；当前不连接外部模型。 |
+| `decision/requests.py` | 从当前引擎状态投影玩家可见视图，并以克隆引擎执行预检生成仅包含真实合法命令的候选项；只为监狱和其他存在选择的事件阶段创建请求，普通未监禁 `ROLLING` 与 `TURN_COMPLETE` 不创建决策。其他玩家仅暴露手牌数量；卡堆顺序、其他玩家手牌和运行时信息不会进入视图。 | 每个实际决策点调用 `build_decision_request(engine, sequence)`。 |
+| `decision/prompts.py` | 将决策请求稳定渲染成中文 AI Prompt，AI 可见上下文只包含完整轮次、行动玩家、阶段和决策类别，不含 `decision_id` 或 `game_id`；包含角色约束、可见状态、问题、候选项和 JSON-only 输出契约。 | 由决策运行器作为控制器实际入参调用；当前不连接外部模型。 |
 | `decision/protocol.py` | 解析并严格校验不可信 JSON 响应；模型只能选择冻结的 option ID，不能提交或篡改命令参数；将已选项映射为既有引擎命令。 | 由决策运行器在调用引擎前使用。 |
-| `decision/runner.py` | 以决策协议运行完整对局；提供确定性默认策略，连接失败最多重试两次，非法/失败响应回退至默认合法项，并保持命令事件可回放。 | 调用 `run_decision_game(engine, controller, artifacts)`。 |
-| `doc/stage3-decision-prompt-acceptance.md` | Stage 3 人工验收清单：固定 Prompt、字段来源、可见性边界、决策问题、候选表达、输出契约及代表性渲染。 | 必须由负责人审核；确认前不得进入真实 LLM 接入与提示词冻结。 |
+| `decision/runner.py` | 以决策协议运行完整对局；普通未监禁 `ROLLING` 自动执行掷骰、`TURN_COMPLETE` 自动结束回合，两者仅写入可回放的命令/领域事件；监狱及其他真实选择才调用控制器并写决策审计。控制器实际收到 `render_decision_prompt()` 的完整中文 Prompt；提供确定性默认策略，连接失败最多重试两次，非法/失败响应回退至默认合法项。 | 调用 `run_decision_game(engine, controller, artifacts)`。 |
+| `doc/stage3-decision-prompt-acceptance.md` | Stage 3 待重新人工验收清单：控制器实际 Prompt、可见性与审计边界、自动流程边界、全部实际决策候选变体（含 16 张机会卡）及字段组装代码交叉引用。 | 必须由负责人审核；确认前不得进入真实 LLM 接入与提示词冻结。 |
+| `doc/stage3-problems.md` | 记录截至 2026-08-13 当前已实现的完整决策范围、自动流程边界、负责人原话规则反馈，以及当前实现与反馈的客观差异。 | 作为 Stage 3 规则问题交接记录；所列问题尚未修改代码。 |
 
 
 | 路径 | 用途 | 使用方式 |
@@ -50,8 +51,8 @@
 | 路径 | 覆盖范围 | 使用方式 |
 |---|---|---|
 | `tests/unit/test_config.py` | 配置校验、YAML 加载和配置哈希。 | `python -m pytest tests/unit/test_config.py` |
-| `tests/unit/test_decision_protocol.py` | 决策可见性隔离、阶段候选项、响应 schema 拒绝、提示词固定契约和回合结束候选。 | `python -m pytest tests/unit/test_decision_protocol.py` |
-| `tests/integration/test_decision_runner.py` | 决策驱动完整对局、命令审计/回放、连接重试、回退及原始校验错误保留。 | `python -m pytest tests/integration/test_decision_runner.py` |
+| `tests/unit/test_decision_protocol.py` | 决策可见性隔离、实际决策阶段候选项、普通流程拒绝创建请求、响应 schema 拒绝、Prompt 审计字段隔离和监狱多选项。 | `python -m pytest tests/unit/test_decision_protocol.py` |
+| `tests/integration/test_decision_runner.py` | 决策驱动完整对局、自动普通掷骰事件审计/回放、监狱掷骰 Prompt 选择、连接重试、回退及原始校验错误保留。 | `python -m pytest tests/integration/test_decision_runner.py` |
 | `tests/unit/game/test_board.py` | 40 格棋盘数据完整性与产权数值。 | `python -m pytest tests/unit/game/test_board.py` |
 | `tests/unit/game/test_engine.py` | 移动、租金、抵押、建造和双骰入狱等核心规则。 | `python -m pytest tests/unit/game/test_engine.py` |
 | `tests/unit/game/test_turn_flow.py` | 双骰、阶段转换、付款处置与显式破产的回合状态机。 | `python -m pytest tests/unit/game/test_turn_flow.py` |
