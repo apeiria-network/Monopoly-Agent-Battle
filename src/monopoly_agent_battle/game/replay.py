@@ -20,6 +20,7 @@ from monopoly_agent_battle.domain.commands import (
     RollDice,
     SellBuilding,
     UseChanceCard,
+    UseCommunityGetOutOfJailCard,
 )
 from monopoly_agent_battle.domain.models import GameEvent
 from monopoly_agent_battle.game.engine import GameEngine
@@ -103,8 +104,9 @@ def _command_from_record(payload: dict[str, Any]):
             command.get("target_position"),
             command.get("target_color_group"),
             command.get("secondary_target_position"),
-            command.get("stolen_card_id"),
         )
+    if command_type == "UseCommunityGetOutOfJailCard":
+        return UseCommunityGetOutOfJailCard(player_id, str(command["card_id"]))
     raise ReplayVerificationError(f"unsupported command type: {command_type}")
 
 

@@ -55,6 +55,17 @@ class RunArtifacts:
         """Write the current result snapshot."""
         self.write_json("result.json", result)
 
+    def append_decision(self, record: dict[str, Any]) -> None:
+        """Append one auditable decision request, response, and execution record."""
+        self.append_jsonl("decisions.jsonl", record)
+
+    def append_runtime(self, event_type: str, payload: dict[str, Any]) -> None:
+        """Append a private runtime event that must not be exposed to controllers."""
+        self.append_jsonl(
+            "runtime.jsonl",
+            {"event_type": event_type, "occurred_at": utc_timestamp(), "payload": payload},
+        )
+
     def append_jsonl(self, filename: str, record: dict[str, Any]) -> None:
         """Append one JSON object terminated by exactly one newline."""
         path = self.run_directory / filename
