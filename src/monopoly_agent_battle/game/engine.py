@@ -17,6 +17,7 @@ from monopoly_agent_battle.domain.commands import (
     RollDice,
     SellBuilding,
     UseChanceCard,
+    UseCommunityGetOutOfJailCard,
 )
 from monopoly_agent_battle.domain.models import (
     CardDeck,
@@ -98,7 +99,8 @@ class GameEngine:
         | EndTurn
         | DeclareBankruptcy
         | DiscardChanceCard
-        | UseChanceCard,
+        | UseChanceCard
+        | UseCommunityGetOutOfJailCard,
     ) -> list[GameEvent]:
         if self.state.finished:
             raise GameRuleError("game is already finished")
@@ -166,6 +168,10 @@ class GameEngine:
             if self.state.turn_phase is not TurnPhase.ASSET_MANAGEMENT:
                 raise GameRuleError("chance cards require the asset management phase")
             events = self._use_chance_card(player, command)
+        elif isinstance(command, UseCommunityGetOutOfJailCard):
+            if self.state.turn_phase is not TurnPhase.ROLLING:
+                raise GameRuleError("get-out-of-jail cards require the rolling phase")
+            events = self._use_community_get_out_of_jail_card(player, command.card_id)
         else:
             if self.state.turn_phase is not TurnPhase.ROLLING:
                 raise GameRuleError("jail fine requires the rolling phase")
@@ -554,6 +560,24 @@ class GameEngine:
         self._discard_card(card_id, CardDeck.CHANCE)
         return [GameEvent("card_discarded", {"card_id": card_id, "deck": CardDeck.CHANCE.value})]
 
+    def _use_community_get_out_of_jail_card(
+        self, player: PlayerState, card_id: str
+    ) -> list[GameEvent]:
+        if player.jail_status is JailStatus.FREE:
+            raise GameRuleError("get-out-of-jail card is unavailable while free")
+        if card_id not in player.community_get_out_of_jail_cards:
+            raise GameRuleError("player does not hold the selected get-out-of-jail card")
+        player.community_get_out_of_jail_cards.remove(card_id)
+        self._discard_card(card_id, CardDeck.COMMUNITY_CHEST)
+        player.jail_status = JailStatus.FREE
+        player.jail_roll_attempts = 0
+        return [
+            GameEvent(
+                "card_discarded", {"card_id": card_id, "deck": CardDeck.COMMUNITY_CHEST.value}
+            ),
+            GameEvent("jail_released", {"player_id": player.player_id, "method": "card"}),
+        ]
+
     def _use_chance_card(self, player: PlayerState, command: UseChanceCard) -> list[GameEvent]:
         if command.card_id not in player.chance_cards:
             raise GameRuleError("player does not hold the chance card")
@@ -568,9 +592,8 @@ class GameEngine:
         ]
         if card.effect is CardEffect.STEAL_CARD:
             target = self._player_target(player, command.target_player_id, card.range or 0)
-            stolen_card_id = command.stolen_card_id
-            if stolen_card_id is None or stolen_card_id not in target.chance_cards:
-                raise GameRuleError("target does not hold the selected chance card")
+            if not target.chance_cards:
+                raise GameRuleError("target does not hold a chance card")
             die = self.random.randint(1, 6)
             events.append(
                 GameEvent(
@@ -580,6 +603,7 @@ class GameEngine:
             )
             if die < 4:
                 return events
+            stolen_card_id = target.chance_cards[0]
             target.chance_cards.remove(stolen_card_id)
             player.chance_cards.append(stolen_card_id)
             events.append(

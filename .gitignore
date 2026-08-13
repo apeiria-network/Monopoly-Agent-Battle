@@ -33,6 +33,7 @@ dist/
 *.key
 
 # Logs and OS metadata
+uv.lock
 *.log
 .DS_Store
 Thumbs.db

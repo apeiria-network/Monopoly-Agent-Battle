@@ -69,4 +69,9 @@ class UseChanceCard:
     target_position: int | None = None
     target_color_group: str | None = None
     secondary_target_position: int | None = None
-    stolen_card_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UseCommunityGetOutOfJailCard:
+    player_id: str
+    card_id: str
