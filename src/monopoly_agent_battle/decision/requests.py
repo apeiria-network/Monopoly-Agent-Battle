@@ -20,7 +20,7 @@ from monopoly_agent_battle.domain.commands import (
     UseChanceCard,
     UseCommunityGetOutOfJailCard,
 )
-from monopoly_agent_battle.domain.models import JailStatus, TurnPhase
+from monopoly_agent_battle.domain.models import JailStatus, PlayerState, TurnPhase
 from monopoly_agent_battle.game.board_data.classic_us_40 import (
     BOARD,
     BOARD_BY_POSITION,
@@ -43,32 +43,26 @@ def player_visible_state(engine: GameEngine, player_id: str) -> dict[str, object
         },
         "current_space": {
             **_space_state(player.position),
-            "owner_id": engine.state.properties[player.position].owner_id
-            if player.position in engine.state.properties
-            else None,
-            "building_level": engine.state.properties[player.position].building_level
-            if player.position in engine.state.properties
-            else None,
-            "mortgaged": engine.state.properties[player.position].mortgaged
-            if player.position in engine.state.properties
-            else None,
+            "rent": _unpaid_current_space_rent(engine, player_id),
         },
-        "board": [_space_state(space.position) for space in BOARD],
+        "board": [_board_space_state(engine, space.position) for space in BOARD],
+        "your_state": {
+            **_public_player_state(player),
+            "chance_cards": [
+                {"card_id": card_id, "name": CARDS_BY_ID[card_id].name}
+                for card_id in player.chance_cards
+            ],
+            "community_get_out_of_jail_cards": list(player.community_get_out_of_jail_cards),
+            "rent_waivers": player.rent_waivers,
+        },
         "players": [
             {
-                "player_id": item.player_id,
-                "seat": item.seat,
-                "cash": item.cash,
-                "position": item.position,
-                "space_name": BOARD_BY_POSITION[item.position].name,
-                "jail_status": item.jail_status.value,
-                "bankrupt": item.bankrupt,
-                "survived_turns": item.survived_turns,
-                "assets": [_asset_state(engine, position) for position in sorted(item.properties)],
+                **_public_player_state(item),
                 "chance_card_count": len(item.chance_cards),
                 "community_get_out_of_jail_card_count": len(item.community_get_out_of_jail_cards),
             }
             for item in sorted(state.players.values(), key=lambda item: item.seat)
+            if item.player_id != player_id
         ],
         "ongoing_effects": [
             {
@@ -80,15 +74,42 @@ def player_visible_state(engine: GameEngine, player_id: str) -> dict[str, object
             }
             for effect in state.ongoing_effects
         ],
-        "your_private_state": {
-            "chance_cards": [
-                {"card_id": card_id, "name": CARDS_BY_ID[card_id].name}
-                for card_id in player.chance_cards
-            ],
-            "community_get_out_of_jail_cards": list(player.community_get_out_of_jail_cards),
-            "rent_waivers": player.rent_waivers,
-        },
     }
+
+
+def _public_player_state(player: PlayerState) -> dict[str, object]:
+    """Project public player data without private cards or internal turn counters."""
+    return {
+        "player_id": player.player_id,
+        "seat": player.seat,
+        "cash": player.cash,
+        "position": player.position,
+        "space_name": BOARD_BY_POSITION[player.position].name,
+        "jail_status": player.jail_status.value,
+        "bankrupt": player.bankrupt,
+        "property_positions": sorted(player.properties),
+    }
+
+
+def _unpaid_current_space_rent(engine: GameEngine, player_id: str) -> int | None:
+    """Return only the current landing's outstanding rent, if settlement is blocked."""
+    state = engine.state
+    player = state.players[player_id]
+    property_state = state.properties.get(player.position)
+    if property_state is None or property_state.owner_id in {None, player_id}:
+        return None
+    if state.turn_phase is not TurnPhase.PAYMENT_RESOLUTION:
+        return None
+
+    rent_sources = {"rent", "alliance_rent"}
+    pending_rent: list[int] = []
+    for operation in state.settlement_operations:
+        if operation.player_id != player_id or operation.source not in rent_sources:
+            break
+        if operation.amount is None:
+            raise AssertionError("rent payment operation has no amount")
+        pending_rent.append(operation.amount)
+    return sum(pending_rent) if pending_rent else None
 
 
 def _space_state(position: int) -> dict[str, object]:
@@ -105,13 +126,13 @@ def _space_state(position: int) -> dict[str, object]:
     }
 
 
-def _asset_state(engine: GameEngine, position: int) -> dict[str, object]:
-    property_state = engine.state.properties[position]
+def _board_space_state(engine: GameEngine, position: int) -> dict[str, object]:
+    property_state = engine.state.properties.get(position)
     return {
         **_space_state(position),
-        "owner_id": property_state.owner_id,
-        "building_level": property_state.building_level,
-        "mortgaged": property_state.mortgaged,
+        "owner_id": property_state.owner_id if property_state else None,
+        "building_level": property_state.building_level if property_state else None,
+        "mortgaged": property_state.mortgaged if property_state else None,
     }
 
 

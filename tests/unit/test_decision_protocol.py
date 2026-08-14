@@ -6,8 +6,14 @@ from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.decision.prompts import render_decision_prompt
 from monopoly_agent_battle.decision.protocol import parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request, player_visible_state
-from monopoly_agent_battle.domain.commands import SelectStolenChanceCard, UseChanceCard
-from monopoly_agent_battle.domain.models import GameEvent, JailStatus, TurnPhase
+from monopoly_agent_battle.domain.commands import RollDice, SelectStolenChanceCard, UseChanceCard
+from monopoly_agent_battle.domain.models import (
+    GameEvent,
+    JailStatus,
+    OngoingEffect,
+    OngoingEffectKind,
+    TurnPhase,
+)
 from monopoly_agent_battle.game.engine import GameEngine
 
 
@@ -25,21 +31,136 @@ def make_engine(tmp_path: Path) -> GameEngine:
     return GameEngine(config)
 
 
-def test_roll_request_exposes_only_player_private_cards(tmp_path: Path) -> None:
+def test_visible_state_separates_private_cards_and_property_details(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.players["a"].chance_cards.append("chance-waiver")
     engine.state.players["b"].chance_cards.append("chance-nuclear")
+    engine.state.players["a"].properties.add(1)
+    engine.state.properties[1].owner_id = "a"
+    engine.state.properties[1].building_level = 2
+    engine.state.properties[1].mortgaged = True
 
     visible = player_visible_state(engine, "a")
 
-    private_state = cast(dict[str, object], visible["your_private_state"])
+    your_state = cast(dict[str, object], visible["your_state"])
     players = cast(list[dict[str, object]], visible["players"])
-    assert private_state["chance_cards"] == [{"card_id": "chance-waiver", "name": "免费卡"}]
-    assert players[1]["chance_card_count"] == 1
+    board = cast(list[dict[str, object]], visible["board"])
+    assert your_state["chance_cards"] == [{"card_id": "chance-waiver", "name": "免费卡"}]
+    assert your_state["property_positions"] == [1]
+    assert [item["player_id"] for item in players] == ["b"]
+    assert players[0]["chance_card_count"] == 1
+    assert players[0]["property_positions"] == []
+    assert board[1] == {
+        "position": 1,
+        "name": "Mediterranean Avenue",
+        "kind": "street",
+        "price": 60,
+        "building_cost": 50,
+        "rents": [2, 10, 30, 90, 160, 250],
+        "tax": None,
+        "color_group": "brown",
+        "owner_id": "a",
+        "building_level": 2,
+        "mortgaged": True,
+    }
+    assert board[0]["owner_id"] is None
+    assert board[0]["building_level"] is None
+    assert board[0]["mortgaged"] is None
+    assert "owner_id" not in cast(dict[str, object], visible["current_space"])
     serialized = json.dumps(visible, ensure_ascii=False)
     assert "chance-nuclear" not in serialized
     assert "chance_draw_pile" not in serialized
     assert "community_chest_draw_pile" not in serialized
+    assert "your_private_state" not in visible
+    assert "assets" not in serialized
+    assert "survived_turns" not in serialized
+
+
+def test_current_space_rent_is_only_outstanding_rent(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 3
+
+    assert (
+        cast(dict[str, object], player_visible_state(engine, "a")["current_space"])["rent"] is None
+    )
+
+    engine.state.players["a"].position = 1
+    engine.state.players["a"].properties.add(1)
+    engine.state.properties[1].owner_id = "a"
+    engine.state.players["b"].properties.add(3)
+    engine.state.properties[3].owner_id = "b"
+    engine.state.players["a"].cash = 0
+    engine.state.turn_phase = TurnPhase.ROLLING
+    engine.random.randint = lambda _low, _high: 1  # type: ignore[method-assign]
+    engine.execute(RollDice("a"))
+
+    visible = player_visible_state(engine, "a")
+    assert engine.state.turn_phase is TurnPhase.PAYMENT_RESOLUTION
+    assert cast(dict[str, object], visible["current_space"])["rent"] == 4
+
+
+def test_current_space_rent_is_none_when_waived_or_frozen(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 2
+    engine.state.players["a"].cash = 0
+    engine.state.players["a"].rent_waivers = 1
+    engine.state.players["b"].properties.add(3)
+    engine.state.properties[3].owner_id = "b"
+    engine.random.randint = lambda _low, _high: 1  # type: ignore[method-assign]
+
+    engine.execute(RollDice("a"))
+
+    assert (
+        cast(dict[str, object], player_visible_state(engine, "a")["current_space"])["rent"] is None
+    )
+
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 2
+    engine.state.players["a"].cash = 0
+    engine.state.players["b"].properties.add(3)
+    engine.state.properties[3].owner_id = "b"
+    engine.state.ongoing_effects.append(
+        OngoingEffect(
+            kind=OngoingEffectKind.RENT_FREEZE,
+            source_player_id="b",
+            remaining_turns=1,
+            activation_turn=0,
+            color_group="brown",
+        )
+    )
+    engine.random.randint = lambda _low, _high: 1  # type: ignore[method-assign]
+
+    engine.execute(RollDice("a"))
+
+    assert (
+        cast(dict[str, object], player_visible_state(engine, "a")["current_space"])["rent"] is None
+    )
+
+
+def test_current_space_rent_sums_unpaid_alliance_shares(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 1
+    engine.state.players["a"].properties.add(1)
+    engine.state.properties[1].owner_id = "a"
+    engine.state.players["a"].cash = 0
+    engine.state.players["b"].properties.add(3)
+    engine.state.properties[3].owner_id = "b"
+    engine.state.ongoing_effects.append(
+        OngoingEffect(
+            kind=OngoingEffectKind.ALLIANCE,
+            source_player_id="b",
+            target_player_id="a",
+            remaining_turns=1,
+            activation_turn=0,
+        )
+    )
+    engine.random.randint = lambda _low, _high: 1  # type: ignore[method-assign]
+
+    engine.execute(RollDice("a"))
+
+    visible = player_visible_state(engine, "a")
+    assert engine.state.turn_phase is TurnPhase.PAYMENT_RESOLUTION
+    assert cast(dict[str, object], visible["current_space"])["rent"] == 4
 
 
 def test_asset_request_only_lists_engine_legal_options(tmp_path: Path) -> None:
