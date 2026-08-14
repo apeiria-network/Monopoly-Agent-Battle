@@ -7,7 +7,7 @@ from monopoly_agent_battle.decision.prompts import render_decision_prompt
 from monopoly_agent_battle.decision.protocol import parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request, player_visible_state
 from monopoly_agent_battle.domain.commands import SelectStolenChanceCard, UseChanceCard
-from monopoly_agent_battle.domain.models import JailStatus, TurnPhase
+from monopoly_agent_battle.domain.models import GameEvent, JailStatus, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 
 
@@ -138,7 +138,7 @@ def test_payment_context_omits_internal_operation_id(tmp_path: Path) -> None:
     engine.state.players["a"].cash = 0
     engine.state.properties[5].owner_id = "a"
     engine.state.players["a"].properties.add(5)
-    events = []
+    events: list[GameEvent] = []
     engine._queue_payment(  # pyright: ignore[reportPrivateUsage]
         engine.state.players["a"],
         1,

@@ -167,6 +167,31 @@ def test_birthday_blocks_noncurrent_payer_then_resumes_cardholder(tmp_path: Path
     assert any(event.event_type == "payment_made" for event in events)
 
 
+def test_birthday_bankruptcy_keeps_later_payers_and_restores_cardholder_turn(
+    tmp_path: Path,
+) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.community_chest_draw_pile = ["community-birthday"]
+    engine.state.players["a"].position = 0
+    engine.state.players["b"].cash = 5
+    set_dice(engine, [1, 1])
+
+    events = engine.execute(RollDice("a"))
+
+    assert engine.state.players["b"].bankrupt
+    assert engine.state.players["a"].cash == 1510
+    assert engine.state.players["c"].cash == 1490
+    assert engine.state.settlement_operations == []
+    assert engine.state.current_player_id == "a"
+    assert engine.state.turn_phase is TurnPhase.ASSET_MANAGEMENT
+    cancelled = [event for event in events if event.event_type == "settlement_operation_cancelled"]
+    assert len(cancelled) == 1
+    assert cancelled[0].payload["reason"] == "payer_bankrupt"
+    assert any(
+        event.event_type == "payment_made" and event.payload["payer_id"] == "c" for event in events
+    )
+
+
 def test_community_jail_card_sends_player_to_jail(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.community_chest_draw_pile = ["community-jail"]

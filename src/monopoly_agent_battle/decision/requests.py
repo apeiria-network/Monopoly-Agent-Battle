@@ -10,6 +10,7 @@ from monopoly_agent_battle.decision.models import DecisionKind, DecisionOption, 
 from monopoly_agent_battle.domain.commands import (
     DiscardChanceCard,
     EndTurn,
+    GameCommand,
     Mortgage,
     PayJailFine,
     RedeemMortgage,
@@ -27,19 +28,6 @@ from monopoly_agent_battle.game.board_data.classic_us_40 import (
 )
 from monopoly_agent_battle.game.cards.classic_cards import CARDS_BY_ID, CardEffect
 from monopoly_agent_battle.game.engine import GameEngine, GameRuleError
-
-GameCommand = (
-    DiscardChanceCard
-    | EndTurn
-    | Mortgage
-    | PayJailFine
-    | RedeemMortgage
-    | RollDice
-    | SelectStolenChanceCard
-    | SellBuilding
-    | UseChanceCard
-    | UseCommunityGetOutOfJailCard
-)
 
 
 def player_visible_state(engine: GameEngine, player_id: str) -> dict[str, object]:
@@ -428,12 +416,11 @@ def _effect_preview(command: GameCommand, engine: GameEngine) -> dict[str, objec
         return {"card_name": CARDS_BY_ID[command.card_id].name, "effect": "出狱后仍需掷骰行动"}
     if isinstance(command, RollDice):
         return {"effect": "骰子结果由游戏引擎决定"}
-    if isinstance(command, EndTurn):
-        player = engine.state.players[command.player_id]
-        return {
-            "effect": "若机会卡超过四张，将先要求弃置一张",
-            "chance_card_count": len(player.chance_cards),
-        }
+    player = engine.state.players[command.player_id]
+    return {
+        "effect": "若机会卡超过四张，将先要求弃置一张",
+        "chance_card_count": len(player.chance_cards),
+    }
     return {}
 
 

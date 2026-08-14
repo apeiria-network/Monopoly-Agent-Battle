@@ -18,6 +18,7 @@ from monopoly_agent_battle.domain.commands import (
     DeclareBankruptcy,
     DiscardChanceCard,
     EndTurn,
+    GameCommand,
     Mortgage,
     PayJailFine,
     RedeemMortgage,
@@ -27,22 +28,6 @@ from monopoly_agent_battle.domain.commands import (
     SellBuilding,
     UseChanceCard,
     UseCommunityGetOutOfJailCard,
-)
-
-GameCommand = (
-    Build
-    | DeclareBankruptcy
-    | DiscardChanceCard
-    | EndTurn
-    | Mortgage
-    | PayJailFine
-    | RedeemMortgage
-    | ResolveRent
-    | RollDice
-    | SelectStolenChanceCard
-    | SellBuilding
-    | UseChanceCard
-    | UseCommunityGetOutOfJailCard
 )
 
 CommandFactory = Callable[[str, dict[str, object]], GameCommand]

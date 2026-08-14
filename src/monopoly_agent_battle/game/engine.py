@@ -314,6 +314,7 @@ class GameEngine:
         events: list[GameEvent] = [
             GameEvent("space_landed", {"player_id": player.player_id, "position": space.position})
         ]
+        was_owned_by_player = False
         if space.is_property:
             property_state = self.state.properties[space.position]
             was_owned_by_player = property_state.owner_id == player.player_id
@@ -1414,15 +1415,15 @@ class GameEngine:
             )
             if operation.resume_player_id is not None:
                 self.state.current_player_id = operation.resume_player_id
-            if was_blocked and operation.resume_phase is TurnPhase.ASSET_MANAGEMENT:
-                self.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
             if operation.steps is not None:
                 payer.jail_status = JailStatus.FREE
                 payer.jail_roll_attempts = 0
                 if operation.resume_phase is not None:
                     self.state.turn_phase = operation.resume_phase
                 events.extend(self._move_and_resolve(payer, operation.steps))
-            elif was_blocked and operation.resume_phase is not None:
+            elif operation.resume_phase is not None and (
+                was_blocked or not self.state.settlement_operations
+            ):
                 self.state.turn_phase = operation.resume_phase
 
     def _blocked_payment(self) -> SettlementOperation | None:

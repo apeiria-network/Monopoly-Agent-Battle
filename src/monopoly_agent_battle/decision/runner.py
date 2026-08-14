@@ -17,8 +17,8 @@ from monopoly_agent_battle.decision.protocol import (
     option_command_payload,
     parse_and_validate,
 )
-from monopoly_agent_battle.decision.requests import GameCommand, build_decision_request
-from monopoly_agent_battle.domain.commands import EndTurn, RollDice
+from monopoly_agent_battle.decision.requests import build_decision_request
+from monopoly_agent_battle.domain.commands import EndTurn, GameCommand, RollDice
 from monopoly_agent_battle.domain.models import GameEvent, JailStatus, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.runner import ScriptedRunResult, state_snapshot

@@ -81,3 +81,20 @@ class SelectStolenChanceCard:
 class UseCommunityGetOutOfJailCard:
     player_id: str
     card_id: str
+
+
+GameCommand = (
+    Build
+    | DeclareBankruptcy
+    | DiscardChanceCard
+    | EndTurn
+    | Mortgage
+    | PayJailFine
+    | RedeemMortgage
+    | ResolveRent
+    | RollDice
+    | SelectStolenChanceCard
+    | SellBuilding
+    | UseChanceCard
+    | UseCommunityGetOutOfJailCard
+)
