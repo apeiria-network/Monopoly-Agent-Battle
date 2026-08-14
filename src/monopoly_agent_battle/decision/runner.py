@@ -104,7 +104,10 @@ def _automatic_command(engine: GameEngine) -> RollDice | EndTurn | None:
     """Return the forced progression command, if the current state has no player choice."""
     state = engine.state
     player = state.players[state.current_player_id]
-    if state.turn_phase is TurnPhase.ROLLING and player.jail_status is JailStatus.FREE:
+    if state.turn_phase is TurnPhase.ROLLING and player.jail_status in {
+        JailStatus.FREE,
+        JailStatus.WAITING,
+    }:
         return RollDice(player.player_id)
     if state.turn_phase is TurnPhase.TURN_COMPLETE:
         return EndTurn(player.player_id)

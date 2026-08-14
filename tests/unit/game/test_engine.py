@@ -67,19 +67,20 @@ def test_rent_uses_complete_color_group_bonus_and_mortgage_blocks_it(tmp_path: P
     assert engine.state.players["b"].cash == 1896
 
 
-def test_build_requires_dice_landing_on_owned_street(tmp_path: Path) -> None:
+def test_owned_street_builds_automatically_after_dice_landing(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.properties[1].owner_id = "a"
     engine.state.players["a"].properties.add(1)
-
-    with pytest.raises(GameRuleError, match="asset management"):
-        engine.execute(Build("a", 1))
-
     engine.state.players["a"].position = 38
     set_dice(engine, [1, 2])
-    engine.execute(RollDice("a"))
-    engine.execute(Build("a", 1))
+
+    events = engine.execute(RollDice("a"))
+
     assert engine.state.properties[1].building_level == 1
+    assert engine.state.players["a"].cash == 1650
+    assert any(event.event_type == "building_added" for event in events)
+    with pytest.raises(GameRuleError, match="automatically"):
+        engine.execute(Build("a", 1))
 
 
 def test_third_consecutive_doubles_sends_player_to_jail(tmp_path: Path) -> None:

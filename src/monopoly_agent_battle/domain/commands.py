@@ -72,6 +72,12 @@ class UseChanceCard:
 
 
 @dataclass(frozen=True, slots=True)
+class SelectStolenChanceCard:
+    player_id: str
+    card_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class UseCommunityGetOutOfJailCard:
     player_id: str
     card_id: str

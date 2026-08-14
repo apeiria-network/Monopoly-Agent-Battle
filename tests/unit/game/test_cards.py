@@ -1,8 +1,13 @@
 from pathlib import Path
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
-from monopoly_agent_battle.domain.commands import Mortgage, ResolveRent, RollDice
-from monopoly_agent_battle.domain.models import JailStatus, TurnPhase
+from monopoly_agent_battle.domain.commands import Mortgage, RollDice
+from monopoly_agent_battle.domain.models import (
+    JailStatus,
+    OngoingEffect,
+    OngoingEffectKind,
+    TurnPhase,
+)
 from monopoly_agent_battle.game.engine import GameEngine
 
 
@@ -42,7 +47,6 @@ def test_community_move_to_go_uses_settlement_queue_and_disables_build(tmp_path:
 
     assert engine.state.players["a"].position == 0
     assert engine.state.players["a"].cash == 1700
-    assert engine.state.buildable_position is None
     assert engine.state.settlement_operations == []
     assert [event.event_type for event in events].count("player_moved") == 2
     assert any(
@@ -64,7 +68,7 @@ def test_community_move_to_go_preserves_extra_roll_after_double(tmp_path: Path) 
     assert engine.state.turn_phase is TurnPhase.ROLLING
 
 
-def test_rent_waiver_decision_preserves_extra_roll_after_double(tmp_path: Path) -> None:
+def test_rent_waiver_is_automatic_and_preserves_extra_roll_after_double(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.players["a"].position = 1
     engine.state.players["a"].rent_waivers = 1
@@ -72,13 +76,40 @@ def test_rent_waiver_decision_preserves_extra_roll_after_double(tmp_path: Path) 
     engine.state.properties[3].owner_id = "b"
     set_dice(engine, [1, 1])
 
-    engine.execute(RollDice("a"))
-    assert engine.state.turn_phase is TurnPhase.CARD_RESOLUTION
+    events = engine.execute(RollDice("a"))
 
-    engine.execute(ResolveRent("a", use_waiver=True))
-
+    assert engine.state.players["a"].rent_waivers == 0
+    assert engine.state.players["a"].cash == 1500
+    assert engine.state.players["b"].cash == 1500
+    assert engine.state.settlement_operations == []
     assert engine.state.turn_phase is TurnPhase.ROLLING
-    assert engine.state.players["a"].pending_rent_resume_phase is None
+    assert any(event.event_type == "rent_waiver_used" for event in events)
+
+
+def test_rent_waiver_is_not_consumed_when_rent_is_frozen(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 1
+    engine.state.players["a"].rent_waivers = 1
+    engine.state.players["b"].properties.add(3)
+    engine.state.properties[3].owner_id = "b"
+    engine.state.ongoing_effects.append(
+        OngoingEffect(
+            kind=OngoingEffectKind.RENT_FREEZE,
+            source_player_id="b",
+            remaining_turns=1,
+            activation_turn=0,
+            color_group="brown",
+        )
+    )
+    set_dice(engine, [1, 1])
+
+    events = engine.execute(RollDice("a"))
+
+    assert engine.state.players["a"].rent_waivers == 1
+    assert engine.state.players["a"].cash == 1500
+    assert engine.state.players["b"].cash == 1500
+    assert any(event.event_type == "rent_frozen" for event in events)
+    assert not any(event.event_type == "rent_waiver_used" for event in events)
 
 
 def test_community_cash_card_is_drawn_discarded_and_resolved(tmp_path: Path) -> None:

@@ -23,6 +23,7 @@ from monopoly_agent_battle.domain.commands import (
     RedeemMortgage,
     ResolveRent,
     RollDice,
+    SelectStolenChanceCard,
     SellBuilding,
     UseChanceCard,
     UseCommunityGetOutOfJailCard,
@@ -38,6 +39,7 @@ GameCommand = (
     | RedeemMortgage
     | ResolveRent
     | RollDice
+    | SelectStolenChanceCard
     | SellBuilding
     | UseChanceCard
     | UseCommunityGetOutOfJailCard
@@ -63,6 +65,9 @@ _COMMAND_FACTORIES: dict[str, CommandFactory] = {
         player_id, _boolean(parameters, "use_waiver")
     ),
     "discard_chance_card": lambda player_id, parameters: DiscardChanceCard(
+        player_id, _string(parameters, "card_id")
+    ),
+    "select_stolen_chance_card": lambda player_id, parameters: SelectStolenChanceCard(
         player_id, _string(parameters, "card_id")
     ),
     "use_chance_card": lambda player_id, parameters: UseChanceCard(

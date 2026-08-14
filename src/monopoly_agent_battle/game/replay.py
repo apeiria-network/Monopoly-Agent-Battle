@@ -18,6 +18,7 @@ from monopoly_agent_battle.domain.commands import (
     RedeemMortgage,
     ResolveRent,
     RollDice,
+    SelectStolenChanceCard,
     SellBuilding,
     UseChanceCard,
     UseCommunityGetOutOfJailCard,
@@ -96,6 +97,8 @@ def _command_from_record(payload: dict[str, Any]):
         return DeclareBankruptcy(player_id)
     if command_type == "DiscardChanceCard":
         return DiscardChanceCard(player_id, str(command["card_id"]))
+    if command_type == "SelectStolenChanceCard":
+        return SelectStolenChanceCard(player_id, str(command["card_id"]))
     if command_type == "UseChanceCard":
         return UseChanceCard(
             player_id,

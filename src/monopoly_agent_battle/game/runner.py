@@ -36,8 +36,11 @@ def run_scripted_game(
         try:
             command = controller.next_command()
         except StopIteration:
-            if engine.state.turn_phase is TurnPhase.CARD_RESOLUTION:
-                status = "awaiting_card_resolution"
+            if engine.state.turn_phase in {
+                TurnPhase.FORCED_DISCARD,
+                TurnPhase.THEFT_CARD_SELECTION,
+            }:
+                status = "awaiting_decision"
             break
         command_events = engine.execute(command)
         events.extend(command_events)
@@ -83,6 +86,11 @@ def state_snapshot(state: GameState, status: str) -> dict[str, object]:
             }
             for effect in state.ongoing_effects
         ],
+        "pending_theft": {
+            "thief_id": state.pending_theft_thief_id,
+            "target_id": state.pending_theft_target_id,
+            "source_card_id": state.pending_theft_source_card_id,
+        },
         "players": {
             player_id: {
                 "cash": player.cash,
@@ -94,13 +102,6 @@ def state_snapshot(state: GameState, status: str) -> dict[str, object]:
                 "chance_cards": list(player.chance_cards),
                 "community_get_out_of_jail_cards": list(player.community_get_out_of_jail_cards),
                 "rent_waivers": player.rent_waivers,
-                "pending_rent_position": player.pending_rent_position,
-                "pending_rent_dice_total": player.pending_rent_dice_total,
-                "pending_rent_resume_phase": (
-                    player.pending_rent_resume_phase.value
-                    if player.pending_rent_resume_phase is not None
-                    else None
-                ),
             }
             for player_id, player in state.players.items()
         },

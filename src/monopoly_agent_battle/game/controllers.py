@@ -12,6 +12,7 @@ from monopoly_agent_battle.domain.commands import (
     RedeemMortgage,
     ResolveRent,
     RollDice,
+    SelectStolenChanceCard,
     SellBuilding,
     UseChanceCard,
 )
@@ -29,6 +30,7 @@ GameCommand = (
     | EndTurn
     | DeclareBankruptcy
     | DiscardChanceCard
+    | SelectStolenChanceCard
     | UseChanceCard
 )
 

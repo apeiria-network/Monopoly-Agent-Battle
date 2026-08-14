@@ -11,7 +11,8 @@ class DecisionKind(StrEnum):
     JAIL = "jail"
     ASSET_MANAGEMENT = "asset_management"
     PAYMENT_RESOLUTION = "payment_resolution"
-    RENT_WAIVER = "rent_waiver"
+    FORCED_DISCARD = "forced_discard"
+    THEFT_CARD_SELECTION = "theft_card_selection"
 
 
 @dataclass(frozen=True, slots=True)
