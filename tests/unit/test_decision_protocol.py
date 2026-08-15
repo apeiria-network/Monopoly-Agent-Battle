@@ -4,9 +4,14 @@ from typing import cast
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.decision.prompts import render_decision_prompt
-from monopoly_agent_battle.decision.protocol import parse_and_validate
+from monopoly_agent_battle.decision.protocol import command_from_option, parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request, player_visible_state
-from monopoly_agent_battle.domain.commands import RollDice, SelectStolenChanceCard, UseChanceCard
+from monopoly_agent_battle.domain.commands import (
+    Mortgage,
+    RollDice,
+    SelectStolenChanceCard,
+    UseChanceCard,
+)
 from monopoly_agent_battle.domain.models import (
     GameEvent,
     JailStatus,
@@ -183,18 +188,15 @@ def test_response_requires_one_known_option_and_reason(tmp_path: Path) -> None:
     engine.state.players["a"].jail_status = JailStatus.ROLLING
     request = build_decision_request(engine, 1)
     valid = parse_and_validate(
-        json.dumps({"selected_option": "roll_dice", "reasoning": "继续掷骰推进回合。"}), request
+        json.dumps({"selected_option": {"option": "roll_dice"}, "reasoning": "继续掷骰推进回合。"}),
+        request,
     )
     illegal = parse_and_validate(
-        json.dumps({"selected_option": "build-1", "reasoning": "越权操作。"}), request
+        json.dumps({"selected_option": {"option": "build-1"}, "reasoning": "越权操作。"}), request
     )
     altered = parse_and_validate(
         json.dumps(
-            {
-                "selected_option": "roll_dice",
-                "parameters": {"position": 1},
-                "reasoning": "篡改参数。",
-            }
+            {"selected_option": {"option": "roll_dice", "extra": 1}, "reasoning": "篡改结构。"}
         ),
         request,
     )
@@ -213,7 +215,7 @@ def test_prompt_contains_request_and_fixed_response_contract(tmp_path: Path) -> 
     assert "你的状态" in prompt
     assert "## 当前决策" in prompt
     assert "## 合法候选操作" in prompt
-    assert '"selected_option": "<合法候选项的 option_id>"' in prompt
+    assert '"option": "<合法候选项的 option_id>"' in prompt
     assert "decision-game" not in prompt
     assert "decision-" not in prompt
     assert "chance_draw_pile" not in prompt
@@ -510,7 +512,7 @@ def test_theft_selection_reveals_target_cards_only_during_selection(tmp_path: Pa
     assert "chance-tax" not in json.dumps(normal_state, ensure_ascii=False)
 
 
-def test_option_previews_describe_visible_immediate_effects(tmp_path: Path) -> None:
+def test_options_carry_engine_legal_target_specs(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
     engine.state.properties[1].owner_id = "a"
@@ -520,18 +522,45 @@ def test_option_previews_describe_visible_immediate_effects(tmp_path: Path) -> N
     request = build_decision_request(engine, 1)
     by_type = {option.command_type: option for option in request.options}
 
-    assert by_type["mortgage"].effect_preview["cash_change"] == 60
-    chance_option = next(
-        option
-        for option in request.options
-        if option.command_type == "use_chance_card" and option.parameters["target_player_id"] == "b"
+    mortgage = by_type["mortgage"]
+    assert mortgage.target is not None
+    assert mortgage.target.kind == "position"
+    assert mortgage.target.fields == ("position",)
+    assert mortgage.target.legal_values == ((1,),)
+
+    jail_option = next(
+        option for option in request.options if option.command_type == "use_chance_card"
     )
-    assert chance_option.effect_preview == {
-        "card_name": "陷害卡",
-        "effect": "jail_player",
-        "target_player_id": "b",
-        "target_name": "b",
-        "target_position": 0,
-    }
-    assert "目标为 b" in chance_option.summary
-    assert by_type["end_turn"].effect_preview["chance_card_count"] == 1
+    assert jail_option.target is not None
+    assert jail_option.target.kind == "player"
+    assert jail_option.target.legal_values == (("b",),)
+
+    assert by_type["end_turn"].target is None
+
+
+def test_selected_target_is_validated_and_reconstructed(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    engine.state.properties[1].owner_id = "a"
+    engine.state.players["a"].properties.add(1)
+    request = build_decision_request(engine, 1)
+
+    valid = parse_and_validate(
+        json.dumps(
+            {"selected_option": {"option": "mortgage", "target": 1}, "reasoning": "抵押地块。"}
+        ),
+        request,
+    )
+    assert valid.valid
+    assert valid.option is not None
+    command = command_from_option(request, valid.option, valid.target)
+    assert isinstance(command, Mortgage)
+    assert command.position == 1
+
+    invalid = parse_and_validate(
+        json.dumps(
+            {"selected_option": {"option": "mortgage", "target": 99}, "reasoning": "非法目标。"}
+        ),
+        request,
+    )
+    assert not invalid.valid

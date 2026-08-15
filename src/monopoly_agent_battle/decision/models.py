@@ -16,15 +16,32 @@ class DecisionKind(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class OptionTarget:
+    """The engine-legal target(s) an option requires the controller to specify.
+
+    `fields` are the JSON-facing names the controller fills; `command_fields` are the
+    corresponding fields on the engine command. They differ only for swaps, where the
+    controller-facing ``swap_in_position`` / ``swap_out_position`` map to the command's
+    ``target_position`` / ``secondary_target_position``.
+    """
+
+    kind: str
+    fields: tuple[str, ...]
+    command_fields: tuple[str, ...]
+    legal_values: tuple[tuple[object, ...], ...]
+
+
+@dataclass(frozen=True, slots=True)
 class DecisionOption:
-    """One fully specified, engine-legal command candidate."""
+    """One engine-legal command shape; the controller supplies any required target."""
 
     option_id: str
     command_type: str
     parameters: dict[str, object]
     summary: str
-    effect_preview: dict[str, object]
+    effect_preview: dict[str, str]
     is_default: bool = False
+    target: OptionTarget | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +65,7 @@ class DecisionResponse:
     """Untrusted structured response submitted by a controller."""
 
     selected_option: str
+    target: object | None
     reasoning: str
 
 
@@ -59,6 +77,7 @@ class DecisionValidation:
     option: DecisionOption | None
     error: str | None
     raw_response: str
+    target: dict[str, object] | None = None
 
     @property
     def valid(self) -> bool:
@@ -84,6 +103,15 @@ def decision_request_record(request: DecisionRequest) -> dict[str, object]:
                 "summary": option.summary,
                 "effect_preview": option.effect_preview,
                 "is_default": option.is_default,
+                "target": (
+                    {
+                        "kind": option.target.kind,
+                        "fields": list(option.target.fields),
+                        "legal_values": [list(values) for values in option.target.legal_values],
+                    }
+                    if option.target is not None
+                    else None
+                ),
             }
             for option in request.options
         ],
@@ -98,6 +126,7 @@ def validation_record(validation: DecisionValidation) -> dict[str, Any]:
         "parsed_response": (
             {
                 "selected_option": validation.response.selected_option,
+                "target": validation.response.target,
                 "reasoning": validation.response.reasoning,
             }
             if validation.response is not None

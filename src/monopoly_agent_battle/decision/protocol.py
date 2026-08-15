@@ -12,17 +12,15 @@ from monopoly_agent_battle.decision.models import (
     DecisionRequest,
     DecisionResponse,
     DecisionValidation,
+    OptionTarget,
 )
 from monopoly_agent_battle.domain.commands import (
-    Build,
-    DeclareBankruptcy,
     DiscardChanceCard,
     EndTurn,
     GameCommand,
     Mortgage,
     PayJailFine,
     RedeemMortgage,
-    ResolveRent,
     RollDice,
     SelectStolenChanceCard,
     SellBuilding,
@@ -35,7 +33,6 @@ CommandFactory = Callable[[str, dict[str, object]], GameCommand]
 
 _COMMAND_FACTORIES: dict[str, CommandFactory] = {
     "roll_dice": lambda player_id, parameters: RollDice(player_id),
-    "build": lambda player_id, parameters: Build(player_id, _integer(parameters, "position")),
     "sell_building": lambda player_id, parameters: SellBuilding(
         player_id, _integer(parameters, "position")
     ),
@@ -44,11 +41,7 @@ _COMMAND_FACTORIES: dict[str, CommandFactory] = {
         player_id, _integer(parameters, "position")
     ),
     "end_turn": lambda player_id, parameters: EndTurn(player_id),
-    "declare_bankruptcy": lambda player_id, parameters: DeclareBankruptcy(player_id),
     "pay_jail_fine": lambda player_id, parameters: PayJailFine(player_id),
-    "resolve_rent": lambda player_id, parameters: ResolveRent(
-        player_id, _boolean(parameters, "use_waiver")
-    ),
     "discard_chance_card": lambda player_id, parameters: DiscardChanceCard(
         player_id, _string(parameters, "card_id")
     ),
@@ -70,7 +63,7 @@ _COMMAND_FACTORIES: dict[str, CommandFactory] = {
 
 
 def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionValidation:
-    """Accept exactly one JSON object containing a known option and brief reason."""
+    """Accept exactly one JSON object containing a known option, its target, and a reason."""
     try:
         document = json.loads(raw_response)
     except json.JSONDecodeError:
@@ -82,37 +75,93 @@ def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionV
         return DecisionValidation(
             None, None, "response must contain exactly selected_option and reasoning", raw_response
         )
-    selected_option = document["selected_option"]
+    selected = document["selected_option"]
     reasoning = document["reasoning"]
-    if not isinstance(selected_option, str) or not isinstance(reasoning, str):
-        return DecisionValidation(None, None, "response fields must be strings", raw_response)
+    if not isinstance(selected, dict) or not isinstance(reasoning, str):
+        return DecisionValidation(
+            None,
+            None,
+            "selected_option must be an object and reasoning must be a string",
+            raw_response,
+        )
+    selected = cast(dict[str, object], selected)
+    if "option" not in selected or not set(selected) <= {"option", "target"}:
+        return DecisionValidation(
+            None, None, "selected_option must contain option and an optional target", raw_response
+        )
+    option_id = selected["option"]
+    if not isinstance(option_id, str):
+        return DecisionValidation(
+            None, None, "selected_option.option must be a string", raw_response
+        )
     max_characters = request.output_constraints["reasoning_max_characters"]
     if not isinstance(max_characters, int):
         raise AssertionError("decision request has an invalid reasoning limit")
     if not reasoning or len(reasoning) > max_characters:
         return DecisionValidation(None, None, "reasoning has invalid length", raw_response)
-    option = next((item for item in request.options if item.option_id == selected_option), None)
+    option = next((item for item in request.options if item.option_id == option_id), None)
     if option is None:
         return DecisionValidation(
             None, None, "selected_option is not a legal candidate", raw_response
         )
+    raw_target = selected.get("target")
+    target = _validate_target(option.target, raw_target)
+    if target is None:
+        return DecisionValidation(None, None, "target is not a legal value", raw_response)
     return DecisionValidation(
-        DecisionResponse(selected_option, reasoning), option, None, raw_response
+        DecisionResponse(option_id, raw_target, reasoning), option, None, raw_response, target
     )
 
 
-def command_from_option(request: DecisionRequest, option: DecisionOption) -> GameCommand:
-    """Materialize a frozen candidate as one existing engine command."""
+def command_from_option(
+    request: DecisionRequest, option: DecisionOption, target: dict[str, object] | None = None
+) -> GameCommand:
+    """Materialize a frozen candidate and its selected target as one engine command."""
     factory = _COMMAND_FACTORIES[option.command_type]
-    return factory(request.player_id, option.parameters)
+    parameters = {**option.parameters, **(target or {})}
+    return factory(request.player_id, parameters)
 
 
-def option_command_payload(request: DecisionRequest, option: DecisionOption) -> dict[str, object]:
+def option_command_payload(
+    request: DecisionRequest, option: DecisionOption, target: dict[str, object] | None = None
+) -> dict[str, object]:
     """Return a JSON-safe materialized command payload for audit records."""
-    command = command_from_option(request, option)
+    command = command_from_option(request, option, target)
     if not is_dataclass(command) or isinstance(command, type):
         raise AssertionError("decision option did not produce a dataclass command")
     return {"command_type": type(command).__name__, "command": asdict(command)}
+
+
+def default_option_json(option: DecisionOption) -> dict[str, object]:
+    """Return the response object for an option using its first legal target, if any."""
+    selected: dict[str, object] = {"option": option.option_id}
+    if option.target is not None and option.target.legal_values:
+        selected["target"] = _target_json(option.target, option.target.legal_values[0])
+    return selected
+
+
+def _validate_target(
+    target_spec: OptionTarget | None, raw_target: object | None
+) -> dict[str, object] | None:
+    if target_spec is None:
+        return {}
+    if len(target_spec.fields) == 1:
+        if (raw_target,) not in target_spec.legal_values:
+            return None
+        return {target_spec.command_fields[0]: raw_target}
+    if not isinstance(raw_target, dict):
+        return None
+    raw_target = cast(dict[str, object], raw_target)
+    values = tuple(raw_target.get(field) for field in target_spec.fields)
+    if values not in target_spec.legal_values:
+        return None
+    return dict(zip(target_spec.command_fields, values, strict=True))
+
+
+def _target_json(target_spec: OptionTarget, values: tuple[object, ...]) -> object:
+    if len(target_spec.fields) == 1:
+        return values[0]
+    return dict(zip(target_spec.fields, values, strict=True))
 
 
 def _integer(parameters: dict[str, object], key: str) -> int:
@@ -144,11 +193,4 @@ def _optional_string(parameters: dict[str, object], key: str) -> str | None:
         return None
     if not isinstance(value, str):
         raise ValueError(f"{key} must be a string or null")
-    return value
-
-
-def _boolean(parameters: dict[str, object], key: str) -> bool:
-    value = parameters[key]
-    if not isinstance(value, bool):
-        raise ValueError(f"{key} must be a boolean")
     return value

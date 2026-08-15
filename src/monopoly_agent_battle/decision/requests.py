@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import fields
+from dataclasses import dataclass, field, fields
 from itertools import product
 
-from monopoly_agent_battle.decision.models import DecisionKind, DecisionOption, DecisionRequest
+from monopoly_agent_battle.decision.models import (
+    DecisionKind,
+    DecisionOption,
+    DecisionRequest,
+    OptionTarget,
+)
 from monopoly_agent_battle.domain.commands import (
     DiscardChanceCard,
     EndTurn,
@@ -224,14 +229,25 @@ def _question(engine: GameEngine, player_id: str) -> tuple[DecisionKind, str]:
 
 
 def _legal_options(engine: GameEngine, player_id: str) -> list[DecisionOption]:
-    options = [
-        _option_for(command, engine)
-        for command in _candidate_commands(engine, player_id)
-        if _is_legal(engine, command)
-    ]
+    drafts: dict[tuple[object, ...], _OptionDraft] = {}
+    order: list[tuple[object, ...]] = []
+    for command in _candidate_commands(engine, player_id):
+        if not _is_legal(engine, command):
+            continue
+        command_type = _command_type(command)
+        fixed_params, target_fields, target_values = _split_command(command)
+        key = (command_type, tuple(sorted(fixed_params.items())))
+        if key not in drafts:
+            drafts[key] = _OptionDraft(command_type, fixed_params, target_fields, command)
+            order.append(key)
+        drafts[key].target_values.append(target_values)
+    options = [_build_option(drafts[key]) for key in order]
     if not options:
         return []
-    default = next((option for option in options if option.command_type == "end_turn"), options[0])
+    default_id = next(
+        (option.option_id for option in options if option.command_type == "end_turn"),
+        options[0].option_id,
+    )
     return [
         DecisionOption(
             option.option_id,
@@ -239,7 +255,8 @@ def _legal_options(engine: GameEngine, player_id: str) -> list[DecisionOption]:
             option.parameters,
             option.summary,
             option.effect_preview,
-            option.option_id == default.option_id,
+            option.option_id == default_id,
+            option.target,
         )
         for option in options
     ]
@@ -349,20 +366,107 @@ def _is_legal(engine: GameEngine, command: GameCommand) -> bool:
     return True
 
 
-def _option_for(command: GameCommand, engine: GameEngine) -> DecisionOption:
-    command_type = _command_type(command)
-    parameters = {
-        field.name: getattr(command, field.name)
-        for field in fields(command)
-        if field.name != "player_id" and getattr(command, field.name) is not None
+@dataclass
+class _OptionDraft:
+    command_type: str
+    fixed_params: dict[str, object]
+    target_fields: tuple[tuple[str, str], ...]
+    representative: GameCommand
+    target_values: list[tuple[object, ...]] = field(default_factory=list[tuple[object, ...]])
+
+
+def _split_command(
+    command: GameCommand,
+) -> tuple[dict[str, object], tuple[tuple[str, str], ...], tuple[object, ...]]:
+    """Split a concrete command into fixed parameters and its target value tuple."""
+    target_fields = _target_fields(command)
+    target_command_fields = {command_field for _, command_field in target_fields}
+    fixed_params = {
+        item.name: getattr(command, item.name)
+        for item in fields(command)
+        if item.name != "player_id"
+        and item.name not in target_command_fields
+        and getattr(command, item.name) is not None
     }
-    suffix = "-".join(str(value) for value in parameters.values())
+    target_values = tuple(getattr(command, command_field) for _, command_field in target_fields)
+    return fixed_params, target_fields, target_values
+
+
+def _target_fields(command: GameCommand) -> tuple[tuple[str, str], ...]:
+    """Return (json_field, command_field) pairs that the controller must specify."""
+    if isinstance(command, UseChanceCard):
+        return _chance_target_fields(CARDS_BY_ID[command.card_id].effect)
+    if isinstance(command, (SellBuilding, Mortgage, RedeemMortgage)):
+        return (("position", "position"),)
+    if isinstance(command, (DiscardChanceCard, SelectStolenChanceCard)):
+        return (("card_id", "card_id"),)
+    return ()
+
+
+def _chance_target_fields(effect: CardEffect) -> tuple[tuple[str, str], ...]:
+    if effect in {CardEffect.NUCLEAR_RESET, CardEffect.RENT_WAIVER}:
+        return ()
+    if effect in {
+        CardEffect.ALLIANCE,
+        CardEffect.JAIL_PLAYER,
+        CardEffect.EQUALIZE_CASH,
+        CardEffect.TAX_PLAYER,
+        CardEffect.STEAL_CARD,
+    }:
+        return (("target_player_id", "target_player_id"),)
+    if effect in {
+        CardEffect.RENT_SURGE,
+        CardEffect.RENT_FREEZE,
+        CardEffect.MONSTER,
+        CardEffect.ANGEL,
+    }:
+        return (("target_color_group", "target_color_group"),)
+    if effect in {CardEffect.VACATE_PROPERTY, CardEffect.BUY_PROPERTY, CardEffect.BUILD}:
+        return (("target_position", "target_position"),)
+    if effect in {CardEffect.SWAP_PROPERTY, CardEffect.SWAP_BUILDINGS}:
+        return (
+            ("swap_in_position", "target_position"),
+            ("swap_out_position", "secondary_target_position"),
+        )
+    raise AssertionError(f"unsupported chance card effect: {effect}")
+
+
+def _target_kind(target_fields: tuple[tuple[str, str], ...]) -> str:
+    if len(target_fields) == 2:
+        return "position_pair"
+    command_field = target_fields[0][1]
+    if command_field == "target_player_id":
+        return "player"
+    if command_field == "target_color_group":
+        return "color_group"
+    if command_field in {"target_position", "position"}:
+        return "position"
+    if command_field == "card_id":
+        return "card"
+    raise AssertionError(f"unsupported target field: {command_field}")
+
+
+def _option_id(command_type: str, fixed_params: dict[str, object]) -> str:
+    suffix = "-".join(str(value) for value in fixed_params.values())
+    return f"{command_type}-{suffix}" if suffix else command_type
+
+
+def _build_option(draft: _OptionDraft) -> DecisionOption:
+    target = None
+    if draft.target_fields:
+        target = OptionTarget(
+            kind=_target_kind(draft.target_fields),
+            fields=tuple(json_field for json_field, _ in draft.target_fields),
+            command_fields=tuple(command_field for _, command_field in draft.target_fields),
+            legal_values=tuple(draft.target_values),
+        )
     return DecisionOption(
-        f"{command_type}-{suffix}" if suffix else command_type,
-        command_type,
-        parameters,
-        _summary(command, engine),
-        _effect_preview(command, engine),
+        _option_id(draft.command_type, draft.fixed_params),
+        draft.command_type,
+        draft.fixed_params,
+        _summary(draft.representative),
+        _effect_preview(draft.representative),
+        target=target,
     )
 
 
@@ -372,99 +476,33 @@ def _command_type(command: GameCommand) -> str:
     ).lstrip("_")
 
 
-def _summary(command: GameCommand, engine: GameEngine) -> str:
-    if isinstance(command, SellBuilding):
-        return f"出售 {_space_state(command.position)['name']} 的一层建筑。"
-    if isinstance(command, Mortgage):
-        return f"抵押 {_space_state(command.position)['name']}。"
-    if isinstance(command, RedeemMortgage):
-        return f"赎回 {_space_state(command.position)['name']}。"
-    if isinstance(command, DiscardChanceCard):
-        return f"弃置机会卡「{CARDS_BY_ID[command.card_id].name}」。"
-    if isinstance(command, SelectStolenChanceCard):
-        return f"从目标玩家手中拿走机会卡「{CARDS_BY_ID[command.card_id].name}」。"
+def _summary(command: GameCommand) -> str:
     if isinstance(command, UseChanceCard):
-        card = CARDS_BY_ID[command.card_id]
-        preview = _card_target_preview(command, engine)
-        target = preview.get("target_name")
-        return f"使用机会卡「{card.name}」{f'，目标为 {target}' if target else ''}。"
+        return f"使用机会卡「{CARDS_BY_ID[command.card_id].name}」。"
     return {
-        "RollDice": "掷骰继续本回合。",
+        "SellBuilding": "出售一层建筑。",
+        "Mortgage": "抵押一处地产。",
+        "RedeemMortgage": "赎回一处抵押地产。",
+        "DiscardChanceCard": "弃置一张机会卡。",
+        "SelectStolenChanceCard": "从目标玩家手中拿走一张机会卡。",
+        "RollDice": "掷骰尝试出狱。",
         "PayJailFine": "支付 50 元罚款并出狱。",
-        "EndTurn": "尝试结束本回合。",
+        "EndTurn": "结束本回合。",
         "UseCommunityGetOutOfJailCard": "使用一张出狱卡。",
     }.get(type(command).__name__, f"执行 {type(command).__name__}。")
 
 
-def _effect_preview(command: GameCommand, engine: GameEngine) -> dict[str, object]:
-    if isinstance(command, SellBuilding):
-        return {
-            "cash_change": (BOARD_BY_POSITION[command.position].building_cost or 0) // 2,
-            "position": command.position,
-            "space_name": BOARD_BY_POSITION[command.position].name,
-            "effect": "出售一层建筑",
-        }
-    if isinstance(command, Mortgage):
-        return {
-            "cash_change": BOARD_BY_POSITION[command.position].price or 0,
-            "position": command.position,
-            "space_name": BOARD_BY_POSITION[command.position].name,
-            "effect": "资产将被抵押，不能收取租金",
-        }
-    if isinstance(command, RedeemMortgage):
-        return {
-            "cash_change": -((BOARD_BY_POSITION[command.position].price or 0) * 110 // 100),
-            "position": command.position,
-            "space_name": BOARD_BY_POSITION[command.position].name,
-            "effect": "资产恢复未抵押状态",
-        }
-    if isinstance(command, DiscardChanceCard):
-        return {"card_name": CARDS_BY_ID[command.card_id].name, "effect": "卡牌将被弃置"}
-    if isinstance(command, SelectStolenChanceCard):
-        return {
-            "card_name": CARDS_BY_ID[command.card_id].name,
-            "effect": "转入你的手牌；抢夺卡将被弃置",
-        }
+def _effect_preview(command: GameCommand) -> dict[str, str]:
     if isinstance(command, UseChanceCard):
-        card = CARDS_BY_ID[command.card_id]
-        return {
-            "card_name": card.name,
-            "effect": card.effect.value,
-            **_card_target_preview(command, engine),
-        }
-    if isinstance(command, PayJailFine):
-        return {"cash_change": -50, "effect": "出狱后仍需掷骰行动"}
-    if isinstance(command, UseCommunityGetOutOfJailCard):
-        return {"card_name": CARDS_BY_ID[command.card_id].name, "effect": "出狱后仍需掷骰行动"}
-    if isinstance(command, RollDice):
-        return {"effect": "骰子结果由游戏引擎决定"}
-    player = engine.state.players[command.player_id]
+        return {"effect": CARDS_BY_ID[command.card_id].effect.value}
     return {
-        "effect": "若机会卡超过四张，将先要求弃置一张",
-        "chance_card_count": len(player.chance_cards),
-    }
-    return {}
-
-
-def _card_target_preview(command: UseChanceCard, engine: GameEngine) -> dict[str, object]:
-    preview: dict[str, object] = {}
-    if command.target_player_id is not None:
-        target = engine.state.players[command.target_player_id]
-        preview.update(
-            target_player_id=target.player_id,
-            target_name=target.player_id,
-            target_position=target.position,
-        )
-    if command.target_position is not None:
-        preview.update(
-            target_position=command.target_position,
-            target_space_name=BOARD_BY_POSITION[command.target_position].name,
-        )
-    if command.secondary_target_position is not None:
-        preview.update(
-            secondary_target_position=command.secondary_target_position,
-            secondary_target_space_name=BOARD_BY_POSITION[command.secondary_target_position].name,
-        )
-    if command.target_color_group is not None:
-        preview["target_color_group"] = command.target_color_group
-    return preview
+        "SellBuilding": {"effect": "出售一层建筑，获得其房屋单价的一半"},
+        "Mortgage": {"effect": "抵押地产，获得其购买价；抵押期间不能收取租金"},
+        "RedeemMortgage": {"effect": "赎回抵押地产，恢复未抵押状态"},
+        "DiscardChanceCard": {"effect": "弃置一张机会卡"},
+        "SelectStolenChanceCard": {"effect": "从目标玩家手中拿走一张机会卡"},
+        "RollDice": {"effect": "骰子结果由游戏引擎决定"},
+        "PayJailFine": {"effect": "出狱后仍需掷骰行动"},
+        "EndTurn": {"effect": "结束本回合"},
+        "UseCommunityGetOutOfJailCard": {"effect": "出狱后仍需掷骰行动"},
+    }.get(type(command).__name__, {})

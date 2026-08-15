@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import asdict
+from typing import Any
 
 from monopoly_agent_battle.decision.models import (
     DecisionRequest,
@@ -14,6 +15,7 @@ from monopoly_agent_battle.decision.models import (
 from monopoly_agent_battle.decision.prompts import render_decision_prompt
 from monopoly_agent_battle.decision.protocol import (
     command_from_option,
+    default_option_json,
     option_command_payload,
     parse_and_validate,
 )
@@ -36,9 +38,25 @@ class DeterministicPolicyController:
         options = json.JSONDecoder().raw_decode(options_text)[0]
         default = next(option for option in options if option["is_default"])
         return json.dumps(
-            {"selected_option": default["option_id"], "reasoning": "选择系统默认合法操作。"},
+            {
+                "selected_option": _default_selected_option(default),
+                "reasoning": "选择系统默认合法操作。",
+            },
             ensure_ascii=False,
         )
+
+
+def _default_selected_option(option_view: Any) -> dict[str, object]:
+    """Build the selected_option object for a rendered option's first legal target."""
+    selected: dict[str, object] = {"option": option_view["option_id"]}
+    target = option_view.get("target")
+    if target is not None and target["legal_values"]:
+        first = target["legal_values"][0]
+        if len(target["fields"]) == 1:
+            selected["target"] = first
+        else:
+            selected["target"] = dict(zip(target["fields"], first, strict=True))
+    return selected
 
 
 def run_decision_game(
@@ -67,7 +85,10 @@ def run_decision_game(
             default = next(option for option in request.options if option.is_default)
             validation = parse_and_validate(
                 json.dumps(
-                    {"selected_option": default.option_id, "reasoning": "系统回退至默认合法操作。"},
+                    {
+                        "selected_option": default_option_json(default),
+                        "reasoning": "系统回退至默认合法操作。",
+                    },
                     ensure_ascii=False,
                 ),
                 request,
@@ -79,7 +100,7 @@ def run_decision_game(
                 )
         if validation.option is None:
             raise AssertionError("validated decision has no selected option")
-        command = command_from_option(request, validation.option)
+        command = command_from_option(request, validation.option, validation.target)
         command_events = _execute_and_audit(engine, command, artifacts)
         events.extend(command_events)
         if artifacts is not None:
@@ -91,7 +112,9 @@ def run_decision_game(
                     "validation": validation_record(validation),
                     "connection_retries": retries,
                     "fallback": fallback,
-                    "executed_command": option_command_payload(request, validation.option),
+                    "executed_command": option_command_payload(
+                        request, validation.option, validation.target
+                    ),
                 }
             )
         sequence += 1

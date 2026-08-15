@@ -36,12 +36,16 @@ def render_decision_prompt(request: DecisionRequest) -> str:
             "summary": option.summary,
             "effect_preview": option.effect_preview,
             "is_default": option.is_default,
+            "target": _target_view(option.target),
         }
         for option in request.options
     ]
     response_example = {
-        "selected_option": "<合法候选项的 option_id>",
         "reasoning": "<简短、可审计的决策理由>",
+        "selected_option": {
+            "option": "<合法候选项的 option_id>",
+            "target": "<该选项所需的目标；无目标时省略此字段>",
+        },
     }
     visible: dict[str, Any] = request.visible_state
     return "\n\n".join(
@@ -58,6 +62,20 @@ def render_decision_prompt(request: DecisionRequest) -> str:
             + _json(response_example),
         )
     )
+
+
+def _target_view(target: Any) -> dict[str, object] | None:
+    if target is None:
+        return None
+    if len(target.fields) == 1:
+        legal_values: list[object] = [values[0] for values in target.legal_values]
+    else:
+        legal_values = [list(values) for values in target.legal_values]
+    return {
+        "kind": target.kind,
+        "fields": list(target.fields),
+        "legal_values": legal_values,
+    }
 
 
 def _render_decision(request: DecisionRequest, visible: dict[str, Any]) -> str:
