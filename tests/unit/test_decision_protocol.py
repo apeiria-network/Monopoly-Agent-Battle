@@ -209,14 +209,73 @@ def test_prompt_contains_request_and_fixed_response_contract(tmp_path: Path) -> 
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
-    assert "## 决策上下文" in prompt
     assert "## 当前局面" in prompt
     assert "你的状态" in prompt
+    assert "## 当前决策" in prompt
     assert "## 合法候选操作" in prompt
     assert '"selected_option": "<合法候选项的 option_id>"' in prompt
     assert "decision-game" not in prompt
     assert "decision-" not in prompt
     assert "chance_draw_pile" not in prompt
+    assert "其余可见状态" not in prompt
+
+
+def test_prompt_jail_decision_text(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    player = engine.state.players["a"]
+    player.jail_status = JailStatus.ROLLING
+    player.jail_roll_attempts = 1
+
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "你可以选择掷出双骰或支付 50 现金出狱。" in prompt
+    assert "你还有 2 / 3 次掷骰子" in prompt
+
+
+def test_prompt_payment_decision_text(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].cash = 0
+    engine.state.players["a"].properties.add(5)
+    engine.state.properties[5].owner_id = "a"
+    events: list[GameEvent] = []
+    engine._queue_payment(  # pyright: ignore[reportPrivateUsage]
+        engine.state.players["a"],
+        4,
+        None,
+        "rent",
+        TurnPhase.ASSET_MANAGEMENT,
+        None,
+        events,
+    )
+    engine._drain_settlement_operations(events)  # pyright: ignore[reportPrivateUsage]
+
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "你有一笔 4 元款项需支付（rent，收款方 银行）" in prompt
+    assert "请出售建筑或抵押地产来筹足款项。" in prompt
+
+
+def test_prompt_forced_discard_decision_text(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.FORCED_DISCARD
+    engine.state.players["a"].chance_cards.extend(
+        ["chance-waiver", "chance-build", "chance-tax", "chance-steal", "chance-jail"]
+    )
+
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "当前持有 5 张机会卡，超过 4 张上限" in prompt
+    assert "必须弃置到 4 张后才能结束回合。" in prompt
+
+
+def test_prompt_asset_management_decision_text(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "现在是你的资产管理阶段" in prompt
+    assert "或结束本回合。" in prompt
 
 
 def test_prompt_contains_role_and_goal(tmp_path: Path) -> None:

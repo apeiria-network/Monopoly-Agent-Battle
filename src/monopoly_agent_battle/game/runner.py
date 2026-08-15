@@ -133,4 +133,5 @@ def _operation_snapshot(operation: SettlementOperation) -> dict[str, object]:
         "resume_phase": operation.resume_phase.value if operation.resume_phase else None,
         "resume_player_id": operation.resume_player_id,
         "deck": operation.deck.value if operation.deck else None,
+        "alliance_partner_id": operation.alliance_partner_id,
     }

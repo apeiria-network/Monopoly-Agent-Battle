@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from monopoly_agent_battle.decision.models import DecisionRequest
+from monopoly_agent_battle.decision.models import DecisionKind, DecisionRequest
 
 PLAYER_INSTRUCTION = """你正在代表玩家「{player_id}」（座位 {seat}）参与一局大富翁。
 你的目标：在回合上限结束时拥有最高净资产。
@@ -30,12 +30,6 @@ _MAX_JAIL_ROLL_ATTEMPTS = 3
 
 def render_decision_prompt(request: DecisionRequest) -> str:
     """Render the complete decision message from a request."""
-    context = {
-        "complete_rounds": request.complete_rounds,
-        "player_id": request.player_id,
-        "phase": request.phase,
-        "kind": request.kind.value,
-    }
     options = [
         {
             "option_id": option.option_id,
@@ -56,15 +50,46 @@ def render_decision_prompt(request: DecisionRequest) -> str:
                 player_id=request.player_id,
                 seat=visible["your_state"]["seat"],
             ),
-            "## 决策上下文\n" + _json(context),
             "## 当前局面\n" + _render_situation(visible),
-            "## 当前决策问题\n" + request.question,
+            "## 当前决策\n" + _render_decision(request, visible),
             "## 合法候选操作\n" + _json(options),
             "## 输出要求\n"
             "只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。\n"
             + _json(response_example),
         )
     )
+
+
+def _render_decision(request: DecisionRequest, visible: dict[str, Any]) -> str:
+    kind = request.kind
+    if kind is DecisionKind.JAIL:
+        jail = visible["jail"]
+        remaining = _MAX_JAIL_ROLL_ATTEMPTS - jail["roll_attempts"]
+        return (
+            "你可以选择掷出双骰或支付 50 现金出狱。"
+            f"你还有 {remaining} / {_MAX_JAIL_ROLL_ATTEMPTS} 次掷骰子，"
+            "如果掷骰子判断全部失败，则立刻支付 50 现金并出狱。"
+        )
+    if kind is DecisionKind.PAYMENT_RESOLUTION:
+        due = visible["payment_due"]
+        recipient = due["recipient_id"] or "银行"
+        return (
+            f"你有一笔 {due['amount']} 元款项需支付（{due['reason']}，收款方 {recipient}），"
+            "但现金不足，无法自动支付。\n请出售建筑或抵押地产来筹足款项。"
+        )
+    if kind is DecisionKind.FORCED_DISCARD:
+        count = len(visible["your_state"]["chance_cards"])
+        return f"当前持有 {count} 张机会卡，超过 4 张上限，必须弃置到 4 张后才能结束回合。"
+    if kind is DecisionKind.THEFT_CARD_SELECTION:
+        theft = visible["theft_selection"]
+        cards = "、".join(card["card_id"] for card in theft["target_chance_cards"])
+        return (
+            f"你对玩家 {theft['target_player_id']} 使用抢夺卡成功。"
+            f"对方持有以下机会卡：{cards}。\n请选择其中一张拿走。"
+        )
+    if kind is DecisionKind.ASSET_MANAGEMENT:
+        return "现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。"
+    raise AssertionError(f"unknown decision kind: {kind}")
 
 
 def _render_situation(visible: dict[str, Any]) -> str:
@@ -93,11 +118,6 @@ def _render_situation(visible: dict[str, Any]) -> str:
     lines.extend(["", "其他玩家状态", _render_other_players(visible, board)])
 
     lines.extend(["", "棋盘状态", _render_board(visible)])
-
-    remaining = {
-        key: value for key, value in visible.items() if key in {"ongoing_effects", "current_space"}
-    }
-    lines.extend(["", "其余可见状态（暂未自然语言化）：", _json(remaining)])
     return "\n".join(lines)
 
 

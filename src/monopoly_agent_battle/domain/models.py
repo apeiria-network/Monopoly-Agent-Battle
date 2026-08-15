@@ -90,6 +90,7 @@ class SettlementOperation:
     resume_phase: TurnPhase | None = None
     resume_player_id: str | None = None
     deck: CardDeck | None = None
+    alliance_partner_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

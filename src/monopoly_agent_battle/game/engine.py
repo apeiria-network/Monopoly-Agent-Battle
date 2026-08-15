@@ -503,33 +503,9 @@ class GameEngine:
         )
         if partner_id is None:
             raise AssertionError("alliance has no partner")
-        owner_amount = _round_ratio_half_up(amount, 2)
-        partner_amount = _round_ratio_half_up(amount, 2)
-        self._queue_payment(payer, owner_amount, owner, "rent", resume_phase, None, events)
-        self._queue_payment(
-            payer,
-            amount - owner_amount,
-            self.state.players[partner_id],
-            "alliance_rent",
-            resume_phase,
-            None,
-            events,
-        )
+        operation = self._queue_payment(payer, amount, owner, "rent", resume_phase, None, events)
+        operation.alliance_partner_id = partner_id
         self._drain_settlement_operations(events)
-        bank_adjustment = owner_amount + partner_amount - amount
-        if bank_adjustment and not self.state.settlement_operations:
-            partner = self.state.players[partner_id]
-            partner.cash += bank_adjustment
-            events.append(
-                GameEvent(
-                    "alliance_rent_rounding_adjusted",
-                    {
-                        "player_id": partner_id,
-                        "amount": bank_adjustment,
-                        "source": "bank" if bank_adjustment > 0 else "bank_recovery",
-                    },
-                )
-            )
 
     def _has_effect(self, kind: OngoingEffectKind, color_group: str) -> bool:
         return any(
@@ -1394,6 +1370,29 @@ class GameEngine:
             payer.cash -= operation.amount
             if operation.recipient_id is not None:
                 self.state.players[operation.recipient_id].cash += operation.amount
+            if operation.alliance_partner_id is not None:
+                if operation.recipient_id is None:
+                    raise AssertionError("alliance rent has no owner recipient")
+                owner = self.state.players[operation.recipient_id]
+                partner = self.state.players[operation.alliance_partner_id]
+                owner_share = _round_ratio_half_up(operation.amount, 2)
+                partner_share = _round_ratio_half_up(operation.amount, 2)
+                transfer = operation.amount - owner_share
+                owner.cash -= transfer
+                partner.cash += transfer
+                bank_adjustment = partner_share - transfer
+                if bank_adjustment:
+                    partner.cash += bank_adjustment
+                    events.append(
+                        GameEvent(
+                            "alliance_rent_rounding_adjusted",
+                            {
+                                "player_id": operation.alliance_partner_id,
+                                "amount": bank_adjustment,
+                                "source": "bank" if bank_adjustment > 0 else "bank_recovery",
+                            },
+                        )
+                    )
             self.state.settlement_operations.pop(0)
             events.extend(
                 (

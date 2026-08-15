@@ -908,7 +908,7 @@ def test_alliance_splits_even_rent_without_bank_adjustment(tmp_path: Path) -> No
         for event in events
         if event.event_type == "payment_made" and event.payload["payer_id"] == "c"
     ]
-    assert [event.payload["amount"] for event in payments] == [1, 1]
+    assert [event.payload["amount"] for event in payments] == [2]
     assert not any(event.event_type == "alliance_rent_rounding_adjusted" for event in events)
 
 

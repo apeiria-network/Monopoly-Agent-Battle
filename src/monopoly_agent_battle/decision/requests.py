@@ -102,7 +102,7 @@ def _unpaid_current_space_rent(engine: GameEngine, player_id: str) -> int | None
     if state.turn_phase is not TurnPhase.PAYMENT_RESOLUTION:
         return None
 
-    rent_sources = {"rent", "alliance_rent"}
+    rent_sources = {"rent"}
     pending_rent: list[int] = []
     for operation in state.settlement_operations:
         if operation.player_id != player_id or operation.source not in rent_sources:
