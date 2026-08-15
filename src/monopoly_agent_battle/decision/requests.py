@@ -86,6 +86,7 @@ def _public_player_state(player: PlayerState) -> dict[str, object]:
         "position": player.position,
         "space_name": BOARD_BY_POSITION[player.position].name,
         "jail_status": player.jail_status.value,
+        "jail_roll_attempts": player.jail_roll_attempts,
         "bankrupt": player.bankrupt,
         "property_positions": sorted(player.properties),
     }

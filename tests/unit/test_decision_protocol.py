@@ -210,12 +210,155 @@ def test_prompt_contains_request_and_fixed_response_contract(tmp_path: Path) -> 
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
     assert "## 决策上下文" in prompt
-    assert "## 可见游戏状态" in prompt
+    assert "## 当前局面" in prompt
+    assert "你的状态" in prompt
     assert "## 合法候选操作" in prompt
     assert '"selected_option": "<合法候选项的 option_id>"' in prompt
     assert "decision-game" not in prompt
     assert "decision-" not in prompt
     assert "chance_draw_pile" not in prompt
+
+
+def test_prompt_contains_role_and_goal(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "你正在代表玩家「a」（座位 1）参与一局大富翁。" in prompt
+    assert "你的目标：在回合上限结束时拥有最高净资产。" in prompt
+    assert (
+        "净资产 = 现金 + 未抵押地产的购买价 + 所有已建成建筑的价值（房屋单价 × 建筑层数）。"
+        in prompt
+    )
+
+
+def test_prompt_renders_your_state_naturally(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    player = engine.state.players["a"]
+    player.cash = 1234
+    player.position = 1
+    player.chance_cards.append("chance-waiver")
+    player.community_get_out_of_jail_cards.append("community-jail-free")
+    player.properties.add(1)
+    engine.state.properties[1].owner_id = "a"
+
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "当前为第 0 回合，处于玩家「a」的行动回合。" in prompt
+    assert "现金：1234" in prompt
+    assert "位置：格子 1（Mediterranean Avenue，街道）" in prompt
+    assert "持有机会卡：chance-waiver" in prompt
+    assert "持有出狱卡数量：1" in prompt
+    assert "持有地产：格子 1（Mediterranean Avenue）" in prompt
+    assert "剩余监狱回合数" not in prompt
+
+
+def test_prompt_shows_remaining_jail_rolls_when_jailed(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    player = engine.state.players["a"]
+    player.jail_status = JailStatus.ROLLING
+    player.jail_roll_attempts = 1
+
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "剩余监狱回合数：2" in prompt
+
+
+def test_prompt_renders_other_players_naturally(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    other = engine.state.players["b"]
+    other.cash = 999
+    other.position = 3
+    other.chance_cards.append("chance-nuclear")
+    other.properties.add(3)
+    engine.state.properties[3].owner_id = "b"
+
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "其他玩家状态" in prompt
+    assert "玩家「b」" in prompt
+    assert "现金：999" in prompt
+    assert "位置：格子 3（Baltic Avenue，街道）" in prompt
+    assert "持有机会卡数量：1" in prompt
+    assert "持有出狱卡数量：0" in prompt
+    assert "持有地产：格子 3（Baltic Avenue）" in prompt
+    assert "chance-nuclear" not in prompt
+
+
+def test_prompt_renders_board_table(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    engine.state.players["a"].properties.add(1)
+    engine.state.properties[1].owner_id = "a"
+    engine.state.properties[1].building_level = 2
+    engine.state.players["b"].properties.add(6)
+    engine.state.properties[6].owner_id = "b"
+    engine.state.properties[6].mortgaged = True
+    engine.state.ongoing_effects.append(
+        OngoingEffect(
+            kind=OngoingEffectKind.RENT_FREEZE,
+            source_player_id="b",
+            remaining_turns=2,
+            activation_turn=0,
+            color_group="brown",
+        )
+    )
+
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "棋盘状态" in prompt
+    assert "| 0 | GO | 起点 | - | - | - | - | - | - | - |" in prompt
+    assert (
+        "| 1 | Mediterranean Avenue | 街道 | brown | a | 2 | 60 | 50 | "
+        "2 / 10 / 30 / 90 / 160 / 250 | 查封（剩余 2 回合） |"
+    ) in prompt
+    assert (
+        "| 6 | Oriental Avenue | 街道 | light_blue | b | 0 | 100 | 50 | "
+        "6 / 30 / 90 / 270 / 400 / 550 | 抵押 |"
+    ) in prompt
+
+
+def test_prompt_renders_other_player_jail_and_alliance(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    other = engine.state.players["b"]
+    other.jail_status = JailStatus.ROLLING
+    other.jail_roll_attempts = 1
+    engine.state.ongoing_effects.append(
+        OngoingEffect(
+            kind=OngoingEffectKind.ALLIANCE,
+            source_player_id="b",
+            target_player_id="a",
+            remaining_turns=3,
+            activation_turn=0,
+        )
+    )
+
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "玩家「b」" in prompt
+    assert "持续效果：同盟效果剩余 3 回合，期间与玩家「a」平分收入" in prompt
+    assert "剩余监狱回合数：2" in prompt
+
+
+def test_prompt_shows_alliance_effect_for_player(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    engine.state.ongoing_effects.append(
+        OngoingEffect(
+            kind=OngoingEffectKind.ALLIANCE,
+            source_player_id="a",
+            target_player_id="b",
+            remaining_turns=2,
+            activation_turn=0,
+        )
+    )
+
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "持续效果：同盟效果剩余 2 回合，期间与玩家「b」平分收入" in prompt
 
 
 def test_jail_request_keeps_dice_as_a_choice(tmp_path: Path) -> None:
