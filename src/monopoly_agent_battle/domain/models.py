@@ -34,7 +34,8 @@ class TurnPhase(StrEnum):
     ROLLING = "rolling"
     ASSET_MANAGEMENT = "asset_management"
     PAYMENT_RESOLUTION = "payment_resolution"
-    CARD_RESOLUTION = "card_resolution"
+    FORCED_DISCARD = "forced_discard"
+    THEFT_CARD_SELECTION = "theft_card_selection"
     TURN_COMPLETE = "turn_complete"
 
 
@@ -89,6 +90,7 @@ class SettlementOperation:
     resume_phase: TurnPhase | None = None
     resume_player_id: str | None = None
     deck: CardDeck | None = None
+    alliance_partner_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,9 +130,6 @@ class PlayerState:
     chance_cards: list[str] = field(default_factory=list[str])
     community_get_out_of_jail_cards: list[str] = field(default_factory=list[str])
     rent_waivers: int = 0
-    pending_rent_position: int | None = None
-    pending_rent_dice_total: int | None = None
-    pending_rent_resume_phase: TurnPhase | None = None
 
 
 @dataclass(slots=True)
@@ -152,7 +151,9 @@ class GameState:
     community_chest_draw_pile: list[str] = field(default_factory=list[str])
     community_chest_discard_pile: list[str] = field(default_factory=list[str])
     ongoing_effects: list[OngoingEffect] = field(default_factory=list[OngoingEffect])
-    buildable_position: int | None = None
+    pending_theft_thief_id: str | None = None
+    pending_theft_target_id: str | None = None
+    pending_theft_source_card_id: str | None = None
     consecutive_doubles: int = 0
     round_player_ids: tuple[str, ...] = ()
     completed_round_player_ids: set[str] = field(default_factory=set[str])

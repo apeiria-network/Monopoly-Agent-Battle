@@ -5,11 +5,10 @@ import pytest
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.domain.commands import (
-    DeclareBankruptcy,
     DiscardChanceCard,
     EndTurn,
-    ResolveRent,
     RollDice,
+    SelectStolenChanceCard,
     UseChanceCard,
     UseCommunityGetOutOfJailCard,
 )
@@ -115,13 +114,15 @@ def test_get_out_of_jail_card_releases_player_and_is_discarded(tmp_path: Path) -
     assert player.community_get_out_of_jail_cards == []
     assert engine.state.community_chest_discard_pile == ["community-jail-free"]
     assert events[-1].payload == {"player_id": "a", "method": "card"}
+
+
+def test_bankruptcy_discards_held_cards(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     player = engine.state.players["a"]
     player.cash = 0
     player.chance_cards.append("chance-build")
     player.community_get_out_of_jail_cards.append("community-jail-free")
     engine.state.current_player_id = "a"
-    engine.state.turn_phase = TurnPhase.PAYMENT_RESOLUTION
     events: list[GameEvent] = []
     engine._queue_payment(  # pyright: ignore[reportPrivateUsage]
         player,
@@ -132,9 +133,8 @@ def test_get_out_of_jail_card_releases_player_and_is_discarded(tmp_path: Path) -
         None,
         events,
     )
-    engine._drain_settlement_operations(events)  # pyright: ignore[reportPrivateUsage]
 
-    events.extend(engine.execute(DeclareBankruptcy("a")))
+    engine._drain_settlement_operations(events)  # pyright: ignore[reportPrivateUsage]
 
     assert player.bankrupt is True
     assert player.chance_cards == []
@@ -745,7 +745,7 @@ def test_build_card_rejects_hotel_without_consuming_card(tmp_path: Path) -> None
     assert engine.state.players["a"].chance_cards == ["chance-build"]
 
 
-def test_steal_card_transfers_target_card_only_after_successful_die(tmp_path: Path) -> None:
+def test_steal_card_requires_selection_after_a_successful_die(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.players["b"].position = 6
     engine.state.players["b"].chance_cards.append("chance-build")
@@ -754,10 +754,22 @@ def test_steal_card_transfers_target_card_only_after_successful_die(tmp_path: Pa
 
     events = engine.execute(UseChanceCard("a", "chance-steal", target_player_id="b"))
 
+    assert engine.state.players["a"].chance_cards == ["chance-steal"]
+    assert engine.state.players["b"].chance_cards == ["chance-build"]
+    assert engine.state.chance_discard_pile == []
+    assert engine.state.turn_phase is TurnPhase.THEFT_CARD_SELECTION
+    assert {event.event_type for event in events} >= {
+        "card_die_rolled",
+        "chance_card_theft_selection_required",
+    }
+
+    events = engine.execute(SelectStolenChanceCard("a", "chance-build"))
+
     assert engine.state.players["a"].chance_cards == ["chance-build"]
     assert engine.state.players["b"].chance_cards == []
     assert engine.state.chance_discard_pile == ["chance-steal"]
-    assert {event.event_type for event in events} >= {"card_die_rolled", "chance_card_stolen"}
+    assert engine.state.turn_phase is TurnPhase.ASSET_MANAGEMENT
+    assert {event.event_type for event in events} >= {"chance_card_stolen", "card_discarded"}
 
 
 def test_steal_card_failure_keeps_the_card_in_hand(tmp_path: Path) -> None:
@@ -808,27 +820,25 @@ def land_on(
     return engine.execute(RollDice(player_id))
 
 
-def test_rent_waiver_can_be_used_or_declined(tmp_path: Path) -> None:
+def test_rent_waivers_are_used_automatically(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     assign_street(engine, "b", 3)
     engine.state.players["a"].rent_waivers = 2
 
     events = land_on(engine, "a", 3, (1, 2))
 
-    assert engine.state.turn_phase is TurnPhase.CARD_RESOLUTION
-    assert {event.event_type for event in events} >= {"rent_waiver_offered"}
-    events = engine.execute(ResolveRent("a", True))
     assert engine.state.players["a"].cash == 1500
     assert engine.state.players["b"].cash == 1500
     assert engine.state.players["a"].rent_waivers == 1
     assert engine.state.turn_phase is TurnPhase.ASSET_MANAGEMENT
-    assert {event.event_type for event in events} == {"rent_waiver_used"}
+    assert {event.event_type for event in events} >= {"rent_waiver_used"}
 
-    land_on(engine, "a", 3, (1, 2))
-    engine.execute(ResolveRent("a", False))
-    assert engine.state.players["a"].cash == 1496
-    assert engine.state.players["b"].cash == 1504
-    assert engine.state.players["a"].rent_waivers == 1
+    events = land_on(engine, "a", 3, (1, 2))
+
+    assert engine.state.players["a"].cash == 1500
+    assert engine.state.players["b"].cash == 1500
+    assert engine.state.players["a"].rent_waivers == 0
+    assert {event.event_type for event in events} >= {"rent_waiver_used"}
 
 
 def test_freeze_surge_and_alliance_modify_rent(tmp_path: Path) -> None:
@@ -898,7 +908,7 @@ def test_alliance_splits_even_rent_without_bank_adjustment(tmp_path: Path) -> No
         for event in events
         if event.event_type == "payment_made" and event.payload["payer_id"] == "c"
     ]
-    assert [event.payload["amount"] for event in payments] == [1, 1]
+    assert [event.payload["amount"] for event in payments] == [2]
     assert not any(event.event_type == "alliance_rent_rounding_adjusted" for event in events)
 
 
@@ -926,11 +936,11 @@ def test_hand_limit_requires_explicit_discard_before_turn_end(tmp_path: Path) ->
         ["chance-build", "chance-buy", "chance-jail", "chance-tax", "chance-waiver"]
     )
 
-    with pytest.raises(GameRuleError, match="hand limit"):
-        engine.execute(EndTurn("a"))
+    events = engine.execute(EndTurn("a"))
 
+    assert engine.state.turn_phase is TurnPhase.FORCED_DISCARD
+    assert {event.event_type for event in events} == {"chance_card_discard_required"}
     engine.execute(DiscardChanceCard("a", "chance-waiver"))
-    engine.execute(EndTurn("a"))
 
     assert engine.state.players["a"].chance_cards == [
         "chance-build",
@@ -939,3 +949,4 @@ def test_hand_limit_requires_explicit_discard_before_turn_end(tmp_path: Path) ->
         "chance-tax",
     ]
     assert engine.state.chance_discard_pile == ["chance-waiver"]
+    assert engine.state.turn_phase is TurnPhase.TURN_COMPLETE

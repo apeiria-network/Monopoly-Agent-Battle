@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
-from monopoly_agent_battle.domain.commands import DeclareBankruptcy, EndTurn, Mortgage, RollDice
+from monopoly_agent_battle.domain.commands import EndTurn, Mortgage, RollDice
 from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine, GameRuleError
 
@@ -68,12 +68,13 @@ def test_payment_shortfall_can_be_resolved_by_mortgaging(tmp_path: Path) -> None
     assert {event.event_type for event in events} >= {"property_mortgaged", "payment_made"}
 
 
-def test_pending_payment_can_be_declared_bankrupt(tmp_path: Path) -> None:
+def test_insolvent_payer_is_declared_bankrupt_automatically(tmp_path: Path) -> None:
     engine = make_engine(tmp_path, cash=10)
     engine.state.players["a"].position = 2
     set_dice(engine, [1, 1])
-    engine.execute(RollDice("a"))
 
-    events = engine.execute(DeclareBankruptcy("a"))
+    events = engine.execute(RollDice("a"))
+
     assert engine.state.players["a"].bankrupt
-    assert events[0].event_type == "player_bankrupt"
+    assert engine.state.finished
+    assert {event.event_type for event in events} >= {"player_bankrupt", "game_finished"}

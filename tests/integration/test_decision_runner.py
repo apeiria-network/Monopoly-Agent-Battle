@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
+from monopoly_agent_battle.decision.models import DecisionRequest
+from monopoly_agent_battle.decision.protocol import default_option_json
 from monopoly_agent_battle.decision.runner import DeterministicPolicyController, run_decision_game
 from monopoly_agent_battle.domain.models import JailStatus
 from monopoly_agent_battle.game.engine import GameEngine
@@ -61,7 +63,7 @@ def test_connection_failures_are_retried_then_recorded_as_fallback(tmp_path: Pat
     artifacts = RunArtifacts.create(config)
     attempts = 0
 
-    def disconnected_controller(_request: str) -> str:
+    def disconnected_controller(_request: DecisionRequest) -> str:
         nonlocal attempts
         attempts += 1
         raise ConnectionError("service unavailable")
@@ -88,22 +90,18 @@ def test_connection_failures_are_retried_then_recorded_as_fallback(tmp_path: Pat
     assert decisions[0]["attempted_validation"]["validation_error"] == "response is not valid JSON"
 
 
-def test_jail_roll_is_sent_to_controller_as_an_interactive_choice(tmp_path: Path) -> None:
+def test_jail_waiting_is_advanced_without_a_jail_prompt(tmp_path: Path) -> None:
     config = make_config(tmp_path)
     artifacts = RunArtifacts.create(config)
     engine = GameEngine(config)
     engine.state.players["a"].jail_status = JailStatus.WAITING
-    prompts: list[str] = []
+    requests: list[DecisionRequest] = []
 
-    def controller(prompt: str) -> str:
-        prompts.append(prompt)
-        options = json.JSONDecoder().raw_decode(prompt.split("## 合法候选操作\n", 1)[1])[0]
-        selected = next(
-            (option for option in options if option["option_id"] == "roll_dice"),
-            next(option for option in options if option["is_default"]),
-        )
+    def controller(request: DecisionRequest) -> str:
+        requests.append(request)
+        default = next(option for option in request.options if option.is_default)
         return json.dumps(
-            {"selected_option": selected["option_id"], "reasoning": "选择合法默认或掷骰操作。"}
+            {"selected_option": default_option_json(default), "reason": "选择系统默认合法操作。"}
         )
 
     run_decision_game(engine, controller, artifacts)
@@ -114,8 +112,12 @@ def test_jail_roll_is_sent_to_controller_as_an_interactive_choice(tmp_path: Path
         .read_text(encoding="utf-8")
         .splitlines()
     ]
-    assert prompts
-    assert '"kind": "jail"' in prompts[0]
-    assert '"decision_id"' not in prompts[0]
-    assert decisions[0]["request"]["kind"] == "jail"
-    assert any(option["option_id"] == "roll_dice" for option in decisions[0]["request"]["options"])
+    events = [
+        json.loads(line)
+        for line in (artifacts.run_directory / "events.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert requests
+    assert decisions[0]["request"]["kind"] == "asset_management"
+    assert any(record["event_type"] == "jail_wait_completed" for record in events)

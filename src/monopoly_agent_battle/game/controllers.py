@@ -2,35 +2,9 @@
 
 from collections.abc import Iterable
 
-from monopoly_agent_battle.domain.commands import (
-    Build,
-    DeclareBankruptcy,
-    DiscardChanceCard,
-    EndTurn,
-    Mortgage,
-    PayJailFine,
-    RedeemMortgage,
-    ResolveRent,
-    RollDice,
-    SellBuilding,
-    UseChanceCard,
-)
+from monopoly_agent_battle.domain.commands import GameCommand
 from monopoly_agent_battle.domain.models import GameEvent
 from monopoly_agent_battle.game.engine import GameEngine
-
-GameCommand = (
-    RollDice
-    | Build
-    | SellBuilding
-    | Mortgage
-    | RedeemMortgage
-    | PayJailFine
-    | ResolveRent
-    | EndTurn
-    | DeclareBankruptcy
-    | DiscardChanceCard
-    | UseChanceCard
-)
 
 
 class ScriptedController:

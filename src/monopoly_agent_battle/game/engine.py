@@ -15,6 +15,7 @@ from monopoly_agent_battle.domain.commands import (
     RedeemMortgage,
     ResolveRent,
     RollDice,
+    SelectStolenChanceCard,
     SellBuilding,
     UseChanceCard,
     UseCommunityGetOutOfJailCard,
@@ -99,6 +100,7 @@ class GameEngine:
         | EndTurn
         | DeclareBankruptcy
         | DiscardChanceCard
+        | SelectStolenChanceCard
         | UseChanceCard
         | UseCommunityGetOutOfJailCard,
     ) -> list[GameEvent]:
@@ -117,23 +119,22 @@ class GameEngine:
         if isinstance(command, RollDice):
             if self.state.turn_phase is not TurnPhase.ROLLING:
                 raise GameRuleError("dice can only be rolled during the rolling phase")
-            self.state.buildable_position = None
             events = self._roll(player)
         elif isinstance(command, EndTurn):
             if self.state.turn_phase not in {TurnPhase.ASSET_MANAGEMENT, TurnPhase.TURN_COMPLETE}:
                 raise GameRuleError("turn cannot end during the current phase")
             if len(player.chance_cards) > 4:
-                raise GameRuleError("chance card hand limit requires discarding before turn end")
-            events = self.advance_turn()
+                self.state.turn_phase = TurnPhase.FORCED_DISCARD
+                events = [
+                    GameEvent(
+                        "chance_card_discard_required",
+                        {"player_id": player.player_id, "card_count": len(player.chance_cards)},
+                    )
+                ]
+            else:
+                events = self.advance_turn()
         elif isinstance(command, DeclareBankruptcy):
-            if self.state.turn_phase is not TurnPhase.PAYMENT_RESOLUTION:
-                raise GameRuleError("bankruptcy can only be declared for a pending payment")
-            payment = self._blocked_payment()
-            if payment is None or payment.player_id != player.player_id:
-                raise AssertionError("payment resolution has no blocked current-player payment")
-            events: list[GameEvent] = []
-            self._bankrupt(player, events)
-            events.extend(self._after_bankruptcy())
+            raise GameRuleError("bankruptcy resolves automatically when liquidation is exhausted")
         elif isinstance(command, Build):
             if self.state.turn_phase is not TurnPhase.ASSET_MANAGEMENT:
                 raise GameRuleError("building requires the asset management phase")
@@ -157,13 +158,22 @@ class GameEngine:
                 raise GameRuleError("mortgage redemption requires the asset management phase")
             events = self._redeem(player, command.position)
         elif isinstance(command, ResolveRent):
-            if self.state.turn_phase is not TurnPhase.CARD_RESOLUTION:
-                raise GameRuleError("rent resolution is unavailable during the current phase")
-            events = self._resolve_pending_rent(player, command.use_waiver)
+            raise GameRuleError("rent waivers resolve automatically")
         elif isinstance(command, DiscardChanceCard):
-            if self.state.turn_phase is not TurnPhase.ASSET_MANAGEMENT:
-                raise GameRuleError("chance cards can only be discarded during asset management")
+            if self.state.turn_phase is not TurnPhase.FORCED_DISCARD:
+                raise GameRuleError(
+                    "chance cards can only be discarded after an over-limit end turn"
+                )
             events = self._discard_held_chance_card(player, command.card_id)
+            if len(player.chance_cards) <= 4:
+                self.state.turn_phase = TurnPhase.TURN_COMPLETE
+                events.append(
+                    GameEvent("chance_card_hand_limit_resolved", {"player_id": player.player_id})
+                )
+        elif isinstance(command, SelectStolenChanceCard):
+            if self.state.turn_phase is not TurnPhase.THEFT_CARD_SELECTION:
+                raise GameRuleError("stolen card selection is unavailable during the current phase")
+            events = self._select_stolen_chance_card(player, command.card_id)
         elif isinstance(command, UseChanceCard):
             if self.state.turn_phase is not TurnPhase.ASSET_MANAGEMENT:
                 raise GameRuleError("chance cards require the asset management phase")
@@ -182,7 +192,6 @@ class GameEngine:
     def advance_turn(self) -> list[GameEvent]:
         """Complete the current turn and select the next living player."""
         current = self.state.players[self.state.current_player_id]
-        self.state.buildable_position = None
         self.state.consecutive_doubles = 0
         current.survived_turns += 1
         events = self._advance_ongoing_effects(current)
@@ -236,7 +245,7 @@ class GameEngine:
             self.state.consecutive_doubles = 0
         if player.jail_status is JailStatus.WAITING:
             player.jail_status = JailStatus.ROLLING
-            self.state.turn_phase = TurnPhase.TURN_COMPLETE
+            self.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
             return events + [GameEvent("jail_wait_completed", {"player_id": player.player_id})]
         released_from_jail = False
         if player.jail_status is JailStatus.ROLLING:
@@ -249,7 +258,7 @@ class GameEngine:
                     GameEvent("jail_released", {"player_id": player.player_id, "method": "doubles"})
                 )
             elif player.jail_roll_attempts < 3:
-                self.state.turn_phase = TurnPhase.TURN_COMPLETE
+                self.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
                 return events + [GameEvent("jail_roll_failed", {"player_id": player.player_id})]
             else:
                 self._pay(player, 50, None, "jail_fine", events, pending_movement_steps=total)
@@ -305,8 +314,10 @@ class GameEngine:
         events: list[GameEvent] = [
             GameEvent("space_landed", {"player_id": player.player_id, "position": space.position})
         ]
+        was_owned_by_player = False
         if space.is_property:
             property_state = self.state.properties[space.position]
+            was_owned_by_player = property_state.owner_id == player.player_id
             if property_state.owner_id is None and player.cash >= (space.price or 0):
                 player.cash -= space.price or 0
                 player.properties.add(space.position)
@@ -325,25 +336,9 @@ class GameEngine:
                 property_state.owner_id is not None and property_state.owner_id != player.player_id
             ):
                 owner = self.state.players[property_state.owner_id]
-                if player.rent_waivers:
-                    player.pending_rent_position = space.position
-                    player.pending_rent_dice_total = dice_total
-                    player.pending_rent_resume_phase = resume_phase
-                    self.state.turn_phase = TurnPhase.CARD_RESOLUTION
-                    events.append(
-                        GameEvent(
-                            "rent_waiver_offered",
-                            {
-                                "player_id": player.player_id,
-                                "position": space.position,
-                                "rent_waivers": player.rent_waivers,
-                            },
-                        )
-                    )
-                else:
-                    self._collect_rent(
-                        player, owner, space.position, dice_total, events, resume_phase=resume_phase
-                    )
+                self._collect_rent(
+                    player, owner, space.position, dice_total, events, resume_phase=resume_phase
+                )
         elif space.kind is SpaceKind.TAX:
             self._pay(
                 player,
@@ -365,14 +360,41 @@ class GameEngine:
             deck = CardDeck.CHANCE if space.kind is SpaceKind.CHANCE else CardDeck.COMMUNITY_CHEST
             self._queue_card_draw(player, deck, events, resume_phase=resume_phase)
             self._drain_settlement_operations(events)
-        if (
-            allow_build
-            and space.kind is SpaceKind.STREET
-            and self.state.properties[space.position].owner_id == player.player_id
-            and not self.state.properties[space.position].mortgaged
-        ):
-            self.state.buildable_position = space.position
+        if allow_build and space.kind is SpaceKind.STREET and was_owned_by_player:
+            events.extend(self._automatically_build(player, space.position))
         return events
+
+    def _automatically_build(self, player: PlayerState, position: int) -> list[GameEvent]:
+        """Build one ordinary level after a qualifying dice landing, if affordable."""
+        property_state = self.state.properties[position]
+        space = BOARD_BY_POSITION[position]
+        if (
+            property_state.owner_id != player.player_id
+            or property_state.mortgaged
+            or property_state.building_level == 5
+        ):
+            return []
+        cost = space.building_cost or 0
+        if player.cash < cost:
+            return [
+                GameEvent(
+                    "automatic_build_skipped_insufficient_cash",
+                    {"player_id": player.player_id, "position": position, "cost": cost},
+                )
+            ]
+        player.cash -= cost
+        property_state.building_level += 1
+        return [
+            GameEvent(
+                "building_added",
+                {
+                    "player_id": player.player_id,
+                    "position": position,
+                    "cost": cost,
+                    "reason": "dice_landing",
+                },
+            )
+        ]
 
     def _pay(
         self,
@@ -438,46 +460,6 @@ class GameEngine:
         )
         return operation
 
-    def _resolve_pending_rent(self, player: PlayerState, use_waiver: bool) -> list[GameEvent]:
-        position = player.pending_rent_position
-        dice_total = player.pending_rent_dice_total
-        resume_phase = player.pending_rent_resume_phase or TurnPhase.ASSET_MANAGEMENT
-        if position is None or dice_total is None:
-            raise GameRuleError("player has no pending rent decision")
-        player.pending_rent_position = None
-        player.pending_rent_dice_total = None
-        player.pending_rent_resume_phase = None
-        if use_waiver:
-            if player.rent_waivers <= 0:
-                raise GameRuleError("player has no rent waiver")
-            player.rent_waivers -= 1
-            self.state.turn_phase = resume_phase
-            return [
-                GameEvent(
-                    "rent_waiver_used",
-                    {
-                        "player_id": player.player_id,
-                        "position": position,
-                        "remaining_waivers": player.rent_waivers,
-                    },
-                )
-            ]
-        property_state = self.state.properties[position]
-        owner_id = property_state.owner_id
-        events = [GameEvent("rent_waiver_declined", {"player_id": player.player_id})]
-        if owner_id is not None and owner_id != player.player_id:
-            self._collect_rent(
-                player,
-                self.state.players[owner_id],
-                position,
-                dice_total,
-                events,
-                resume_phase=resume_phase,
-            )
-        if self.state.turn_phase is TurnPhase.CARD_RESOLUTION:
-            self.state.turn_phase = resume_phase
-        return events
-
     def _collect_rent(
         self,
         payer: PlayerState,
@@ -497,6 +479,19 @@ class GameEngine:
             amount *= 2
         if amount <= 0:
             return
+        if payer.rent_waivers:
+            payer.rent_waivers -= 1
+            events.append(
+                GameEvent(
+                    "rent_waiver_used",
+                    {
+                        "player_id": payer.player_id,
+                        "position": position,
+                        "remaining_waivers": payer.rent_waivers,
+                    },
+                )
+            )
+            return
         alliance = self._alliance_for(owner.player_id)
         if alliance is None:
             self._pay(payer, amount, owner, "rent", events, resume_phase=resume_phase)
@@ -508,33 +503,9 @@ class GameEngine:
         )
         if partner_id is None:
             raise AssertionError("alliance has no partner")
-        owner_amount = _round_ratio_half_up(amount, 2)
-        partner_amount = _round_ratio_half_up(amount, 2)
-        self._queue_payment(payer, owner_amount, owner, "rent", resume_phase, None, events)
-        self._queue_payment(
-            payer,
-            amount - owner_amount,
-            self.state.players[partner_id],
-            "alliance_rent",
-            resume_phase,
-            None,
-            events,
-        )
+        operation = self._queue_payment(payer, amount, owner, "rent", resume_phase, None, events)
+        operation.alliance_partner_id = partner_id
         self._drain_settlement_operations(events)
-        bank_adjustment = owner_amount + partner_amount - amount
-        if bank_adjustment and not self.state.settlement_operations:
-            partner = self.state.players[partner_id]
-            partner.cash += bank_adjustment
-            events.append(
-                GameEvent(
-                    "alliance_rent_rounding_adjusted",
-                    {
-                        "player_id": partner_id,
-                        "amount": bank_adjustment,
-                        "source": "bank" if bank_adjustment > 0 else "bank_recovery",
-                    },
-                )
-            )
 
     def _has_effect(self, kind: OngoingEffectKind, color_group: str) -> bool:
         return any(
@@ -578,6 +549,40 @@ class GameEngine:
             GameEvent("jail_released", {"player_id": player.player_id, "method": "card"}),
         ]
 
+    def _select_stolen_chance_card(self, player: PlayerState, card_id: str) -> list[GameEvent]:
+        if self.state.pending_theft_thief_id != player.player_id:
+            raise GameRuleError("only the successful thief may select a card")
+        target_id = self.state.pending_theft_target_id
+        if target_id is None:
+            raise AssertionError("theft selection has no target")
+        target = self.state.players[target_id]
+        if card_id not in target.chance_cards:
+            raise GameRuleError("target does not hold the selected chance card")
+        theft_card_id = self.state.pending_theft_source_card_id
+        if theft_card_id is None:
+            raise AssertionError("theft selection has no source card")
+        if theft_card_id not in player.chance_cards:
+            raise AssertionError("successful thief no longer holds the source card")
+        target.chance_cards.remove(card_id)
+        player.chance_cards.append(card_id)
+        player.chance_cards.remove(theft_card_id)
+        self._discard_card(theft_card_id, CardDeck.CHANCE)
+        self.state.pending_theft_thief_id = None
+        self.state.pending_theft_target_id = None
+        self.state.pending_theft_source_card_id = None
+        self.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+        return [
+            GameEvent(
+                "chance_card_stolen",
+                {
+                    "player_id": player.player_id,
+                    "target_player_id": target.player_id,
+                    "card_id": card_id,
+                },
+            ),
+            GameEvent("card_discarded", {"card_id": theft_card_id, "deck": CardDeck.CHANCE.value}),
+        ]
+
     def _use_chance_card(self, player: PlayerState, command: UseChanceCard) -> list[GameEvent]:
         if command.card_id not in player.chance_cards:
             raise GameRuleError("player does not hold the chance card")
@@ -603,19 +608,21 @@ class GameEngine:
             )
             if die < 4:
                 return events
-            stolen_card_id = target.chance_cards[0]
-            target.chance_cards.remove(stolen_card_id)
-            player.chance_cards.append(stolen_card_id)
+            self.state.pending_theft_thief_id = player.player_id
+            self.state.pending_theft_target_id = target.player_id
+            self.state.pending_theft_source_card_id = card.card_id
+            self.state.turn_phase = TurnPhase.THEFT_CARD_SELECTION
             events.append(
                 GameEvent(
-                    "chance_card_stolen",
+                    "chance_card_theft_selection_required",
                     {
                         "player_id": player.player_id,
                         "target_player_id": target.player_id,
-                        "card_id": stolen_card_id,
+                        "card_count": len(target.chance_cards),
                     },
                 )
             )
+            return events
         elif card.effect is CardEffect.ALLIANCE:
             target = self._player_target(player, command.target_player_id, card.range or 0)
             self._add_ongoing_effect(
@@ -1262,7 +1269,14 @@ class GameEngine:
             if was_blocked:
                 if operation.amount is None:
                     raise AssertionError("payment operation has no amount")
-                if self.state.players[operation.player_id].cash < operation.amount:
+                payer = self.state.players[operation.player_id]
+                if payer.cash < operation.amount:
+                    if not self._has_liquidation_option(payer):
+                        self._bankrupt(payer, events)
+                        events.extend(self._after_bankruptcy(payer.player_id))
+                        if self.state.finished:
+                            return
+                        continue
                     return
                 operation.status = SettlementOperationStatus.PENDING
             if operation.kind is SettlementOperationKind.CARD_DRAW:
@@ -1313,7 +1327,7 @@ class GameEngine:
                 )
                 if self.state.turn_phase not in {
                     TurnPhase.PAYMENT_RESOLUTION,
-                    TurnPhase.CARD_RESOLUTION,
+                    TurnPhase.THEFT_CARD_SELECTION,
                     TurnPhase.TURN_COMPLETE,
                 }:
                     self.state.turn_phase = operation.resume_phase or TurnPhase.ASSET_MANAGEMENT
@@ -1332,6 +1346,12 @@ class GameEngine:
                 raise AssertionError("payment operation has no amount")
             payer = self.state.players[operation.player_id]
             if payer.cash < operation.amount:
+                if not self._has_liquidation_option(payer):
+                    self._bankrupt(payer, events)
+                    events.extend(self._after_bankruptcy(payer.player_id))
+                    if self.state.finished:
+                        return
+                    continue
                 operation.status = SettlementOperationStatus.BLOCKED
                 self.state.current_player_id = operation.player_id
                 self.state.turn_phase = TurnPhase.PAYMENT_RESOLUTION
@@ -1350,6 +1370,29 @@ class GameEngine:
             payer.cash -= operation.amount
             if operation.recipient_id is not None:
                 self.state.players[operation.recipient_id].cash += operation.amount
+            if operation.alliance_partner_id is not None:
+                if operation.recipient_id is None:
+                    raise AssertionError("alliance rent has no owner recipient")
+                owner = self.state.players[operation.recipient_id]
+                partner = self.state.players[operation.alliance_partner_id]
+                owner_share = _round_ratio_half_up(operation.amount, 2)
+                partner_share = _round_ratio_half_up(operation.amount, 2)
+                transfer = operation.amount - owner_share
+                owner.cash -= transfer
+                partner.cash += transfer
+                bank_adjustment = partner_share - transfer
+                if bank_adjustment:
+                    partner.cash += bank_adjustment
+                    events.append(
+                        GameEvent(
+                            "alliance_rent_rounding_adjusted",
+                            {
+                                "player_id": operation.alliance_partner_id,
+                                "amount": bank_adjustment,
+                                "source": "bank" if bank_adjustment > 0 else "bank_recovery",
+                            },
+                        )
+                    )
             self.state.settlement_operations.pop(0)
             events.extend(
                 (
@@ -1371,15 +1414,15 @@ class GameEngine:
             )
             if operation.resume_player_id is not None:
                 self.state.current_player_id = operation.resume_player_id
-            if was_blocked and operation.resume_phase is TurnPhase.ASSET_MANAGEMENT:
-                self.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
             if operation.steps is not None:
                 payer.jail_status = JailStatus.FREE
                 payer.jail_roll_attempts = 0
                 if operation.resume_phase is not None:
                     self.state.turn_phase = operation.resume_phase
                 events.extend(self._move_and_resolve(payer, operation.steps))
-            elif was_blocked and operation.resume_phase is not None:
+            elif operation.resume_phase is not None and (
+                was_blocked or not self.state.settlement_operations
+            ):
                 self.state.turn_phase = operation.resume_phase
 
     def _blocked_payment(self) -> SettlementOperation | None:
@@ -1396,21 +1439,38 @@ class GameEngine:
     def _settle_pending_payment(self, events: list[GameEvent]) -> None:
         self._drain_settlement_operations(events)
 
-    def _after_bankruptcy(self) -> list[GameEvent]:
-        cancelled = self.state.settlement_operations
-        self.state.settlement_operations = []
-        self.state.turn_phase = TurnPhase.TURN_COMPLETE
-        events = [
-            GameEvent(
-                "settlement_operation_cancelled",
-                {"operation_id": operation.operation_id, "reason": "payer_bankrupt"},
+    def _has_liquidation_option(self, player: PlayerState) -> bool:
+        return any(
+            self.state.properties[position].building_level > 0
+            or (
+                not self.state.properties[position].mortgaged
+                and self.state.properties[position].building_level == 0
             )
-            for operation in cancelled
-        ]
+            for position in player.properties
+        )
+
+    def _after_bankruptcy(self, player_id: str) -> list[GameEvent]:
+        retained: list[SettlementOperation] = []
+        events: list[GameEvent] = []
+        for operation in self.state.settlement_operations:
+            if operation.player_id == player_id:
+                events.append(
+                    GameEvent(
+                        "settlement_operation_cancelled",
+                        {"operation_id": operation.operation_id, "reason": "payer_bankrupt"},
+                    )
+                )
+            else:
+                retained.append(operation)
+        self.state.settlement_operations = retained
         living = self._living_players()
         if len(living) == 1:
             self._finish(EndReason.LAST_SURVIVOR)
             return events + [GameEvent("game_finished", {"reason": EndReason.LAST_SURVIVOR.value})]
+        if retained:
+            self.state.current_player_id = retained[0].player_id
+        else:
+            self.state.turn_phase = TurnPhase.TURN_COMPLETE
         return events
 
     def _bankrupt(self, player: PlayerState, events: list[GameEvent]) -> None:
@@ -1442,23 +1502,7 @@ class GameEngine:
         events.append(GameEvent("player_bankrupt", {"player_id": player.player_id}))
 
     def _build(self, player: PlayerState, position: int) -> list[GameEvent]:
-        space = self._owned_street(player, position)
-        property_state = self.state.properties[position]
-        if self.state.buildable_position != position:
-            raise GameRuleError("property is not eligible for building this turn")
-        if property_state.mortgaged or property_state.building_level == 5:
-            raise GameRuleError("property cannot be built")
-        cost = space.building_cost or 0
-        if player.cash < cost:
-            raise GameRuleError("insufficient cash to build")
-        player.cash -= cost
-        property_state.building_level += 1
-        return [
-            GameEvent(
-                "building_added",
-                {"player_id": player.player_id, "position": position, "cost": cost},
-            )
-        ]
+        raise GameRuleError("ordinary building resolves automatically after dice landings")
 
     def _sell_building(self, player: PlayerState, position: int) -> list[GameEvent]:
         space = self._owned_street(player, position)
@@ -1574,6 +1618,25 @@ class GameEngine:
                 and position not in self.state.players[property_state.owner_id].properties
             ):
                 raise AssertionError("owned property is absent from player holdings")
+        if self.state.turn_phase is TurnPhase.THEFT_CARD_SELECTION:
+            thief_id = self.state.pending_theft_thief_id
+            target_id = self.state.pending_theft_target_id
+            source_card_id = self.state.pending_theft_source_card_id
+            if thief_id is None or target_id is None or source_card_id is None:
+                raise AssertionError("theft selection has incomplete pending state")
+            if source_card_id not in self.state.players[thief_id].chance_cards:
+                raise AssertionError("theft source card is not held by thief")
+            if not self.state.players[target_id].chance_cards:
+                raise AssertionError("theft target has no chance cards")
+        elif any(
+            value is not None
+            for value in (
+                self.state.pending_theft_thief_id,
+                self.state.pending_theft_target_id,
+                self.state.pending_theft_source_card_id,
+            )
+        ):
+            raise AssertionError("pending theft state exists outside theft selection")
         if self.state.settlement_operations:
             operation_ids = [
                 operation.operation_id for operation in self.state.settlement_operations

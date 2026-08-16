@@ -11,32 +11,33 @@ from monopoly_agent_battle.decision.models import (
     decision_request_record,
     validation_record,
 )
-from monopoly_agent_battle.decision.prompts import render_decision_prompt
 from monopoly_agent_battle.decision.protocol import (
     command_from_option,
+    default_option_json,
     option_command_payload,
     parse_and_validate,
 )
-from monopoly_agent_battle.decision.requests import GameCommand, build_decision_request
-from monopoly_agent_battle.domain.commands import EndTurn, RollDice
+from monopoly_agent_battle.decision.requests import build_decision_request
+from monopoly_agent_battle.domain.commands import EndTurn, GameCommand, RollDice
 from monopoly_agent_battle.domain.models import GameEvent, JailStatus, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.runner import ScriptedRunResult, state_snapshot
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 
-RawDecisionController = Callable[[str], str]
+RawDecisionController = Callable[[DecisionRequest], str]
 
 
 class DeterministicPolicyController:
     """Choose the engine-defined default option for each request."""
 
-    def __call__(self, request_text: str) -> str:
-        """Return a valid response for the default candidate in the rendered prompt."""
-        options_text = request_text.split("## 合法候选操作\n", maxsplit=1)[1]
-        options = json.JSONDecoder().raw_decode(options_text)[0]
-        default = next(option for option in options if option["is_default"])
+    def __call__(self, request: DecisionRequest) -> str:
+        """Return a valid response for the default candidate of the request."""
+        default = next(option for option in request.options if option.is_default)
         return json.dumps(
-            {"selected_option": default["option_id"], "reasoning": "选择系统默认合法操作。"},
+            {
+                "selected_option": default_option_json(default),
+                "reason": "选择系统默认合法操作。",
+            },
             ensure_ascii=False,
         )
 
@@ -67,7 +68,10 @@ def run_decision_game(
             default = next(option for option in request.options if option.is_default)
             validation = parse_and_validate(
                 json.dumps(
-                    {"selected_option": default.option_id, "reasoning": "系统回退至默认合法操作。"},
+                    {
+                        "selected_option": default_option_json(default),
+                        "reason": "系统回退至默认合法操作。",
+                    },
                     ensure_ascii=False,
                 ),
                 request,
@@ -79,7 +83,7 @@ def run_decision_game(
                 )
         if validation.option is None:
             raise AssertionError("validated decision has no selected option")
-        command = command_from_option(request, validation.option)
+        command = command_from_option(request, validation.option, validation.target)
         command_events = _execute_and_audit(engine, command, artifacts)
         events.extend(command_events)
         if artifacts is not None:
@@ -91,7 +95,9 @@ def run_decision_game(
                     "validation": validation_record(validation),
                     "connection_retries": retries,
                     "fallback": fallback,
-                    "executed_command": option_command_payload(request, validation.option),
+                    "executed_command": option_command_payload(
+                        request, validation.option, validation.target
+                    ),
                 }
             )
         sequence += 1
@@ -104,7 +110,10 @@ def _automatic_command(engine: GameEngine) -> RollDice | EndTurn | None:
     """Return the forced progression command, if the current state has no player choice."""
     state = engine.state
     player = state.players[state.current_player_id]
-    if state.turn_phase is TurnPhase.ROLLING and player.jail_status is JailStatus.FREE:
+    if state.turn_phase is TurnPhase.ROLLING and player.jail_status in {
+        JailStatus.FREE,
+        JailStatus.WAITING,
+    }:
         return RollDice(player.player_id)
     if state.turn_phase is TurnPhase.TURN_COMPLETE:
         return EndTurn(player.player_id)
@@ -135,10 +144,9 @@ def _request_response(
     *,
     max_connection_retries: int,
 ) -> tuple[str, int]:
-    request_text = render_decision_prompt(request)
     for retry in range(max_connection_retries + 1):
         try:
-            return controller(request_text), retry
+            return controller(request), retry
         except ConnectionError as error:
             if artifacts is not None:
                 artifacts.append_runtime(
