@@ -554,9 +554,23 @@ def test_prompt_renders_target_instructions(tmp_path: Path) -> None:
 
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
-    assert "【待负责人确认】填写目标格子编号；合法取值由系统列出。" in prompt
-    assert "【待负责人确认】填写 swap_in_position（对方格子编号）" in prompt
-    assert "swap_out_position（己方格子编号）；合法组合由系统列出。" in prompt
+    options = json.loads(prompt.split("## 合法候选操作\n", 1)[1].split("\n\n## 输出要求", 1)[0])
+    by_option_id = {option["option_id"]: option for option in options}
+
+    assert by_option_id["mortgage"]["response_format"]["selected_option"] == {
+        "option": "mortgage",
+        "target": by_option_id["mortgage"]["response_format"]["selected_option"]["target"],
+    }
+    assert isinstance(by_option_id["mortgage"]["response_format"]["selected_option"]["target"], str)
+    swap_option_id = "use_chance_card-chance-swap-property"
+    assert (
+        by_option_id[swap_option_id]["response_format"]["selected_option"]["option"]
+        == swap_option_id
+    )
+    assert set(by_option_id[swap_option_id]["response_format"]["selected_option"]["target"]) == {
+        "swap_in_position",
+        "swap_out_position",
+    }
 
 
 def test_selected_target_is_validated_and_reconstructed(tmp_path: Path) -> None:

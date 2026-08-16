@@ -31,7 +31,7 @@ _OUTPUT_GUIDE = (
     "只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。\n"
     "- `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的"
     "待指定目标。\n"
-    '- 单目标用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 '
+    '- 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 '
     '`{"swap_in_position": 1, "swap_out_position": 3}`。\n'
     "- 不需要目标的选项若模型填了 `target`，按忽略处理。"
 )
