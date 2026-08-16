@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 from typing import cast
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
@@ -331,6 +332,18 @@ def test_prompt_shows_remaining_jail_rolls_when_jailed(tmp_path: Path) -> None:
     assert "剩余监狱回合数：2" in prompt
 
 
+def block(text: str, start: str, ends: tuple[str, ...]) -> str:
+    """截取 start 标记之后、任一 end 标记之前的文本块。start 不存在时显式失败。"""
+    _, sep, rest = text.partition(start)
+    assert sep, f"起始标记不存在: {start!r}"
+    cut = len(rest)
+    for marker in ends:
+        idx = rest.find(marker)
+        if 0 <= idx < cut:
+            cut = idx
+    return rest[:cut]
+
+
 def test_prompt_renders_other_players_naturally(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
@@ -344,12 +357,12 @@ def test_prompt_renders_other_players_naturally(tmp_path: Path) -> None:
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
     assert "其他玩家状态" in prompt
-    assert "玩家「b」" in prompt
-    assert "现金：999" in prompt
-    assert "位置：格子 3（Baltic Avenue，街道）" in prompt
-    assert "持有机会卡数量：1" in prompt
-    assert "持有出狱卡数量：0" in prompt
-    assert "持有地产：格子 3（Baltic Avenue）" in prompt
+    b_block = block(prompt, "玩家「b」", ("## ",))          # b 的块：到下一节为止
+    assert "现金：999" in b_block                            # 现在绑死在 b 名下
+    assert "位置：格子 3（Baltic Avenue，街道）" in b_block
+    assert "持有机会卡数量：1" in b_block
+    assert "持有出狱卡数量：0" in b_block
+    assert "持有地产：格子 3（Baltic Avenue）" in b_block
     assert "chance-nuclear" not in prompt
 
 
@@ -553,23 +566,21 @@ def test_prompt_renders_target_instructions(tmp_path: Path) -> None:
     engine.state.players["a"].chance_cards.append("chance-swap-property")
 
     prompt = render_decision_prompt(build_decision_request(engine, 1))
-
     options = json.loads(prompt.split("## 合法候选操作\n", 1)[1].split("\n\n## 输出要求", 1)[0])
     by_option_id = {option["option_id"]: option for option in options}
 
-    assert by_option_id["mortgage"]["response_format"]["selected_option"] == {
-        "option": "mortgage",
-        "target": by_option_id["mortgage"]["response_format"]["selected_option"]["target"],
-    }
-    assert isinstance(by_option_id["mortgage"]["response_format"]["selected_option"]["target"], str)
-    swap_option_id = "use_chance_card-chance-swap-property"
-    assert (
-        by_option_id[swap_option_id]["response_format"]["selected_option"]["option"]
-        == swap_option_id
-    )
-    assert set(by_option_id[swap_option_id]["response_format"]["selected_option"]["target"]) == {
-        "swap_in_position",
-        "swap_out_position",
+    # 改法：拆成三步独立断言，每一步的期望值都是字面量
+    mortgage_selected = by_option_id["mortgage"]["response_format"]["selected_option"]
+    assert set(mortgage_selected.keys()) == {"option", "target"}   # 结构：多/少字段都抓得到
+    assert mortgage_selected["option"] == "mortgage"               # 值：写死
+    assert mortgage_selected["target"] == 1                        # ← 关键：填协议实际约定的占位内容
+
+    swap_selected = by_option_id["use_chance_card-chance-swap-property"]["response_format"]["selected_option"]
+    assert swap_selected["option"] == "use_chance_card-chance-swap-property"
+    # 多字段 target 不只断言键，连每个字段的占位内容一起写死
+    assert swap_selected["target"] == {
+        "swap_in_position": 3,   # 填协议约定的实际值
+        "swap_out_position": 1,
     }
 
 
@@ -599,3 +610,19 @@ def test_selected_target_is_validated_and_reconstructed(tmp_path: Path) -> None:
         request,
     )
     assert not invalid.valid
+
+def test_prompt_board_table_renders_all_40_spaces(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    board_block = block(prompt, "棋盘状态", ("## ",))   # 复用致命级问题3的切块 helper
+    positions = sorted(int(p) for p in re.findall(r"^\| (\d+) \|", board_block, flags=re.M))
+
+    assert positions == list(range(40)), (
+        f"棋盘应完整渲染 40 格，实际 {len(positions)} 格，"
+        f"缺失: {sorted(set(range(40)) - set(positions))}，"
+        f"重复: {sorted(p for p in set(positions) if positions.count(p) > 1)}"
+    )
+
+
