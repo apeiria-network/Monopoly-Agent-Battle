@@ -12,6 +12,7 @@ from monopoly_agent_battle.decision.models import (
     DecisionRequest,
     OptionTarget,
 )
+from monopoly_agent_battle.decision.wording import option_wording
 from monopoly_agent_battle.domain.commands import (
     DiscardChanceCard,
     EndTurn,
@@ -174,8 +175,7 @@ def build_decision_request(engine: GameEngine, sequence: int) -> DecisionRequest
         options=options,
         output_constraints={
             "response_format": "single_json_object",
-            "required_fields": ["selected_option", "reasoning"],
-            "reasoning_max_characters": 400,
+            "required_fields": ["selected_option", "reason"],
         },
     )
 
@@ -253,8 +253,9 @@ def _legal_options(engine: GameEngine, player_id: str) -> list[DecisionOption]:
             option.option_id,
             option.command_type,
             option.parameters,
-            option.summary,
-            option.effect_preview,
+            option.title,
+            option.preview,
+            option.response_format,
             option.option_id == default_id,
             option.target,
         )
@@ -460,12 +461,14 @@ def _build_option(draft: _OptionDraft) -> DecisionOption:
             command_fields=tuple(command_field for _, command_field in draft.target_fields),
             legal_values=tuple(draft.target_values),
         )
+    wording = option_wording(draft.representative)
     return DecisionOption(
         _option_id(draft.command_type, draft.fixed_params),
         draft.command_type,
         draft.fixed_params,
-        _summary(draft.representative),
-        _effect_preview(draft.representative),
+        wording.title,
+        wording.preview,
+        wording.response_format,
         target=target,
     )
 
@@ -474,35 +477,3 @@ def _command_type(command: GameCommand) -> str:
     return "".join(
         f"_{char.lower()}" if char.isupper() else char for char in type(command).__name__
     ).lstrip("_")
-
-
-def _summary(command: GameCommand) -> str:
-    if isinstance(command, UseChanceCard):
-        return f"使用机会卡「{CARDS_BY_ID[command.card_id].name}」。"
-    return {
-        "SellBuilding": "出售一层建筑。",
-        "Mortgage": "抵押一处地产。",
-        "RedeemMortgage": "赎回一处抵押地产。",
-        "DiscardChanceCard": "弃置一张机会卡。",
-        "SelectStolenChanceCard": "从目标玩家手中拿走一张机会卡。",
-        "RollDice": "掷骰尝试出狱。",
-        "PayJailFine": "支付 50 元罚款并出狱。",
-        "EndTurn": "结束本回合。",
-        "UseCommunityGetOutOfJailCard": "使用一张出狱卡。",
-    }.get(type(command).__name__, f"执行 {type(command).__name__}。")
-
-
-def _effect_preview(command: GameCommand) -> dict[str, str]:
-    if isinstance(command, UseChanceCard):
-        return {"effect": CARDS_BY_ID[command.card_id].effect.value}
-    return {
-        "SellBuilding": {"effect": "出售一层建筑，获得其房屋单价的一半"},
-        "Mortgage": {"effect": "抵押地产，获得其购买价；抵押期间不能收取租金"},
-        "RedeemMortgage": {"effect": "赎回抵押地产，恢复未抵押状态"},
-        "DiscardChanceCard": {"effect": "弃置一张机会卡"},
-        "SelectStolenChanceCard": {"effect": "从目标玩家手中拿走一张机会卡"},
-        "RollDice": {"effect": "骰子结果由游戏引擎决定"},
-        "PayJailFine": {"effect": "出狱后仍需掷骰行动"},
-        "EndTurn": {"effect": "结束本回合"},
-        "UseCommunityGetOutOfJailCard": {"effect": "出狱后仍需掷骰行动"},
-    }.get(type(command).__name__, {})

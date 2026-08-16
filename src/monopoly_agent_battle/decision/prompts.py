@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from monopoly_agent_battle.decision.models import DecisionKind, DecisionRequest
 
@@ -27,26 +27,27 @@ _SPACE_KIND_CN = {
 
 _MAX_JAIL_ROLL_ATTEMPTS = 3
 
+_OUTPUT_GUIDE = (
+    "只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。\n"
+    "- `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的"
+    "待指定目标。\n"
+    '- 单目标用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 '
+    '`{"swap_in_position": 1, "swap_out_position": 3}`。\n'
+    "- 不需要目标的选项若模型填了 `target`，按忽略处理。"
+)
+
 
 def render_decision_prompt(request: DecisionRequest) -> str:
     """Render the complete decision message from a request."""
     options = [
         {
             "option_id": option.option_id,
-            "summary": option.summary,
-            "effect_preview": option.effect_preview,
-            "is_default": option.is_default,
-            "target": _target_view(option.target),
+            "title": option.title,
+            "preview": option.preview,
+            "response_format": _render_response_format(option.response_format, option.option_id),
         }
         for option in request.options
     ]
-    response_example = {
-        "reasoning": "<简短、可审计的决策理由>",
-        "selected_option": {
-            "option": "<合法候选项的 option_id>",
-            "target": "<该选项所需的目标；无目标时省略此字段>",
-        },
-    }
     visible: dict[str, Any] = request.visible_state
     return "\n\n".join(
         (
@@ -57,25 +58,19 @@ def render_decision_prompt(request: DecisionRequest) -> str:
             "## 当前局面\n" + _render_situation(visible),
             "## 当前决策\n" + _render_decision(request, visible),
             "## 合法候选操作\n" + _json(options),
-            "## 输出要求\n"
-            "只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。\n"
-            + _json(response_example),
+            "## 输出要求\n" + _OUTPUT_GUIDE,
         )
     )
 
 
-def _target_view(target: Any) -> dict[str, object] | None:
-    if target is None:
-        return None
-    if len(target.fields) == 1:
-        legal_values: list[object] = [values[0] for values in target.legal_values]
-    else:
-        legal_values = [list(values) for values in target.legal_values]
-    return {
-        "kind": target.kind,
-        "fields": list(target.fields),
-        "legal_values": legal_values,
-    }
+def _render_response_format(value: object, option_id: str) -> object:
+    """Fill the selected candidate ID into its wording-owned response template."""
+    if isinstance(value, str):
+        return value.replace("{option_id}", option_id)
+    if isinstance(value, dict):
+        document = cast(dict[str, object], value)
+        return {key: _render_response_format(item, option_id) for key, item in document.items()}
+    raise AssertionError("response format wording must be a JSON object or string")
 
 
 def _render_decision(request: DecisionRequest, visible: dict[str, Any]) -> str:
@@ -250,4 +245,4 @@ def _alliance_effects(visible: dict[str, Any], player_id: str) -> str:
 
 
 def _json(value: object) -> str:
-    return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
+    return json.dumps(value, ensure_ascii=False, indent=2)

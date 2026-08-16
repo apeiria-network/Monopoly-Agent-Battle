@@ -5,14 +5,12 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import asdict
-from typing import Any
 
 from monopoly_agent_battle.decision.models import (
     DecisionRequest,
     decision_request_record,
     validation_record,
 )
-from monopoly_agent_battle.decision.prompts import render_decision_prompt
 from monopoly_agent_battle.decision.protocol import (
     command_from_option,
     default_option_json,
@@ -26,37 +24,22 @@ from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.runner import ScriptedRunResult, state_snapshot
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 
-RawDecisionController = Callable[[str], str]
+RawDecisionController = Callable[[DecisionRequest], str]
 
 
 class DeterministicPolicyController:
     """Choose the engine-defined default option for each request."""
 
-    def __call__(self, request_text: str) -> str:
-        """Return a valid response for the default candidate in the rendered prompt."""
-        options_text = request_text.split("## 合法候选操作\n", maxsplit=1)[1]
-        options = json.JSONDecoder().raw_decode(options_text)[0]
-        default = next(option for option in options if option["is_default"])
+    def __call__(self, request: DecisionRequest) -> str:
+        """Return a valid response for the default candidate of the request."""
+        default = next(option for option in request.options if option.is_default)
         return json.dumps(
             {
-                "selected_option": _default_selected_option(default),
-                "reasoning": "选择系统默认合法操作。",
+                "selected_option": default_option_json(default),
+                "reason": "选择系统默认合法操作。",
             },
             ensure_ascii=False,
         )
-
-
-def _default_selected_option(option_view: Any) -> dict[str, object]:
-    """Build the selected_option object for a rendered option's first legal target."""
-    selected: dict[str, object] = {"option": option_view["option_id"]}
-    target = option_view.get("target")
-    if target is not None and target["legal_values"]:
-        first = target["legal_values"][0]
-        if len(target["fields"]) == 1:
-            selected["target"] = first
-        else:
-            selected["target"] = dict(zip(target["fields"], first, strict=True))
-    return selected
 
 
 def run_decision_game(
@@ -87,7 +70,7 @@ def run_decision_game(
                 json.dumps(
                     {
                         "selected_option": default_option_json(default),
-                        "reasoning": "系统回退至默认合法操作。",
+                        "reason": "系统回退至默认合法操作。",
                     },
                     ensure_ascii=False,
                 ),
@@ -161,10 +144,9 @@ def _request_response(
     *,
     max_connection_retries: int,
 ) -> tuple[str, int]:
-    request_text = render_decision_prompt(request)
     for retry in range(max_connection_retries + 1):
         try:
-            return controller(request_text), retry
+            return controller(request), retry
         except ConnectionError as error:
             if artifacts is not None:
                 artifacts.append_runtime(

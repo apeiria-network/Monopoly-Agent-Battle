@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
+from monopoly_agent_battle.decision.models import DecisionRequest
+from monopoly_agent_battle.decision.protocol import default_option_json
 from monopoly_agent_battle.decision.runner import DeterministicPolicyController, run_decision_game
 from monopoly_agent_battle.domain.models import JailStatus
 from monopoly_agent_battle.game.engine import GameEngine
@@ -61,7 +63,7 @@ def test_connection_failures_are_retried_then_recorded_as_fallback(tmp_path: Pat
     artifacts = RunArtifacts.create(config)
     attempts = 0
 
-    def disconnected_controller(_request: str) -> str:
+    def disconnected_controller(_request: DecisionRequest) -> str:
         nonlocal attempts
         attempts += 1
         raise ConnectionError("service unavailable")
@@ -93,14 +95,13 @@ def test_jail_waiting_is_advanced_without_a_jail_prompt(tmp_path: Path) -> None:
     artifacts = RunArtifacts.create(config)
     engine = GameEngine(config)
     engine.state.players["a"].jail_status = JailStatus.WAITING
-    prompts: list[str] = []
+    requests: list[DecisionRequest] = []
 
-    def controller(prompt: str) -> str:
-        prompts.append(prompt)
-        options = json.JSONDecoder().raw_decode(prompt.split("## 合法候选操作\n", 1)[1])[0]
-        default = next(option for option in options if option["is_default"])
+    def controller(request: DecisionRequest) -> str:
+        requests.append(request)
+        default = next(option for option in request.options if option.is_default)
         return json.dumps(
-            {"selected_option": default["option_id"], "reasoning": "选择系统默认合法操作。"}
+            {"selected_option": default_option_json(default), "reason": "选择系统默认合法操作。"}
         )
 
     run_decision_game(engine, controller, artifacts)
@@ -117,6 +118,6 @@ def test_jail_waiting_is_advanced_without_a_jail_prompt(tmp_path: Path) -> None:
         .read_text(encoding="utf-8")
         .splitlines()
     ]
-    assert prompts
+    assert requests
     assert decisions[0]["request"]["kind"] == "asset_management"
     assert any(record["event_type"] == "jail_wait_completed" for record in events)

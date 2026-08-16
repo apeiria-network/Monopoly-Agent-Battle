@@ -30,6 +30,8 @@ from monopoly_agent_battle.domain.commands import (
 
 CommandFactory = Callable[[str, dict[str, object]], GameCommand]
 
+_MAX_REASON_CHARS = 400
+
 
 _COMMAND_FACTORIES: dict[str, CommandFactory] = {
     "roll_dice": lambda player_id, parameters: RollDice(player_id),
@@ -71,17 +73,17 @@ def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionV
     if not isinstance(document, dict):
         return DecisionValidation(None, None, "response must be a JSON object", raw_response)
     document = cast(dict[str, object], document)
-    if set(document) != {"selected_option", "reasoning"}:
+    if set(document) != {"selected_option", "reason"}:
         return DecisionValidation(
-            None, None, "response must contain exactly selected_option and reasoning", raw_response
+            None, None, "response must contain exactly selected_option and reason", raw_response
         )
     selected = document["selected_option"]
-    reasoning = document["reasoning"]
-    if not isinstance(selected, dict) or not isinstance(reasoning, str):
+    reason = document["reason"]
+    if not isinstance(selected, dict) or not isinstance(reason, str):
         return DecisionValidation(
             None,
             None,
-            "selected_option must be an object and reasoning must be a string",
+            "selected_option must be an object and reason must be a string",
             raw_response,
         )
     selected = cast(dict[str, object], selected)
@@ -94,11 +96,7 @@ def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionV
         return DecisionValidation(
             None, None, "selected_option.option must be a string", raw_response
         )
-    max_characters = request.output_constraints["reasoning_max_characters"]
-    if not isinstance(max_characters, int):
-        raise AssertionError("decision request has an invalid reasoning limit")
-    if not reasoning or len(reasoning) > max_characters:
-        return DecisionValidation(None, None, "reasoning has invalid length", raw_response)
+    reason = reason[:_MAX_REASON_CHARS]
     option = next((item for item in request.options if item.option_id == option_id), None)
     if option is None:
         return DecisionValidation(
@@ -109,7 +107,7 @@ def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionV
     if target is None:
         return DecisionValidation(None, None, "target is not a legal value", raw_response)
     return DecisionValidation(
-        DecisionResponse(option_id, raw_target, reasoning), option, None, raw_response, target
+        DecisionResponse(option_id, raw_target, reason), option, None, raw_response, target
     )
 
 

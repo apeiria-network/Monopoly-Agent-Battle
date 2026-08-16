@@ -32,9 +32,10 @@
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
-| `decision/models.py` | 定义冻结的决策请求、合法候选项（含 `OptionTarget` 目标规格：目标字段名与预执行合法取值）、响应、校验结果及其 JSON 审计表示。 | 决策生成、提示词渲染、运行器和审计记录共享。 |
-| `decision/requests.py` | 从当前引擎状态投影完整允许的玩家可见视图：公开棋盘格名称/类型/价格/建造成本/租金/税、所有公开资产与状态、当前落点、持续效果及自己的卡牌。以克隆引擎预执行过滤候选，并按「命令形状」折叠（`command_type + 固定参数`），`DecisionOption.target` 记录目标字段与合法取值；只为付款处置、资产管理、监狱滚骰、强制弃牌和抢夺选卡创建请求。仅抢夺成功后的单次请求临时显示目标机会卡；牌堆、RNG、审计 ID、其他玩家实时手牌和运行时信息不会进入普通视图。候选带目标无关的中文摘要与即时效果预览。 | 每个实际决策点调用 `build_decision_request(engine, sequence)`。 |
-| `decision/prompts.py` | 将决策请求稳定渲染成中文 AI Prompt，按六段式样板（角色与目标、游戏规则、当前局面、当前决策、合法候选、输出要求）逐段实现；① 角色与目标（暂定）、③ 当前局面（回合概述、你的状态、其他玩家状态、棋盘状态表）、④ 当前决策（监狱 / 付款处置 / 强制弃牌 / 抢夺选卡 / 资产管理五类自然语言因果句）、⑤ 合法候选（含 `target` 合法取值）与 ⑥ 输出要求（`{"option","target"}` 对象）已实现，⑤ 的 `summary`/`effect_preview` 文案待逐条打磨。AI 可见上下文不含 `decision_id`、`game_id`、冻结命令参数、付款操作 ID、牌堆顺序、RNG 或重试/回退信息。 | 由决策运行器作为控制器实际入参调用；当前不连接外部模型。 |
+| `decision/models.py` | 定义冻结的决策请求、合法候选项（含候选 `title` / `preview` / `response_format` 及 `OptionTarget` 目标规格）、响应、校验结果及其 JSON 审计表示。 | 决策生成、提示词渲染、运行器和审计记录共享。 |
+| `decision/wording.py` | 集中定义每个普通命令与机会卡候选的 `OptionWording(title, preview, response_format)`；当前全部为显式标记「待负责人确认」的临时文本，供逐项人工打磨，不与候选生成逻辑混放。 | `requests.py` 以候选代表命令调用 `option_wording(command)` 取得完整候选文案。 |
+| `decision/requests.py` | 从当前引擎状态投影完整允许的玩家可见视图：公开棋盘格名称/类型/价格/建造成本/租金/税、所有公开资产与状态、当前落点、持续效果及自己的卡牌。以克隆引擎预执行过滤候选，并按「命令形状」折叠（`command_type + 固定参数`），`DecisionOption.target` 记录目标字段与合法取值；只为付款处置、资产管理、监狱滚骰、强制弃牌和抢夺选卡创建请求。仅抢夺成功后的单次请求临时显示目标机会卡；牌堆、RNG、审计 ID、其他玩家实时手牌和运行时信息不会进入普通视图。候选文案由 `wording.py` 透传。 | 每个实际决策点调用 `build_decision_request(engine, sequence)`。 |
+| `decision/prompts.py` | 将决策请求稳定渲染成中文 AI Prompt，按六段式样板（角色与目标、游戏规则、当前局面、当前决策、合法候选、输出要求）逐段实现；① 角色与目标（暂定）、③ 当前局面（回合概述、你的状态、其他玩家状态、棋盘状态表）、④ 当前决策（监狱 / 付款处置 / 强制弃牌 / 抢夺选卡 / 资产管理五类自然语言因果句）、⑤ 候选 `option_id` / `title` / `preview` / `response_format` 与 ⑥ `reason` 输出要求已实现。候选 `response_format` 归 `wording.py` 所有；本模块仅将 `{option_id}` 替换为实际候选 ID 后渲染。AI 可见上下文不含 `decision_id`、`game_id`、冻结命令参数、付款操作 ID、牌堆顺序、RNG 或重试/回退信息。 | 由实际 LLM 控制器未来调用；`tests/manual/render_decision_prompt.py` 可生成固定完整 Prompt 供负责人检查。 |
 | `decision/protocol.py` | 解析并严格校验不可信 JSON 响应；`selected_option` 为 `{"option","target"}` 对象，校验 `option` 与 `target` 合法取值后合并参数并重建引擎命令；复用领域层唯一的完整 `GameCommand` 联合类型。 | 由决策运行器在调用引擎前使用。 |
 | `decision/runner.py` | 以决策协议运行完整对局；普通未监禁 `ROLLING`（含首回合监狱等待）自动执行掷骰、`TURN_COMPLETE` 自动结束回合，两者只写可回放命令/领域事件；监狱滚骰、付款资产处置、强制弃牌、抢夺选卡和资产管理才调用控制器并写决策审计。复用领域层 `GameCommand` 统一执行与审计类型。提供确定性默认策略，连接失败最多重试两次，非法/失败响应回退至默认合法项。 | 调用 `run_decision_game(engine, controller, artifacts)`。 |
 | `MonopolyAgentBattle_developer_docs/stage3-problems.md` | 记录负责人 2026-08-13 提出的 Stage 3 规则反馈和边界说明；问题 1–5（强制弃牌、自动建房、自动破产、自动免租、两步骤抢夺）已于 2026-08-14 完成代码实现与自动化回归，问题 6 的 Prompt 完善性仍待负责人重新人工验收。 | 作为 Stage 3 规则与交接记录，须结合开发看板中的实际验证结果阅读。 |
@@ -51,7 +52,8 @@
 | 路径 | 覆盖范围 | 使用方式 |
 |---|---|---|
 | `tests/unit/test_config.py` | 配置校验、YAML 加载和配置哈希。 | `python -m pytest tests/unit/test_config.py` |
-| `tests/unit/test_decision_protocol.py` | 决策可见性隔离、`current_space.rent` 仅未付金额、实际决策阶段候选项、普通流程拒绝创建请求、响应 schema 拒绝、Prompt 审计字段隔离、监狱多选项、付款上下文不暴露内部操作 ID、抢夺选卡期间的临时目标手牌可见性及选后恢复隔离、候选即时效果预览，以及 Prompt 自然语言渲染（角色目标、你的状态、其他玩家状态、棋盘状态表、同盟与剩余监狱回合数）。 | `python -m pytest tests/unit/test_decision_protocol.py` |
+| `tests/unit/test_decision_protocol.py` | 决策可见性隔离、`current_space.rent` 仅未付金额、实际决策阶段候选项、普通流程拒绝创建请求、响应 schema 拒绝、Prompt 审计字段隔离、监狱多选项、付款上下文不暴露内部操作 ID、抢夺选卡期间的临时目标手牌可见性及选后恢复隔离、候选 `response_format` 渲染，以及 Prompt 自然语言渲染（角色目标、你的状态、其他玩家状态、棋盘状态表、同盟与剩余监狱回合数）。 | `python -m pytest tests/unit/test_decision_protocol.py` |
+| `tests/manual/render_decision_prompt.py` | 构造固定资产管理场景并打印完整实际 Prompt，覆盖无目标、单目标和双目标候选的 `response_format`，供负责人逐字人工检查；不是 pytest 自动化测试。 | `.venv/Scripts/python.exe tests/manual/render_decision_prompt.py` |
 | `tests/integration/test_decision_runner.py` | 决策驱动完整对局、自动普通掷骰事件审计/回放、监狱掷骰 Prompt 选择、监狱等待的自动推进、连接重试、回退及原始校验错误保留。 | `python -m pytest tests/integration/test_decision_runner.py` |
 | `tests/unit/game/test_board.py` | 40 格棋盘数据完整性与产权数值。 | `python -m pytest tests/unit/game/test_board.py` |
 | `tests/unit/game/test_engine.py` | 移动、租金、抵押、建造和双骰入狱等核心规则。 | `python -m pytest tests/unit/game/test_engine.py` |

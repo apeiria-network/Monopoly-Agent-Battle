@@ -188,15 +188,15 @@ def test_response_requires_one_known_option_and_reason(tmp_path: Path) -> None:
     engine.state.players["a"].jail_status = JailStatus.ROLLING
     request = build_decision_request(engine, 1)
     valid = parse_and_validate(
-        json.dumps({"selected_option": {"option": "roll_dice"}, "reasoning": "继续掷骰推进回合。"}),
+        json.dumps({"selected_option": {"option": "roll_dice"}, "reason": "继续掷骰推进回合。"}),
         request,
     )
     illegal = parse_and_validate(
-        json.dumps({"selected_option": {"option": "build-1"}, "reasoning": "越权操作。"}), request
+        json.dumps({"selected_option": {"option": "build-1"}, "reason": "越权操作。"}), request
     )
     altered = parse_and_validate(
         json.dumps(
-            {"selected_option": {"option": "roll_dice", "extra": 1}, "reasoning": "篡改结构。"}
+            {"selected_option": {"option": "roll_dice", "extra": 1}, "reason": "篡改结构。"}
         ),
         request,
     )
@@ -215,7 +215,12 @@ def test_prompt_contains_request_and_fixed_response_contract(tmp_path: Path) -> 
     assert "你的状态" in prompt
     assert "## 当前决策" in prompt
     assert "## 合法候选操作" in prompt
-    assert '"option": "<合法候选项的 option_id>"' in prompt
+    assert "## 输出要求" in prompt
+    assert '"option_id"' in prompt
+    assert '"title"' in prompt
+    assert '"preview"' in prompt
+    assert '"response_format"' in prompt
+    assert '"reason"' in prompt
     assert "decision-game" not in prompt
     assert "decision-" not in prompt
     assert "chance_draw_pile" not in prompt
@@ -538,6 +543,22 @@ def test_options_carry_engine_legal_target_specs(tmp_path: Path) -> None:
     assert by_type["end_turn"].target is None
 
 
+def test_prompt_renders_target_instructions(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    engine.state.properties[1].owner_id = "a"
+    engine.state.players["a"].properties.add(1)
+    engine.state.properties[3].owner_id = "b"
+    engine.state.players["b"].properties.add(3)
+    engine.state.players["a"].chance_cards.append("chance-swap-property")
+
+    prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "【待负责人确认】填写目标格子编号；合法取值由系统列出。" in prompt
+    assert "【待负责人确认】填写 swap_in_position（对方格子编号）" in prompt
+    assert "swap_out_position（己方格子编号）；合法组合由系统列出。" in prompt
+
+
 def test_selected_target_is_validated_and_reconstructed(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
@@ -547,7 +568,7 @@ def test_selected_target_is_validated_and_reconstructed(tmp_path: Path) -> None:
 
     valid = parse_and_validate(
         json.dumps(
-            {"selected_option": {"option": "mortgage", "target": 1}, "reasoning": "抵押地块。"}
+            {"selected_option": {"option": "mortgage", "target": 1}, "reason": "抵押地块。"}
         ),
         request,
     )
@@ -559,7 +580,7 @@ def test_selected_target_is_validated_and_reconstructed(tmp_path: Path) -> None:
 
     invalid = parse_and_validate(
         json.dumps(
-            {"selected_option": {"option": "mortgage", "target": 99}, "reasoning": "非法目标。"}
+            {"selected_option": {"option": "mortgage", "target": 99}, "reason": "非法目标。"}
         ),
         request,
     )

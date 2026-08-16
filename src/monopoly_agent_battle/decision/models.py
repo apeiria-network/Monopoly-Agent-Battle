@@ -38,8 +38,9 @@ class DecisionOption:
     option_id: str
     command_type: str
     parameters: dict[str, object]
-    summary: str
-    effect_preview: dict[str, str]
+    title: str
+    preview: str
+    response_format: dict[str, object]
     is_default: bool = False
     target: OptionTarget | None = None
 
@@ -66,7 +67,7 @@ class DecisionResponse:
 
     selected_option: str
     target: object | None
-    reasoning: str
+    reason: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,8 +101,9 @@ def decision_request_record(request: DecisionRequest) -> dict[str, object]:
                 "option_id": option.option_id,
                 "command_type": option.command_type,
                 "parameters": option.parameters,
-                "summary": option.summary,
-                "effect_preview": option.effect_preview,
+                "title": option.title,
+                "preview": option.preview,
+                "response_format": option.response_format,
                 "is_default": option.is_default,
                 "target": (
                     {
@@ -127,7 +129,7 @@ def validation_record(validation: DecisionValidation) -> dict[str, Any]:
             {
                 "selected_option": validation.response.selected_option,
                 "target": validation.response.target,
-                "reasoning": validation.response.reasoning,
+                "reason": validation.response.reason,
             }
             if validation.response is not None
             else None
