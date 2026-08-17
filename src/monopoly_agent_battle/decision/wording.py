@@ -34,7 +34,8 @@ _COMMAND_WORDING: dict[str, OptionWording] = {
     ),
     "Mortgage": OptionWording(
         "抵押地产",
-        "抵押一处你拥有的地产，获得其购买价；抵押期间该地产不收租，不能建造房屋，但是可以享受地产增益。赎回时需支付购买价的 110%。",
+        "抵押一处你拥有的地产，获得其购买价；抵押期间该地产不收租，不能建造房屋，"
+        "但是可以享受地产增益。赎回时需支付购买价的 110%。",
         {
             "reason": "填写选择抵押该地产的理由。",
             "selected_option": {
@@ -113,7 +114,8 @@ _COMMAND_WORDING: dict[str, OptionWording] = {
 _CARD_WORDING: dict[str, OptionWording] = {
     "chance-steal": OptionWording(
         "使用机会卡「抢夺卡」",
-        "掷一枚骰子，点数不小于 4 时查看目标玩家手牌并选择获得其中一张；否则无事发生，抢夺卡回到手牌。",
+        "掷一枚骰子，点数不小于 4 时查看目标玩家手牌并选择获得其中一张；"
+        "否则无事发生，抢夺卡回到手牌。",
         {
             "reason": "填写选择使用抢夺卡的理由。",
             "selected_option": {
@@ -162,8 +164,10 @@ _CARD_WORDING: dict[str, OptionWording] = {
             "reason": "填写选择使用换地卡的理由。",
             "selected_option": {
                 "option": "{option_id}",
-                "target": {"swap_in_position": "填写换入的目标格子id",
-                           "swap_out_position": "填写换出的目标格子id"},
+                "target": {
+                    "swap_in_position": "填写换入的目标格子id",
+                    "swap_out_position": "填写换出的目标格子id",
+                },
             },
         },
     ),
@@ -185,8 +189,10 @@ _CARD_WORDING: dict[str, OptionWording] = {
             "reason": "填写选择使用换屋卡的理由。",
             "selected_option": {
                 "option": "{option_id}",
-                "target": {"swap_in_position": "填写换入的目标格子id",
-                           "swap_out_position": "填写换出的目标格子id"},
+                "target": {
+                    "swap_in_position": "填写换入的目标格子id",
+                    "swap_out_position": "填写换出的目标格子id",
+                },
             },
         },
     ),
