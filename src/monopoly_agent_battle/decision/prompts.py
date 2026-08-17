@@ -247,3 +247,21 @@ def _alliance_effects(visible: dict[str, Any], player_id: str) -> str:
 
 def _json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2)
+
+
+_OPTIONS_HEADER = "## 合法候选操作\n"
+
+
+def options_from_prompt(prompt: str) -> list[dict[str, object]]:
+    """Parse the rendered candidate options out of a decision prompt.
+
+    Used by deterministic mock clients; the prompt format is owned here, so any
+    format change to the candidates section must keep this parser in sync.
+    """
+    start = prompt.index(_OPTIONS_HEADER) + len(_OPTIONS_HEADER)
+    end = prompt.find("\n## ", start)
+    section = prompt[start : end if end != -1 else len(prompt)]
+    document = json.loads(section)
+    if not isinstance(document, list):
+        raise ValueError("rendered decision options must be a JSON array")
+    return cast(list[dict[str, object]], document)

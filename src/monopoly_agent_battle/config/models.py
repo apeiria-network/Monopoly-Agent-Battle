@@ -7,6 +7,18 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
+class ModelProfile(BaseModel):
+    """Sampling and routing settings bound to one AI role."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    temperature: float | None = None
+    max_tokens: int | None = Field(default=None, ge=1)
+    timeout_seconds: float | None = Field(default=None, gt=0)
+
+
 class PlayerConfig(BaseModel):
     """A player assigned to one distinct seat."""
 
@@ -14,6 +26,9 @@ class PlayerConfig(BaseModel):
 
     player_id: str = Field(min_length=1)
     seat: int = Field(ge=1, le=4)
+    model_profile: str | None = Field(
+        default=None, description="key into GameConfig.model_profiles; None means no LLM"
+    )
 
 
 class GameConfig(BaseModel):
@@ -31,6 +46,11 @@ class GameConfig(BaseModel):
     rules_level: int = Field(default=0, ge=0, le=2)
     board_data_version: str = Field(min_length=1)
     card_data_version: str = Field(min_length=1)
+    model_profiles: dict[str, ModelProfile] = Field(default_factory=dict)
+    validation_retries: int = Field(default=2, ge=0)
+    window_turns: int = Field(default=3, ge=1)
+    sentence_template_version: str | None = None
+    context_token_cap: int | None = Field(default=None, ge=1)
     output_directory: Path = Path("runs")
 
     @field_validator("game_id", "experiment_id")
@@ -52,5 +72,11 @@ class GameConfig(BaseModel):
             raise ValueError(msg)
         if self.rules_level != 0:
             msg = "Phase 0 only accepts classic Level 0 configurations"
+            raise ValueError(msg)
+        missing = {
+            player.model_profile for player in self.players if player.model_profile is not None
+        } - set(self.model_profiles)
+        if missing:
+            msg = f"player model_profile not defined: {sorted(missing)}"
             raise ValueError(msg)
         return self

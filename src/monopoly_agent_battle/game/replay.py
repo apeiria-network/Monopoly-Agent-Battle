@@ -32,6 +32,11 @@ class ReplayVerificationError(ValueError):
     """Raised when persisted events cannot reproduce a result snapshot."""
 
 
+_NON_STATE_RESULT_KEYS = frozenset(
+    {"llm_calls", "reconnect_events", "decision_fallbacks", "validity_status"}
+)
+
+
 def verify_run(run_directory: Path) -> None:
     """Replay persisted commands and compare their events and state snapshot."""
     config_document = _read_json(run_directory / "config.json")
@@ -62,7 +67,10 @@ def verify_run(run_directory: Path) -> None:
     if _canonical_events(replayed) != _canonical_events(expected_events):
         raise ReplayVerificationError("replayed events differ from events.jsonl")
     snapshot = state_snapshot(engine.state, str(result["status"]))
-    if snapshot != result:
+    state_result = {
+        key: value for key, value in result.items() if key not in _NON_STATE_RESULT_KEYS
+    }
+    if snapshot != state_result:
         raise ReplayVerificationError("replayed state differs from result.json")
 
 
