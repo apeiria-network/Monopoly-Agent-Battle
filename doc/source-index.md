@@ -54,6 +54,12 @@
 | `llm/registry.py` | 按供应商别名注册/创建客户端（可插拔适配器）。 | `register_client_factory`/`create_client`；4A 仅注册 `"mock"`。 |
 | `agents/baseline.py` | BaselineAgent：单模型玩家控制器，渲染决策 Prompt 并调用 LLM 返回响应；支持校验失败临时反馈。 | 由 `play`/实验组装为 `DispatchController` 输入。 |
 
+## 历史上下文系统（`src/monopoly_agent_battle/context/`）
+
+| 路径 | 用途 | 使用方式 |
+|---|---|---|
+| `context/broadcast.py` | 固定句式事件播报器（Stage 4B）。将 `GameEvent` 确定性渲染为中文固定句式；白名单 33 个事件、豁免 16 个事件，覆盖全部 49 个引擎事件类型。按 `viewer_id` 区分涉己/旁观渲染（机会卡抽取、弃置、被抢夺对观察者隐藏卡名；社区基金卡全员可见）。`BROADCAST_VERSION="v1"` 供 `sentence_template_version` 参考；未注册事件抛 `UnregisteredEventError`。 | `render_event(event, viewer_id) -> str \| None`；白名单事件返回句式，豁免事件返回 None。 |
+
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
@@ -71,6 +77,8 @@
 | `tests/unit/test_llm_protocol.py` | LLM 协议与 Mock/录制客户端行为。 | `python -m pytest tests/unit/test_llm_protocol.py` |
 | `tests/unit/test_baseline_agent.py` | BaselineAgent 请求构造、校验失败反馈段落与错误传播。 | `python -m pytest tests/unit/test_baseline_agent.py` |
 | `tests/integration/test_llm_runner.py` | Mock LLM baseline 完整对局与审计/回放、重连超阈值判无效、校验反馈重试计数。 | `python -m pytest tests/integration/test_llm_runner.py` |
+| `tests/unit/context/test_broadcast.py` | 上下文播报器单元测试（Stage 4B）：豁免事件返回 None、全引擎事件类型穷举（白名单+豁免覆盖全部 49 个事件）、未注册事件抛异常、确定性渲染、涉己/旁观差异（card_drawn、card_discarded、chance_card_stolen）、payment_made 银行/玩家、player_jailed 原因映射、棋盘名称回退。 | `python -m pytest tests/unit/context/test_broadcast.py` |
+| `tests/manual/render_history_broadcast.py` | 手动验收：模拟完整游戏流程，覆盖常见白名单事件（基础移动、购买、租金、建造、抵押、监狱等），每类事件目标≥3次；打印带事件类型前缀的播报供人工审核。部分罕见事件（card_die_rolled、chance_card_stolen、property_vacated、cash_tax_transferred、cash_equalized、ongoing_effect_*、property_reset 等）需特定卡牌场景触发，未在简单模拟中覆盖。 | `.venv/Scripts/python.exe tests/manual/render_history_broadcast.py` |
 | `tests/unit/game/test_board.py` | 40 格棋盘数据完整性与产权数值。 | `python -m pytest tests/unit/game/test_board.py` |
 | `tests/unit/game/test_engine.py` | 移动、租金、抵押、建造和双骰入狱等核心规则。 | `python -m pytest tests/unit/game/test_engine.py` |
 | `tests/unit/game/test_turn_flow.py` | 双骰、阶段转换、付款处置以及无可用清算操作时自动破产的回合状态机。 | `python -m pytest tests/unit/game/test_turn_flow.py` |
