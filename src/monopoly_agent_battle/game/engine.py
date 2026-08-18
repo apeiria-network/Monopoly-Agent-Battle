@@ -758,7 +758,7 @@ class GameEngine:
             player.cash += amount
             events.append(
                 GameEvent(
-                    "cash_transferred",
+                    "cash_tax_transferred",
                     {
                         "player_id": player.player_id,
                         "target_player_id": target.player_id,
