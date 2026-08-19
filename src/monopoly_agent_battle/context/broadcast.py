@@ -109,15 +109,15 @@ def render_event(event: GameEvent, viewer_id: str | None) -> str | None:
         dice = payload["dice"]
         # Engine emits dice as tuple, convert for indexing
         if isinstance(dice, tuple):
-            d1, d2 = dice[0], dice[1]
+            d1, d2 = int(dice[0]), int(dice[1])  # type: ignore[arg-type]
         else:
             assert isinstance(dice, list)
-            d1, d2 = dice[0], dice[1]
-        player_id = payload["player_id"]
+            d1, d2 = int(dice[0]), int(dice[1])  # type: ignore[arg-type]
+        player_id = str(payload["player_id"])
         return f"玩家{player_id}掷出{d1}+{d2}={d1 + d2}点。"
 
     if event.event_type == "player_moved":
-        to_pos = payload["to"]
+        to_pos = int(payload["to"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(to_pos, str(to_pos))
         return f"玩家{payload['player_id']}移动到第{to_pos}格（{name}）。"
 
@@ -125,30 +125,33 @@ def render_event(event: GameEvent, viewer_id: str | None) -> str | None:
         return f"玩家{payload['player_id']}经过起点，获得{payload['amount']}资金。"
 
     if event.event_type == "property_purchased":
-        pos = payload["position"]
+        pos = int(payload["position"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(pos, str(pos))
         return f"玩家{payload['player_id']}购买第{pos}格（{name}），支付{payload['price']}。"
 
     if event.event_type == "property_purchased_from_player":
-        pos = payload["position"]
+        pos = int(payload["position"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(pos, str(pos))
-        buyer = payload["player_id"]
-        seller = payload["owner_id"]
-        price = payload["price"]
+        buyer = str(payload["player_id"])
+        seller = str(payload["owner_id"])
+        price = int(payload["price"])  # type: ignore[arg-type]
         return f"玩家{buyer}向玩家{seller}购买第{pos}格（{name}），支付{price}。"
 
     if event.event_type == "payment_made":
         recipient = "银行" if payload["recipient_id"] is None else f"玩家{payload['recipient_id']}"
-        payer = payload["payer_id"]
-        amount = payload["amount"]
-        reason = payload["reason"]
-        return f"玩家{payer}支付{amount}给{recipient}（原因：{reason}）。"
+        payer = str(payload["payer_id"])
+        amount = int(payload["amount"])  # type: ignore[arg-type]
+        reason = str(payload["reason"])
+        # Translate common payment reasons
+        reason_map = {"rent": "租金", "tax": "税费", "jail_fine": "监狱罚款"}
+        reason_text = reason_map.get(reason, _CARD_NAMES.get(reason, reason))
+        return f"玩家{payer}支付{amount}给{recipient}（原因：{reason_text}）。"
 
     if event.event_type == "player_bankrupt":
         return f"玩家{payload['player_id']}破产出局。"
 
     if event.event_type == "player_jailed":
-        reason = payload["reason"]
+        reason = str(payload["reason"])
         reason_text = (
             "连续三次双骰"
             if reason == "third_doubles"
@@ -159,8 +162,9 @@ def render_event(event: GameEvent, viewer_id: str | None) -> str | None:
         return f"玩家{payload['player_id']}被送进监狱（原因：{reason_text}）。"
 
     if event.event_type == "jail_released":
+        method = str(payload["method"])
         method_map = {"doubles": "掷出对子", "card": "使用出狱卡", "fine": "缴纳罚款"}
-        method_desc = method_map.get(payload["method"], payload["method"])
+        method_desc = method_map.get(method, method)
         return f"玩家{payload['player_id']}出狱（方式：{method_desc}）。"
 
     if event.event_type == "jail_roll_failed":
@@ -173,9 +177,9 @@ def render_event(event: GameEvent, viewer_id: str | None) -> str | None:
         return f"玩家{payload['player_id']}结束行动回合。"
 
     if event.event_type == "card_drawn":
-        player_id = payload["player_id"]
-        card_id = payload["card_id"]
-        deck = payload["deck"]
+        player_id = str(payload["player_id"])
+        card_id = str(payload["card_id"])
+        deck = str(payload["deck"])
         card_name = _CARD_NAMES.get(card_id, card_id)
 
         if deck == CardDeck.CHANCE.value:
@@ -190,9 +194,9 @@ def render_event(event: GameEvent, viewer_id: str | None) -> str | None:
         return f"玩家{player_id}抽得一张公益基金卡「{card_name}」（{held_text}）。"
 
     if event.event_type == "card_discarded":
-        player_id = payload["player_id"]
-        card_id = payload["card_id"]
-        deck = payload["deck"]
+        player_id = str(payload["player_id"])
+        card_id = str(payload["card_id"])
+        deck = str(payload["deck"])
         deck_label = "机会" if deck == CardDeck.CHANCE.value else "公益基金"
 
         if viewer_id == player_id:
@@ -201,15 +205,15 @@ def render_event(event: GameEvent, viewer_id: str | None) -> str | None:
         return f"玩家{player_id}弃置一张{deck_label}卡。"
 
     if event.event_type == "chance_card_used":
-        player_id = payload["player_id"]
-        card_id = payload["card_id"]
+        player_id = str(payload["player_id"])
+        card_id = str(payload["card_id"])
         card_name = _CARD_NAMES.get(card_id, card_id)
 
-        target_parts = []
+        target_parts: list[str] = []
         if payload.get("target_player_id"):
             target_parts.append(f"，目标：玩家{payload['target_player_id']}")
         if payload.get("target_position") is not None:
-            pos = payload["target_position"]
+            pos = int(payload["target_position"])  # type: ignore[arg-type]
             name = _BOARD_NAMES.get(pos, str(pos))
             target_parts.append(f"，目标：第{pos}格（{name}）")
         if payload.get("target_color_group"):
@@ -222,9 +226,9 @@ def render_event(event: GameEvent, viewer_id: str | None) -> str | None:
         return f"玩家{payload['player_id']}抢夺掷骰结果为{payload['die']}。"
 
     if event.event_type == "chance_card_stolen":
-        player_id = payload["player_id"]
-        target_id = payload["target_player_id"]
-        card_id = payload["card_id"]
+        player_id = str(payload["player_id"])
+        target_id = str(payload["target_player_id"])
+        card_id = str(payload["card_id"])
 
         if viewer_id in (player_id, target_id):
             card_name = _CARD_NAMES.get(card_id, card_id)
@@ -232,81 +236,84 @@ def render_event(event: GameEvent, viewer_id: str | None) -> str | None:
         return f"玩家{player_id}从玩家{target_id}手中拿走了一张机会卡。"
 
     if event.event_type == "building_added":
-        pos = payload["position"]
+        pos = int(payload["position"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(pos, str(pos))
-        player_id = payload["player_id"]
-        cost = payload["cost"]
+        player_id = str(payload["player_id"])
+        cost = int(payload["cost"])  # type: ignore[arg-type]
         return f"玩家{player_id}在第{pos}格（{name}）自动加建房屋，花费{cost}。"
 
     if event.event_type == "building_sold":
-        pos = payload["position"]
+        pos = int(payload["position"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(pos, str(pos))
         return f"玩家{payload['player_id']}出售第{pos}格（{name}）房屋，获得{payload['amount']}。"
 
     if event.event_type == "building_level_changed":
-        pos = payload["position"]
+        pos = int(payload["position"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(pos, str(pos))
-        level = payload["building_level"]
-        reason = payload["reason"]
+        level = int(payload["building_level"])  # type: ignore[arg-type]
+        reason = str(payload["reason"])
         reason_text = _CARD_NAMES.get(reason, reason)
         return f"第{pos}格（{name}）房屋层数变为{level}（原因：{reason_text}）。"
 
     if event.event_type == "property_mortgaged":
-        pos = payload["position"]
+        pos = int(payload["position"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(pos, str(pos))
         return f"玩家{payload['player_id']}抵押第{pos}格（{name}），获得{payload['amount']}。"
 
     if event.event_type == "mortgage_redeemed":
-        pos = payload["position"]
+        pos = int(payload["position"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(pos, str(pos))
         return f"玩家{payload['player_id']}赎回第{pos}格（{name}）抵押，支付{payload['amount']}。"
 
     if event.event_type == "property_reset":
-        pos = payload["position"]
+        pos = int(payload["position"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(pos, str(pos))
-        reason = payload["reason"]
+        reason = str(payload["reason"])
         reason_text = _CARD_NAMES.get(reason, reason)
         return f"第{pos}格（{name}）地产被清空（原因：{reason_text}）。"
 
     if event.event_type == "property_vacated":
-        pos = payload["position"]
+        pos = int(payload["position"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(pos, str(pos))
-        owner_id = payload["owner_id"]
-        price = payload["price"]
+        owner_id = str(payload["owner_id"])
+        price = int(payload["price"])  # type: ignore[arg-type]
         return f"玩家{owner_id}的第{pos}格（{name}）被清退，{owner_id}获得{price}。"
 
     if event.event_type == "rent_waiver_used":
-        pos = payload["position"]
+        pos = int(payload["position"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(pos, str(pos))
-        player_id = payload["player_id"]
-        remaining = payload["remaining_waivers"]
+        player_id = str(payload["player_id"])
+        remaining = int(payload["remaining_waivers"])  # type: ignore[arg-type]
         return f"玩家{player_id}使用免租权免除第{pos}格（{name}）租金（剩余{remaining}次）。"
 
     if event.event_type == "rent_waivers_granted":
         return f"玩家{payload['player_id']}获得{payload['amount']}次免租权。"
 
     if event.event_type == "cash_received":
-        reason = payload["reason"]
+        reason = str(payload["reason"])
         reason_text = _CARD_NAMES.get(reason, reason)
         return f"玩家{payload['player_id']}获得{payload['amount']}资金（原因：{reason_text}）。"
 
     if event.event_type == "cash_tax_transferred":
-        player_id = payload["player_id"]
-        target_id = payload["target_player_id"]
-        amount = payload["amount"]
+        player_id = str(payload["player_id"])
+        target_id = str(payload["target_player_id"])
+        amount = int(payload["amount"])  # type: ignore[arg-type]
         return f"玩家{player_id}通过查税卡获得{amount}资金，玩家{target_id}失去{amount}资金。"
 
     if event.event_type == "cash_equalized":
-        player_id = payload["player_id"]
-        target_id = payload["target_player_id"]
-        share = payload["player_cash"]
+        player_id = str(payload["player_id"])
+        target_id = str(payload["target_player_id"])
+        share = int(payload["player_cash"])  # type: ignore[arg-type]
         return f"玩家{player_id}与玩家{target_id}资金均分，各得{share}。"
 
     if event.event_type == "ongoing_effect_created":
-        kind = payload["kind"]
-        source = payload["source_player_id"]
-        turns = payload["remaining_turns"]
-        parts = [f"{kind}效果创建（来源{source}，剩余{turns}回合"]
+        kind = str(payload["kind"])
+        source = str(payload["source_player_id"])
+        turns = int(payload["remaining_turns"])  # type: ignore[arg-type]
+        # Translate effect kinds
+        kind_map = {"alliance": "同盟", "rent_surge": "涨价", "rent_freeze": "查封"}
+        kind_text = kind_map.get(kind, kind)
+        parts: list[str] = [f"{kind_text}效果创建（来源{source}，剩余{turns}回合"]
 
         if payload.get("target_player_id"):
             parts.append(f"，目标：玩家{payload['target_player_id']}")
@@ -317,15 +324,23 @@ def render_event(event: GameEvent, viewer_id: str | None) -> str | None:
         return "".join(parts)
 
     if event.event_type == "ongoing_effect_expired":
-        return f"{payload['kind']}效果到期（来源{payload['source_player_id']}）。"
+        kind = str(payload["kind"])
+        # Translate effect kinds
+        kind_map = {"alliance": "同盟", "rent_surge": "涨价", "rent_freeze": "查封"}
+        kind_text = kind_map.get(kind, kind)
+        return f"{kind_text}效果到期（来源{payload['source_player_id']}）。"
 
     if event.event_type == "automatic_build_skipped_insufficient_cash":
-        pos = payload["position"]
+        pos = int(payload["position"])  # type: ignore[arg-type]
         name = _BOARD_NAMES.get(pos, str(pos))
         return f"玩家{payload['player_id']}现金不足，第{pos}格（{name}）不自动加建。"
 
     if event.event_type == "game_finished":
-        return f"游戏结束（原因：{payload['reason']}）。"
+        reason = str(payload["reason"])
+        # Translate game finish reasons
+        reason_map = {"round_limit": "回合数上限"}
+        reason_text = reason_map.get(reason, reason)
+        return f"游戏结束（原因：{reason_text}）。"
 
     # Should never reach here if WHITELIST is properly maintained
     raise UnregisteredEventError(f"Whitelist event '{event.event_type}' has no template")

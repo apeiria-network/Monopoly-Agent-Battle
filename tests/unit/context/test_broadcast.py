@@ -188,7 +188,7 @@ def test_payment_made_to_bank() -> None:
 
     result = render_event(event, None)
     assert "银行" in result
-    assert result == "玩家a支付50给银行（原因：tax）。"
+    assert result == "玩家a支付50给银行（原因：税费）。"
 
 
 def test_payment_made_to_player() -> None:
@@ -206,7 +206,7 @@ def test_payment_made_to_player() -> None:
 
     result = render_event(event, None)
     assert "玩家b" in result
-    assert result == "玩家a支付100给玩家b（原因：rent）。"
+    assert result == "玩家a支付100给玩家b（原因：租金）。"
 
 
 def test_player_jailed_reason_mapping() -> None:
@@ -294,7 +294,7 @@ def test_ongoing_effect_created_with_targets() -> None:
         },
     )
     result = render_event(event_with_player, None)
-    assert "alliance效果创建" in result
+    assert "同盟效果创建" in result
     assert "目标：玩家b" in result
 
     event_with_color = GameEvent(
@@ -308,7 +308,7 @@ def test_ongoing_effect_created_with_targets() -> None:
         },
     )
     result = render_event(event_with_color, None)
-    assert "rent_surge效果创建" in result
+    assert "涨价效果创建" in result
     assert "颜色组：red" in result
 
 
