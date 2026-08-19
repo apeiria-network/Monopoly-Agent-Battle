@@ -59,10 +59,6 @@ class RunArtifacts:
         """Append one auditable decision request, response, and execution record."""
         self.append_jsonl("decisions.jsonl", record)
 
-    def append_llm_call(self, record: dict[str, Any]) -> None:
-        """Append one recorded LLM invocation to the per-call log."""
-        self.append_jsonl("llm_calls.jsonl", record)
-
     def append_runtime(self, event_type: str, payload: dict[str, Any]) -> None:
         """Append a private runtime event that must not be exposed to controllers."""
         self.append_jsonl(

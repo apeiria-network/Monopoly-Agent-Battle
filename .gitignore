@@ -38,6 +38,3 @@ uv.lock
 .DS_Store
 Thumbs.db
 Desktop.ini
-
-# Game run artifacts (never committed)
-/runs/

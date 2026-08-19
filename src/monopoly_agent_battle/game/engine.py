@@ -529,12 +529,7 @@ class GameEngine:
             raise GameRuleError("player does not hold the chance card")
         player.chance_cards.remove(card_id)
         self._discard_card(card_id, CardDeck.CHANCE)
-        return [
-            GameEvent(
-                "card_discarded",
-                {"player_id": player.player_id, "card_id": card_id, "deck": CardDeck.CHANCE.value},
-            )
-        ]
+        return [GameEvent("card_discarded", {"card_id": card_id, "deck": CardDeck.CHANCE.value})]
 
     def _use_community_get_out_of_jail_card(
         self, player: PlayerState, card_id: str
@@ -549,12 +544,7 @@ class GameEngine:
         player.jail_roll_attempts = 0
         return [
             GameEvent(
-                "card_discarded",
-                {
-                    "player_id": player.player_id,
-                    "card_id": card_id,
-                    "deck": CardDeck.COMMUNITY_CHEST.value,
-                },
+                "card_discarded", {"card_id": card_id, "deck": CardDeck.COMMUNITY_CHEST.value}
             ),
             GameEvent("jail_released", {"player_id": player.player_id, "method": "card"}),
         ]
@@ -590,14 +580,7 @@ class GameEngine:
                     "card_id": card_id,
                 },
             ),
-            GameEvent(
-                "card_discarded",
-                {
-                    "player_id": player.player_id,
-                    "card_id": theft_card_id,
-                    "deck": CardDeck.CHANCE.value,
-                },
-            ),
+            GameEvent("card_discarded", {"card_id": theft_card_id, "deck": CardDeck.CHANCE.value}),
         ]
 
     def _use_chance_card(self, player: PlayerState, command: UseChanceCard) -> list[GameEvent]:
@@ -609,13 +592,7 @@ class GameEngine:
         events = [
             GameEvent(
                 "chance_card_used",
-                {
-                    "player_id": player.player_id,
-                    "card_id": card.card_id,
-                    "target_player_id": command.target_player_id,
-                    "target_position": command.target_position,
-                    "target_color_group": command.target_color_group,
-                },
+                {"player_id": player.player_id, "card_id": card.card_id},
             )
         ]
         if card.effect is CardEffect.STEAL_CARD:
@@ -781,7 +758,7 @@ class GameEngine:
             player.cash += amount
             events.append(
                 GameEvent(
-                    "cash_tax_transferred",
+                    "cash_transferred",
                     {
                         "player_id": player.player_id,
                         "target_player_id": target.player_id,
@@ -888,14 +865,7 @@ class GameEngine:
         player.chance_cards.remove(card.card_id)
         self._discard_card(card.card_id, CardDeck.CHANCE)
         events.append(
-            GameEvent(
-                "card_discarded",
-                {
-                    "player_id": player.player_id,
-                    "card_id": card.card_id,
-                    "deck": CardDeck.CHANCE.value,
-                },
-            )
+            GameEvent("card_discarded", {"card_id": card.card_id, "deck": CardDeck.CHANCE.value})
         )
         return events
 
@@ -1288,14 +1258,7 @@ class GameEngine:
             raise AssertionError(f"card effect not implemented: {card.effect}")
         self._discard_card(card.card_id, operation.deck)
         events.append(
-            GameEvent(
-                "card_discarded",
-                {
-                    "player_id": operation.player_id,
-                    "card_id": card.card_id,
-                    "deck": operation.deck.value,
-                },
-            )
+            GameEvent("card_discarded", {"card_id": card.card_id, "deck": operation.deck.value})
         )
         self._drain_settlement_operations(events)
 
@@ -1515,14 +1478,7 @@ class GameEngine:
             self.state.chance_discard_pile.extend(player.chance_cards)
             for card_id in player.chance_cards:
                 events.append(
-                    GameEvent(
-                        "card_discarded",
-                        {
-                            "player_id": player.player_id,
-                            "card_id": card_id,
-                            "deck": CardDeck.CHANCE.value,
-                        },
-                    )
+                    GameEvent("card_discarded", {"card_id": card_id, "deck": CardDeck.CHANCE.value})
                 )
             player.chance_cards.clear()
         if player.community_get_out_of_jail_cards:
@@ -1531,11 +1487,7 @@ class GameEngine:
                 events.append(
                     GameEvent(
                         "card_discarded",
-                        {
-                            "player_id": player.player_id,
-                            "card_id": card_id,
-                            "deck": CardDeck.COMMUNITY_CHEST.value,
-                        },
+                        {"card_id": card_id, "deck": CardDeck.COMMUNITY_CHEST.value},
                     )
                 )
             player.community_get_out_of_jail_cards.clear()
