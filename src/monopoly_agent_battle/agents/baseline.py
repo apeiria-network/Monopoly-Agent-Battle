@@ -1,25 +1,29 @@
-"""Single-model baseline agent that answers decisions through an LLM client."""
+"""Single-model baseline agent that answers decisions through an LLM client.
+
+Stage 4C: the agent renders the current decision through the 10-segment
+``compose_prompt`` composer using an ``AgentConversation`` held by the runner.
+Validation-failure feedback is managed on the conversation by the runner; the
+agent itself is stateless and only maps ``(request, conversation) → LLM call``.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from monopoly_agent_battle.config.models import ModelProfile
+from monopoly_agent_battle.context.composer import compose_prompt
+from monopoly_agent_battle.context.conversation import AgentConversation
+from monopoly_agent_battle.context.token_guard import ContextWarning
 from monopoly_agent_battle.decision.models import DecisionRequest
-from monopoly_agent_battle.decision.prompts import render_decision_prompt
-from monopoly_agent_battle.llm.protocol import LLMClient, LLMMessage, LLMRequest
-
-PromptRenderer = Callable[[DecisionRequest], str]
-
-_VALIDATION_FEEDBACK = "\n\n## 上次输出反馈\n你的上一次输出无效：{error}。请重新输出一个合法 JSON。"
+from monopoly_agent_battle.llm.protocol import LLMClient, LLMRequest
 
 
 class BaselineAgent:
     """A stateless single-model player controller driven by an LLM client.
 
-    Receives the same player-visible context and decision candidates as the
-    accepted Stage 3 prompt; a transient validation-failure feedback section may
-    be appended for retries (A1). The agent never mutates game state.
+    Holds a reference to its ``AgentConversation`` (the runner keeps the same
+    reference for turn-boundary and feedback management). On each call the
+    agent composes the full 10-segment prompt, dispatches it to the LLM, and
+    returns the raw text response. Any segment-3 overflow warning surfaced by
+    the composer is exposed for the runner to log to ``runtime.jsonl``.
     """
 
     def __init__(
@@ -28,20 +32,33 @@ class BaselineAgent:
         player_id: str,
         client: LLMClient,
         profile: ModelProfile,
-        prompt_renderer: PromptRenderer = render_decision_prompt,
+        conversation: AgentConversation,
     ) -> None:
         self._player_id = player_id
         self._client = client
         self._profile = profile
-        self._prompt_renderer = prompt_renderer
+        self._conversation = conversation
+        self._last_warning: ContextWarning | None = None
+
+    @property
+    def player_id(self) -> str:
+        return self._player_id
+
+    @property
+    def conversation(self) -> AgentConversation:
+        return self._conversation
+
+    @property
+    def last_context_warning(self) -> ContextWarning | None:
+        """Segment-3 overflow advisory (if any) from the most recent call."""
+        return self._last_warning
 
     def __call__(self, request: DecisionRequest, feedback: str | None = None) -> str:
-        prompt = self._prompt_renderer(request)
-        if feedback is not None:
-            prompt += _VALIDATION_FEEDBACK.format(error=feedback)
+        messages, warning = compose_prompt(self._conversation, request)
+        self._last_warning = warning
         response = self._client.complete(
             LLMRequest(
-                messages=(LLMMessage(role="user", content=prompt),),
+                messages=messages,
                 model=self._profile.model,
                 caller_role=self._player_id,
                 temperature=self._profile.temperature,

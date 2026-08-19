@@ -1,15 +1,20 @@
-"""Unit tests for the single-model baseline agent."""
+"""Unit tests for the Stage 4C single-model baseline agent."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
 from monopoly_agent_battle.agents.baseline import BaselineAgent
-from monopoly_agent_battle.config.models import ModelProfile
-from monopoly_agent_battle.decision.models import DecisionKind, DecisionRequest
+from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
+from monopoly_agent_battle.context.conversation import AgentConversation
+from monopoly_agent_battle.decision.models import DecisionRequest
+from monopoly_agent_battle.decision.requests import build_decision_request
+from monopoly_agent_battle.domain.models import TurnPhase
+from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.protocol import (
     LLMConnectionError,
-    LLMMessage,
     LLMRequest,
     LLMResponse,
     UsageMetrics,
@@ -28,61 +33,91 @@ class StubClient:
         return LLMResponse(content=self.content, usage=UsageMetrics(1, 1), model=request.model)
 
 
-def _make_request() -> DecisionRequest:
-    return DecisionRequest(
-        decision_id="decision-1",
-        game_id="g",
-        complete_rounds=0,
-        player_id="a",
-        phase="asset_management",
-        kind=DecisionKind.ASSET_MANAGEMENT,
-        question="q",
-        visible_state={},
-        options=(),
-        output_constraints={},
+def _make_request_and_engine(tmp_path: Path) -> tuple[GameEngine, DecisionRequest]:
+    """Return a real (engine, decision request) pair anchored on tmp_path."""
+    config = GameConfig(
+        game_id="baseline-test",
+        experiment_id="unit",
+        seed=1,
+        players=(
+            PlayerConfig(player_id="a", seat=1),
+            PlayerConfig(player_id="b", seat=2),
+        ),
+        rules_version="classic-level0-v1",
+        board_data_version="classic-us-40-v1",
+        card_data_version="classic-cards-v1",
+        output_directory=tmp_path,
     )
+    engine = GameEngine(config)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    request = build_decision_request(engine, sequence=1)
+    return engine, request
 
 
-def _agent(client: StubClient, profile: ModelProfile) -> BaselineAgent:
-    return BaselineAgent(
+def _agent(client: StubClient, profile: ModelProfile) -> tuple[BaselineAgent, AgentConversation]:
+    conversation = AgentConversation(agent_id="a", window_turns=1)
+    agent = BaselineAgent(
         player_id="a",
         client=client,
         profile=profile,
-        prompt_renderer=lambda _request: "PROMPT",
+        conversation=conversation,
     )
+    return agent, conversation
 
 
-def test_baseline_agent_returns_client_content_and_builds_request() -> None:
+def test_baseline_agent_returns_client_content_and_builds_multi_message_request(
+    tmp_path: Path,
+) -> None:
     client = StubClient('{"selected_option": {"option": "end_turn"}, "reason": "r"}')
     profile = ModelProfile(
         provider="mock", model="mock-baseline-v1", temperature=0.5, max_tokens=100
     )
+    _engine, request = _make_request_and_engine(tmp_path)
 
-    content = _agent(client, profile)(_make_request())
+    agent, _conv = _agent(client, profile)
+    content = agent(request)
 
     assert content == client.content
-    request = client.requests[0]
-    assert request.caller_role == "a"
-    assert request.model == "mock-baseline-v1"
-    assert request.temperature == 0.5
-    assert request.max_tokens == 100
-    assert request.messages == (LLMMessage(role="user", content="PROMPT"),)
+    llm_request = client.requests[0]
+    assert llm_request.caller_role == "a"
+    assert llm_request.model == "mock-baseline-v1"
+    assert llm_request.temperature == 0.5
+    assert llm_request.max_tokens == 100
+    # First decision, no history → system + user (segments 1+2 + segments 5-10).
+    roles = [message.role for message in llm_request.messages]
+    assert roles == ["system", "user"]
+    # Segment 2 (game rules) must be in the system message.
+    assert "游戏规则" in llm_request.messages[0].content
+    # Segment 8+9+10 belong to the trailing user message.
+    assert "合法候选操作" in llm_request.messages[-1].content
 
 
-def test_baseline_agent_appends_transient_validation_feedback() -> None:
+def test_baseline_agent_inserts_pending_feedback_from_conversation(tmp_path: Path) -> None:
     client = StubClient("x")
-    _agent(client, ModelProfile(provider="mock", model="m"))(
-        _make_request(), feedback="response is not valid JSON"
+    _engine, request = _make_request_and_engine(tmp_path)
+    agent, conversation = _agent(client, ModelProfile(provider="mock", model="m"))
+    conversation.set_pending_feedback(
+        bad_reply='{"selected_option":"bad"}',
+        feedback="你的上一次输出无效：response is not valid JSON。请重新输出一个合法 JSON。",
     )
-    prompt = client.requests[0].messages[0].content
-    assert "## 上次输出反馈" in prompt
-    assert "response is not valid JSON" in prompt
+
+    agent(request)
+
+    messages = client.requests[0].messages
+    roles = [message.role for message in messages]
+    # The pending assistant reply becomes its own message; feedback merges into the trailing user.
+    assert "assistant" in roles
+    trailing_user = messages[-1]
+    assert trailing_user.role == "user"
+    assert "response is not valid JSON" in trailing_user.content
 
 
-def test_baseline_agent_propagates_connection_errors() -> None:
+def test_baseline_agent_propagates_connection_errors(tmp_path: Path) -> None:
     class BrokenClient(StubClient):
         def complete(self, request: LLMRequest) -> LLMResponse:
             raise LLMConnectionError("down")
 
+    _engine, request = _make_request_and_engine(tmp_path)
+    agent, _conv = _agent(BrokenClient("x"), ModelProfile(provider="mock", model="m"))
     with pytest.raises(LLMConnectionError):
-        _agent(BrokenClient("x"), ModelProfile(provider="mock", model="m"))(_make_request())
+        agent(request)

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from monopoly_agent_battle.agents.baseline import BaselineAgent
 from monopoly_agent_battle.config.loader import config_hash, load_game_config
+from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.runner import (
     DispatchController,
     RawDecisionController,
@@ -61,16 +62,29 @@ def run_play(config_path: Path) -> Path:
     artifacts = RunArtifacts.create(config)
     register_client_factory("mock", lambda profile: MockLLMClient(seed=config.seed))
     controllers: dict[str, RawDecisionController] = {}
+    conversations: dict[str, AgentConversation] = {}
     for player in config.players:
         if player.model_profile is None:
             msg = f"player {player.player_id} has no model_profile"
             raise SystemExit(msg)
         profile = config.model_profiles[player.model_profile]
         client = RecordingLLMClient(create_client(profile), artifacts)
-        controllers[player.player_id] = BaselineAgent(
-            player_id=player.player_id, client=client, profile=profile
+        conversation = AgentConversation(
+            agent_id=player.player_id, window_turns=config.window_turns
         )
-    run_decision_game(GameEngine(config), DispatchController(controllers), artifacts)
+        conversations[player.player_id] = conversation
+        controllers[player.player_id] = BaselineAgent(
+            player_id=player.player_id,
+            client=client,
+            profile=profile,
+            conversation=conversation,
+        )
+    run_decision_game(
+        GameEngine(config),
+        DispatchController(controllers),
+        artifacts,
+        conversations=conversations,
+    )
     return artifacts.run_directory
 
 

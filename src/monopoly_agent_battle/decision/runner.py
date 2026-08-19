@@ -6,10 +6,17 @@ import json
 from collections.abc import Callable, Mapping
 from dataclasses import asdict
 
+from monopoly_agent_battle.context.conversation import AgentConversation
+from monopoly_agent_battle.context.token_guard import estimate_tokens
+from monopoly_agent_battle.context.validation_feedback import build_feedback
 from monopoly_agent_battle.decision.models import (
     DecisionRequest,
     decision_request_record,
     validation_record,
+)
+from monopoly_agent_battle.decision.prompts import (
+    render_decision_and_options,
+    render_system_prompt,
 )
 from monopoly_agent_battle.decision.protocol import (
     command_from_option,
@@ -28,7 +35,7 @@ RawDecisionController = Callable[[DecisionRequest, str | None], str]
 
 _DEFAULT_REASON = "选择系统默认合法操作。"
 _FALLBACK_REASON = "系统回退至默认合法操作。"
-_VALIDATION_FEEDBACK = "你的上一次输出无效：{error}。请重新输出一个合法 JSON。"
+_CURRENT_SEGMENTS_TOKEN_RESERVE = 1500
 
 
 class DeterministicPolicyController:
@@ -62,27 +69,56 @@ def run_decision_game(
     artifacts: RunArtifacts | None = None,
     *,
     max_connection_retries: int = 2,
+    conversations: Mapping[str, AgentConversation] | None = None,
 ) -> ScriptedRunResult:
-    """Drive a game by validating controller output and auditing deterministic fallbacks."""
+    """Drive a game by validating controller output and auditing deterministic fallbacks.
+
+    When ``conversations`` is provided, each engine event is dispatched to every
+    Agent's conversation for Stage 4C history tracking; ``turn_started`` events
+    trigger ``start_turn`` on the matching Agent (rebuilding its segment-3 cache
+    against the token budget). Validation-failure feedback is stashed on the
+    conversation for the composer to render on retries.
+    """
     events: list[GameEvent] = []
     sequence = 1
     llm_calls = 0
     reconnect_events = 0
     decision_fallbacks = 0
+    conv_map: dict[str, AgentConversation] = dict(conversations or {})
+    turn_counters: dict[str, int] = dict.fromkeys(conv_map, 0)
+    segment3_budget = _segment3_budget(engine)
+    # Bootstrap the first Agent's turn: the engine never emits ``turn_started``
+    # for its initial player, so ``start_turn`` must be called explicitly here.
+    initial_player_id = engine.state.current_player_id
+    if initial_player_id in conv_map:
+        turn_counters[initial_player_id] += 1
+        conv_map[initial_player_id].start_turn(
+            turn_counters[initial_player_id],
+            segment3_budget_tokens=segment3_budget,
+        )
+        _log_start_turn_warning(conv_map[initial_player_id], initial_player_id, artifacts)
     while not engine.state.finished:
         automatic_command = _automatic_command(engine)
         if automatic_command is not None:
-            events.extend(_execute_and_audit(engine, automatic_command, artifacts))
+            command_events = _execute_and_audit(engine, automatic_command, artifacts)
+            _dispatch_events(command_events, conv_map, turn_counters, segment3_budget, artifacts)
+            events.extend(command_events)
             continue
         request = build_decision_request(engine, sequence)
-        raw_response, connection_retries, validation_retries_used, attempts, validation_errors = (
-            _request_response(
-                controller,
-                request,
-                artifacts,
-                max_connection_retries=max_connection_retries,
-                validation_retries=engine.config.validation_retries,
-            )
+        current_conv = conv_map.get(request.player_id)
+        (
+            raw_response,
+            connection_retries,
+            validation_retries_used,
+            attempts,
+            validation_errors,
+        ) = _request_response(
+            controller,
+            request,
+            artifacts,
+            current_conv,
+            max_connection_retries=max_connection_retries,
+            validation_retries=engine.config.validation_retries,
         )
         llm_calls += attempts
         reconnect_events += connection_retries
@@ -109,8 +145,17 @@ def run_decision_game(
                 )
         if validation.option is None:
             raise AssertionError("validated decision has no selected option")
+        if current_conv is not None:
+            current_conv.clear_pending_feedback()
+            current_conv.append_decision(
+                decision_id=request.decision_id,
+                user_snapshot=render_decision_and_options(request),
+                assistant_reply=raw_response,
+            )
+            _log_segment3_warning(current_conv, request, artifacts)
         command = command_from_option(request, validation.option, validation.target)
         command_events = _execute_and_audit(engine, command, artifacts)
+        _dispatch_events(command_events, conv_map, turn_counters, segment3_budget, artifacts)
         events.extend(command_events)
         if artifacts is not None:
             artifacts.append_decision(
@@ -141,6 +186,91 @@ def run_decision_game(
         )
         artifacts.write_result(result)
     return ScriptedRunResult(tuple(events), "completed")
+
+
+def _segment3_budget(engine: GameEngine) -> int:
+    """Return the token budget allocated to segment 3 for this game.
+
+    The current segments (1+2 rules, 5-10 current decision) are given a fixed
+    reserve; segment 3 gets whatever remains inside ``context_token_cap``.
+    """
+    cap = engine.config.context_token_cap or 6000
+    # Rough estimate of segment 1+2 using a synthetic reference; we cannot build
+    # a DecisionRequest without an active phase so we use the raw rules text.
+    from monopoly_agent_battle.context.rules import load_game_rules
+
+    rules_tokens = estimate_tokens(load_game_rules())
+    return max(200, cap - rules_tokens - _CURRENT_SEGMENTS_TOKEN_RESERVE)
+
+
+def _dispatch_events(
+    engine_events: list[GameEvent],
+    conversations: dict[str, AgentConversation],
+    turn_counters: dict[str, int],
+    segment3_budget: int,
+    artifacts: RunArtifacts | None,
+) -> None:
+    """Route engine events to every Agent conversation for history tracking."""
+    if not conversations:
+        return
+    for event in engine_events:
+        if event.event_type == "turn_started":
+            player_id = str(event.payload["player_id"])
+            for agent_id, conversation in conversations.items():
+                if agent_id == player_id:
+                    turn_counters[agent_id] += 1
+                    conversation.start_turn(
+                        turn_counters[agent_id],
+                        segment3_budget_tokens=segment3_budget,
+                    )
+                    _log_start_turn_warning(conversation, agent_id, artifacts)
+                else:
+                    conversation.append_event(event)
+        else:
+            for conversation in conversations.values():
+                conversation.append_event(event)
+
+
+def _log_start_turn_warning(
+    conversation: AgentConversation,
+    agent_id: str,
+    artifacts: RunArtifacts | None,
+) -> None:
+    warning = conversation.segment3_warning
+    if warning is None or artifacts is None:
+        return
+    artifacts.append_runtime(
+        "segment3_overflow",
+        {
+            "agent_id": agent_id,
+            "kind": warning.kind,
+            "detail": warning.detail,
+        },
+    )
+
+
+def _log_segment3_warning(
+    conversation: AgentConversation,
+    request: DecisionRequest,
+    artifacts: RunArtifacts | None,
+) -> None:
+    """Log segment-3 overflow when observed via a decision request (idempotent).
+
+    ``AgentConversation.segment3_warning`` is set once per turn (in
+    ``start_turn``) so the guard here catches the case where a decision is
+    generated at game start before a ``turn_started`` event has fired.
+    """
+    warning = conversation.segment3_warning
+    if warning is None or artifacts is None:
+        return
+    artifacts.append_runtime(
+        "segment3_overflow_at_decision",
+        {
+            "decision_id": request.decision_id,
+            "kind": warning.kind,
+            "detail": warning.detail,
+        },
+    )
 
 
 def _automatic_command(engine: GameEngine) -> RollDice | EndTurn | None:
@@ -178,6 +308,7 @@ def _request_response(
     controller: RawDecisionController,
     request: DecisionRequest,
     artifacts: RunArtifacts | None,
+    conversation: AgentConversation | None,
     *,
     max_connection_retries: int,
     validation_retries: int,
@@ -186,11 +317,11 @@ def _request_response(
 
     Returns ``(raw_response, connection_errors, validation_retries_used, attempts,
     validation_errors)``. A connection error retries up to ``max_connection_retries``
-    times; an invalid response re-sends the same request with the validation error
-    as temporary feedback up to ``validation_retries`` times. ``validation_errors``
-    collects the errors that were sent as feedback so retries stay auditable.
-    Budget exhaustion returns an empty/invalid raw response so the caller falls
-    back to the default option.
+    times; an invalid response re-sends the same request with the validation
+    error stashed on the conversation as pending feedback (segment-4 tail) up to
+    ``validation_retries`` times. On the fresh conversation-less path (legacy
+    tests using ``DeterministicPolicyController``) the feedback is passed to the
+    controller via its ``feedback`` parameter.
     """
     feedback: str | None = None
     connection_errors = 0
@@ -213,6 +344,8 @@ def _request_response(
                     },
                 )
             if connection_errors > max_connection_retries:
+                if conversation is not None:
+                    conversation.clear_pending_feedback()
                 return "", connection_errors, validation_retries_used, attempts, validation_errors
             continue
         validation = parse_and_validate(raw_response, request)
@@ -234,7 +367,9 @@ def _request_response(
             )
         validation_retries_used += 1
         validation_errors.append(validation.error or "")
-        feedback = _VALIDATION_FEEDBACK.format(error=validation.error)
+        feedback = build_feedback(validation.error or "")
+        if conversation is not None:
+            conversation.set_pending_feedback(bad_reply=raw_response, feedback=feedback)
 
 
 def _validity_status(llm_calls: int, reconnect_events: int) -> str:
@@ -242,3 +377,7 @@ def _validity_status(llm_calls: int, reconnect_events: int) -> str:
     if llm_calls > 0 and reconnect_events * 10 >= llm_calls:
         return "invalid"
     return "valid"
+
+
+# render_system_prompt import is retained for potential future runner-side pre-render use.
+_ = render_system_prompt

@@ -48,7 +48,7 @@ class GameConfig(BaseModel):
     card_data_version: str = Field(min_length=1)
     model_profiles: dict[str, ModelProfile] = Field(default_factory=dict)
     validation_retries: int = Field(default=2, ge=0)
-    window_turns: int = Field(default=3, ge=1)
+    window_turns: int = Field(default=1, ge=1)
     sentence_template_version: str | None = None
     context_token_cap: int | None = Field(default=None, ge=1)
     output_directory: Path = Path("runs")

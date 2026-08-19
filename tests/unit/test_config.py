@@ -103,6 +103,6 @@ def test_config_rejects_undefined_model_profile() -> None:
 def test_config_has_stage4_context_defaults() -> None:
     config = GameConfig.model_validate(config_data())
     assert config.validation_retries == 2
-    assert config.window_turns == 3
+    assert config.window_turns == 1
     assert config.sentence_template_version is None
     assert config.context_token_cap is None

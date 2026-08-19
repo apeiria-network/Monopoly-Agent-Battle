@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, cast
 
+from monopoly_agent_battle.context.rules import load_game_rules
 from monopoly_agent_battle.decision.models import DecisionKind, DecisionRequest
 
 PLAYER_INSTRUCTION = """你正在代表玩家「{player_id}」（座位 {seat}）参与一局大富翁。
@@ -38,8 +39,33 @@ _OUTPUT_GUIDE = (
 )
 
 
-def render_decision_prompt(request: DecisionRequest) -> str:
-    """Render the complete decision message from a request."""
+def render_role(request: DecisionRequest) -> str:
+    """Segment 1: role and goal introduction (system prompt)."""
+    visible: dict[str, Any] = request.visible_state
+    return PLAYER_INSTRUCTION.format(
+        player_id=request.player_id,
+        seat=visible["your_state"]["seat"],
+    )
+
+
+def render_rules() -> str:
+    """Segment 2: game rules text loaded from ``doc/monopoly_rules_basic.md``."""
+    return "## 游戏规则\n" + load_game_rules().strip()
+
+
+def render_system_prompt(request: DecisionRequest) -> str:
+    """Segments 1+2 merged for the single system message."""
+    return render_role(request) + "\n\n" + render_rules()
+
+
+def render_situation(visible: dict[str, Any]) -> str:
+    """Segments 5+6+7: your state, other players, board table."""
+    return "## 当前局面\n" + _render_situation(visible)
+
+
+def render_decision_and_options(request: DecisionRequest) -> str:
+    """Segments 8+9+10 combined (the "14" snapshot for past decisions)."""
+    visible: dict[str, Any] = request.visible_state
     options = [
         {
             "option_id": option.option_id,
@@ -49,7 +75,38 @@ def render_decision_prompt(request: DecisionRequest) -> str:
         }
         for option in request.options
     ]
+    return "\n\n".join(
+        (
+            "## 当前决策\n" + _render_decision(request, visible),
+            "## 合法候选操作\n" + _json(options),
+            "## 输出要求\n" + _OUTPUT_GUIDE,
+        )
+    )
+
+
+def render_current_user_message(request: DecisionRequest) -> str:
+    """Segments 5-10 merged for the final user message of a prompt."""
     visible: dict[str, Any] = request.visible_state
+    return render_situation(visible) + "\n\n" + render_decision_and_options(request)
+
+
+def render_decision_prompt(request: DecisionRequest) -> str:
+    """Legacy single-string entry point retained for 4A/4B tests.
+
+    Returns segments 1 + 5-10 concatenated (no segment 2/3/4) — matches the
+    prompt shape accepted for the Stage 3 human review. Stage 4C conversations
+    should use the messages produced by ``compose_prompt`` instead.
+    """
+    visible: dict[str, Any] = request.visible_state
+    options = [
+        {
+            "option_id": option.option_id,
+            "title": option.title,
+            "preview": option.preview,
+            "response_format": _render_response_format(option.response_format, option.option_id),
+        }
+        for option in request.options
+    ]
     return "\n\n".join(
         (
             PLAYER_INSTRUCTION.format(

@@ -8,6 +8,7 @@ from typing import Any
 
 from monopoly_agent_battle.agents.baseline import BaselineAgent
 from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
+from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.prompts import options_from_prompt
 from monopoly_agent_battle.decision.runner import (
     DispatchController,
@@ -45,17 +46,23 @@ def _dispatch(
     config: GameConfig,
     artifacts: RunArtifacts,
     policy: ResponsePolicy | None = None,
-) -> DispatchController:
+) -> tuple[DispatchController, dict[str, AgentConversation]]:
     controllers: dict[str, RawDecisionController] = {}
+    conversations: dict[str, AgentConversation] = {}
     for player in config.players:
         assert player.model_profile is not None
         client = RecordingLLMClient(MockLLMClient(policy=policy, seed=0), artifacts)
+        conversation = AgentConversation(
+            agent_id=player.player_id, window_turns=config.window_turns
+        )
+        conversations[player.player_id] = conversation
         controllers[player.player_id] = BaselineAgent(
             player_id=player.player_id,
             client=client,
             profile=config.model_profiles[player.model_profile],
+            conversation=conversation,
         )
-    return DispatchController(controllers)
+    return DispatchController(controllers), conversations
 
 
 def _records(path: Path) -> list[dict[str, Any]]:
@@ -69,8 +76,11 @@ def _result_document(run_directory: Path) -> dict[str, Any]:
 def test_mock_baseline_completes_full_game_with_audit(tmp_path: Path) -> None:
     config = make_config(tmp_path)
     artifacts = RunArtifacts.create(config)
+    controller, conversations = _dispatch(config, artifacts)
 
-    result = run_decision_game(GameEngine(config), _dispatch(config, artifacts), artifacts)
+    result = run_decision_game(
+        GameEngine(config), controller, artifacts, conversations=conversations
+    )
 
     assert result.status == "completed"
     decisions = _records(artifacts.run_directory / "decisions.jsonl")
@@ -92,9 +102,8 @@ def test_reconnect_rate_over_threshold_marks_game_invalid(tmp_path: Path) -> Non
     def disconnect_policy(_request: LLMRequest) -> str:
         raise LLMConnectionError("service unavailable")
 
-    run_decision_game(
-        GameEngine(config), _dispatch(config, artifacts, disconnect_policy), artifacts
-    )
+    controller, conversations = _dispatch(config, artifacts, disconnect_policy)
+    run_decision_game(GameEngine(config), controller, artifacts, conversations=conversations)
 
     result_document = _result_document(artifacts.run_directory)
     assert result_document["reconnect_events"] > 0
@@ -111,14 +120,17 @@ def test_invalid_output_retries_with_feedback_then_executes(tmp_path: Path) -> N
         call_counts.append(len(call_counts))
         if len(call_counts) == 1:
             return '{"selected_option": {"option": "not-a-legal-option"}, "reason": "x"}'
-        options = options_from_prompt(request.messages[-1].content)
+        # Extract candidate list from the trailing user message (segments 5-10).
+        trailing_user = request.messages[-1].content
+        options = options_from_prompt(trailing_user)
         option_id = options[0]["option_id"]
         return json.dumps(
             {"selected_option": {"option": option_id}, "reason": "重试后选择默认操作。"},
             ensure_ascii=False,
         )
 
-    run_decision_game(GameEngine(config), _dispatch(config, artifacts, flaky_policy), artifacts)
+    controller, conversations = _dispatch(config, artifacts, flaky_policy)
+    run_decision_game(GameEngine(config), controller, artifacts, conversations=conversations)
 
     decisions = _records(artifacts.run_directory / "decisions.jsonl")
     llm_calls = _records(artifacts.run_directory / "llm_calls.jsonl")

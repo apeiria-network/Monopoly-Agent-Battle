@@ -36,9 +36,9 @@
 | `decision/models.py` | 定义冻结的决策请求、合法候选项（含候选 `title` / `preview` / `response_format` 及 `OptionTarget` 目标规格）、响应、校验结果及其 JSON 审计表示。 | 决策生成、提示词渲染、运行器和审计记录共享。 |
 | `decision/wording.py` | 集中定义每个普通命令与机会卡候选的 `OptionWording(title, preview, response_format)`；候选文本与单/双目标输出格式已通过项目负责人逐项人工验收，不与候选生成逻辑混放。 | `requests.py` 以候选代表命令调用 `option_wording(command)` 取得完整候选文案。 |
 | `decision/requests.py` | 从当前引擎状态投影完整允许的玩家可见视图：公开棋盘格名称/类型/价格/建造成本/租金/税、所有公开资产与状态、当前落点、持续效果及自己的卡牌。以克隆引擎预执行过滤候选，并按「命令形状」折叠（`command_type + 固定参数`），`DecisionOption.target` 记录目标字段与合法取值；只为付款处置、资产管理、监狱滚骰、强制弃牌和抢夺选卡创建请求。仅抢夺成功后的单次请求临时显示目标机会卡；牌堆、RNG、审计 ID、其他玩家实时手牌和运行时信息不会进入普通视图。候选文案由 `wording.py` 透传。 | 每个实际决策点调用 `build_decision_request(engine, sequence)`。 |
-| `decision/prompts.py` | 将决策请求稳定渲染成中文 AI Prompt，按六段式样板（角色与目标、游戏规则、当前局面、当前决策、合法候选、输出要求）逐段实现；① 角色与目标（暂定）、③ 当前局面（回合概述、你的状态、其他玩家状态、棋盘状态表）、④ 当前决策（监狱 / 付款处置 / 强制弃牌 / 抢夺选卡 / 资产管理五类自然语言因果句）、⑤ 候选 `option_id` / `title` / `preview` / `response_format` 与 ⑥ `reason` 输出要求已实现。候选 `response_format` 归 `wording.py` 所有；本模块仅将 `{option_id}` 替换为实际候选 ID 后渲染。AI 可见上下文不含 `decision_id`、`game_id`、冻结命令参数、付款操作 ID、牌堆顺序、RNG 或重试/回退信息。另提供 `options_from_prompt(prompt)` 供确定性 Mock 客户端解析候选段落。 | 由实际 LLM 控制器未来调用；`tests/manual/render_decision_prompt.py` 可生成固定完整 Prompt 供负责人检查。 |
+| `decision/prompts.py` | Stage 4C 拆分为可复用段渲染函数：`render_role`/`render_rules`/`render_system_prompt`（段 1+2 → system）、`render_situation`（段 5-7）、`render_decision_and_options`（段 8-10 快照，供 conversation 保存作为"14"）、`render_current_user_message`（段 5-10 合并 → 当前 user）。向后兼容保留 `render_decision_prompt` 单函数入口（段 1 + 段 5-10 拼接，与 Stage 3 人工验收基线一致）。另提供 `options_from_prompt(prompt)` 供确定性 Mock 客户端解析候选段落。 | 由 `context/composer.py` 与 `agents/baseline.py` 调用。`tests/manual/render_decision_prompt.py` 生成 4 场景 messages 供负责人检查。 |
 | `decision/protocol.py` | 解析并严格校验不可信 JSON 响应；`selected_option` 为 `{"option","target"}` 对象，校验 `option` 与 `target` 合法取值后合并参数并重建引擎命令；复用领域层唯一的完整 `GameCommand` 联合类型。 | 由决策运行器在调用引擎前使用。 |
-| `decision/runner.py` | 以决策协议运行完整对局；只对真实选择节点调用控制器并写决策审计。提供确定性默认策略、断线重连与校验失败反馈重试、按玩家分发控制器；结果含调用/重连/回退统计与 10% 无效判定。 | 调用 `run_decision_game(engine, controller, artifacts)`。 |
+| `decision/runner.py` | 以决策协议运行完整对局；只对真实选择节点调用控制器并写决策审计。Stage 4C 新增 `conversations: Mapping[str, AgentConversation] \| None` 参数：跟踪 `turn_started` 事件触发 `start_turn`；其余事件分发到所有 conversations；校验失败经 `set_pending_feedback` 转由 composer 追加到 messages，重试成功或最终回退后 `clear_pending_feedback`。结果含调用/重连/回退统计与 10% 无效判定。 | 调用 `run_decision_game(engine, controller, artifacts, conversations=...)`。 |
 | `MonopolyAgentBattle_developer_docs/stage3-problems.md` | 记录负责人 2026-08-13 提出的 Stage 3 规则反馈和边界说明；问题 1–5（强制弃牌、自动建房、自动破产、自动免租、两步骤抢夺）已于 2026-08-14 完成代码实现与自动化回归，问题 6 的 Prompt 已于 2026-08-16 通过负责人人工验收。 | 作为 Stage 3 规则与交接记录，须结合开发看板中的实际验证结果阅读。 |
 | `MonopolyAgentBattle_developer_docs/stage3-decision-prompt-template.md` | Stage 3 决策提示词六段式目标样板；记录每层目标形态、标识体系统一约定（玩家 `player_id` / 格子数字 / 颜色组英文键 / 机会卡 `card_id`）、实现状态与已确认决策；已记录 2026-08-16 的 Prompt 人工验收通过状态。 | 作为问题 6 Prompt 重做的设计、验收与交接基准。 |
 | `MonopolyAgentBattle_developer_docs/history_context_supplement.md` | Stage 4 历史上下文系统方案、10 段 prompt 结构、可见性规则、固定句式目录与 4A/4B/4C/4D 子阶段拆分；其中 §五白名单句式已于 2026-08-18 通过项目负责人人工审核。 | 作为 4B/4C 上下文播报与会话构建实现的依据。 |
@@ -52,13 +52,19 @@
 | `llm/mock_client.py` | 确定性可播种的 Mock LLM 客户端（含首项/种子/脚本策略）。 | 无凭据对局、CI 与测试使用。 |
 | `llm/recording_client.py` | 包装任意客户端，逐次调用（含失败）写入 `llm_calls.jsonl` 并重抛异常。 | 由 `play`/集成测试组装；供调用统计与无效阈值。 |
 | `llm/registry.py` | 按供应商别名注册/创建客户端（可插拔适配器）。 | `register_client_factory`/`create_client`；4A 仅注册 `"mock"`。 |
-| `agents/baseline.py` | BaselineAgent：单模型玩家控制器，渲染决策 Prompt 并调用 LLM 返回响应；支持校验失败临时反馈。 | 由 `play`/实验组装为 `DispatchController` 输入。 |
+| `agents/baseline.py` | BaselineAgent（Stage 4C）：接收 `AgentConversation`，每次决策调 `compose_prompt` 生成多消息列表并调用 LLM；校验失败反馈由 conversation 管理。 | 由 `play`/实验组装为 `DispatchController` 输入。 |
 
 ## 历史上下文系统（`src/monopoly_agent_battle/context/`）
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
 | `context/broadcast.py` | 固定句式事件播报器（Stage 4B）。将 `GameEvent` 确定性渲染为中文固定句式；白名单 33 个事件、豁免 16 个事件，覆盖全部 49 个引擎事件类型。按 `viewer_id` 区分涉己/旁观渲染（机会卡抽取、弃置、被抢夺对观察者隐藏卡名；社区基金卡全员可见）。`BROADCAST_VERSION="v1"` 供 `sentence_template_version` 参考；未注册事件抛 `UnregisteredEventError`。 | `render_event(event, viewer_id) -> str \| None`；白名单事件返回句式，豁免事件返回 None。 |
+| `context/rules.py` | Stage 4C 段 2 游戏规则文本加载器。运行时读 `doc/monopoly_rules_basic.md`，模块级缓存。`GAME_RULES_VERSION="v1"`；测试用 `reset_cache()` 清缓存。 | `load_game_rules() -> str`。 |
+| `context/conversation.py` | Stage 4C AgentConversation：每 Agent 独立会话，按 Agent 行动回合切片。`TurnRecord.entries` 保存时间序 `EventEntry`/`DecisionEntry`。`start_turn` 触发段 3 事件级裁剪缓存；`append_event`/`append_decision` 记录当回合活动；`set_pending_feedback`/`clear_pending_feedback` 管理校验失败反馈生命周期。 | `AgentConversation(agent_id, window_turns=1)`。 |
+| `context/token_guard.py` | Stage 4C token 估算与段 3 裁剪。字符数式估算（中文 1 字=1；非中文 4 字符≈1）；`truncate_events_to_budget` 从最早事件开始丢弃直至满足预算，溢出时返回 `ContextWarning(kind="segment3_overflow")`。 | `estimate_tokens(text) -> int`；`truncate_events_to_budget(rendered, budget) -> (kept, warning)`。 |
+| `context/composer.py` | Stage 4C 10 段组装器。返回 `(messages, warning)`：段 1+2 合并 system；段 3 一条 user；段 4 时间序、assistant 打断合并、相邻 user 合并；段 5-10 与段 4 尾部 user 缓冲区继续合并；校验失败反馈追加在当前决策段 5-10 之前。 | `compose_prompt(conversation, request) -> (tuple[LLMMessage,...], ContextWarning \| None)`。 |
+| `context/validation_feedback.py` | Stage 4C 校验失败用户可见反馈模板。生命周期由 `AgentConversation` 管理。 | `build_feedback(error) -> str`。 |
+| `MonopolyAgentBattle_developer_docs/history_context_supplement.md` | 历史上下文系统方案与 4C-remake 已确认规范；§六 4C 段记录 10 段 → messages 时间序合并规则、窗口=1、段 3 事件级裁剪、校验反馈生命周期与 assistant/user 严格区分。 | 作为 4C-remake / 4D 实现与人工审核的规范来源。 |
 
 
 | 路径 | 用途 | 使用方式 |
@@ -78,6 +84,8 @@
 | `tests/unit/test_baseline_agent.py` | BaselineAgent 请求构造、校验失败反馈段落与错误传播。 | `python -m pytest tests/unit/test_baseline_agent.py` |
 | `tests/integration/test_llm_runner.py` | Mock LLM baseline 完整对局与审计/回放、重连超阈值判无效、校验反馈重试计数。 | `python -m pytest tests/integration/test_llm_runner.py` |
 | `tests/unit/context/test_broadcast.py` | 上下文播报器单元测试（Stage 4B）：豁免事件返回 None、全引擎事件类型穷举（白名单+豁免覆盖全部 49 个事件）、未注册事件抛异常、确定性渲染、涉己/旁观差异（card_drawn、card_discarded、chance_card_stolen）、payment_made 银行/玩家、player_jailed 原因映射、棋盘名称回退。 | `python -m pytest tests/unit/context/test_broadcast.py` |
+| `tests/unit/context/test_rules.py` / `test_token_guard.py` / `test_conversation.py` / `test_composer.py` / `test_validation_feedback.py` | Stage 4C 各模块单元测试。 | `python -m pytest tests/unit/context/` |
+| `tests/manual/render_decision_prompt.py` | Stage 4C 手动脚本：A/B/C/D 四场景演示 10 段 → messages 组装，生成 `tests/manual/render_decision_prompt_report.txt` 供项目负责人人工审核。 | `.venv/Scripts/python.exe tests/manual/render_decision_prompt.py` |
 | `tests/manual/render_history_broadcast.py` | 手动验收脚本（Stage 4B）：使用直接状态注入（从 `test_chance_cards.py` 习得的模式）创建 20 个独立场景，通过控制玩家位置、直接注入机会卡、设置产权归属和控制骰子序列，覆盖全部 33 个白名单事件（每个事件≥2次出现）。生成 `tests/manual/history_broadcast_report.txt` 完整事件日志供项目负责人人工审核中文句式质量。2026-08-19 运行通过，exit status 0，33/33 事件达标。 | `.venv/Scripts/python.exe tests/manual/render_history_broadcast.py` |
 | `tests/unit/game/test_board.py` | 40 格棋盘数据完整性与产权数值。 | `python -m pytest tests/unit/game/test_board.py` |
 | `tests/unit/game/test_engine.py` | 移动、租金、抵押、建造和双骰入狱等核心规则。 | `python -m pytest tests/unit/game/test_engine.py` |
