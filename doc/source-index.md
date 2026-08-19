@@ -58,7 +58,12 @@
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
-| `context/broadcast.py` | 固定句式事件播报器（Stage 4B）。将 `GameEvent` 确定性渲染为中文固定句式；白名单 33 个事件、豁免 16 个事件，覆盖全部 49 个引擎事件类型。按 `viewer_id` 区分涉己/旁观渲染（机会卡抽取、弃置、被抢夺对观察者隐藏卡名；社区基金卡全员可见）。`BROADCAST_VERSION="v1"` 供 `sentence_template_version` 参考；未注册事件抛 `UnregisteredEventError`。 | `render_event(event, viewer_id) -> str \| None`；白名单事件返回句式，豁免事件返回 None。 |
+| `context/broadcast.py` | 固定句式事件播报器（Stage 4B）。将 `GameEvent` 确定性渲染为中文固定句式；白名单 33 个事件、豁免 16 个事件，覆盖全部 49 个引擎事件类型。按 `viewer_id` 区分涉己/旁观渲染（机会卡抽取、弃置、被抢夺对观察者隐藏卡名；社区基金卡全员可见）。`BROADCAST_VERSION="v1"` 供 `sentence_template_version` 参考；未注册事件抛 `UnregisteredEventError`。 | `render_event(event, viewer_id) -> str \| None`；白名单事件返回句式,豁免事件返回 None。 |
+| `context/conversation.py` | 会话管理器（Stage 4C）。为每个 Agent（玩家）维护独立的 `AgentConversation`，包含消息列表（`ConversationMessage`）、行动回合列表、每轮事件记录；支持窗口管理（最近 N 个该 Agent 行动回合，默认 3）和历史播报轮次管理（最近 N 轮全局历史，默认 10）；提供窗口边界计算、消息查询（窗口内/外）和轮次查询。Stage 4 中 `agent_id = player_id`；Stage 5 中 CourtAgent 的多个内部 AI 共享同一 `AgentConversation`。 | `AgentConversation` 实例化后调用 `add_decision_request()`、`add_decision_response()`、`add_round_events()`；查询方法供 composer 使用。 |
+| `context/composer.py` | Prompt 组装器（Stage 4C）。实现 10 段 Prompt 结构：(1) 系统指令、(2) 游戏规则、(3) 历史事件播报（窗口外压缩）、(4) 会话历史（窗口内完整重放）、(5-7) 当前状态、(8) 当前决策、(9) 合法候选、(10) 输出要求。无历史时跳过段 3 和段 4；支持 Token 限制下的历史裁剪（优先裁剪段 3，其次段 4）。返回 OpenAI 格式的 `LLMMessage` 列表。 | `compose_prompt(conversation, decision_request, validation_feedback=None, token_cap=None) -> list[LLMMessage]`；由 BaselineAgent（4D）调用。 |
+| `context/rules.py` | 游戏规则加载器（Stage 4C）。从 `doc/monopoly_rules_basic.md` 加载游戏规则并缓存（`@lru_cache`），供 Prompt 第 2 段使用。 | `load_game_rules() -> str`；由 composer 内部调用。 |
+| `context/validation_feedback.py` | 校验反馈格式化器（Stage 4C）。将校验失败错误格式化为中文反馈文本，包含重试次数和错误信息，供临时附加到 Prompt 末尾。 | `format_validation_feedback(attempt, error_message) -> str`；由 BaselineAgent（4D）调用。 |
+| `context/token_guard.py` | Token 预算保护器（Stage 4C）。使用简化 Token 估算（中文 1.5 tokens/字，其他 0.3 tokens/字符）；裁剪策略：优先裁剪历史播报（按轮次），其次裁剪会话历史（按回合），保护系统指令、游戏规则和当前状态；保护段超限时抛出 `TokenLimitExceededError`。 | `apply_token_limit(segments, token_cap, protected_segments) -> dict[str, str]`；由 composer 内部调用。 |
 
 
 | 路径 | 用途 | 使用方式 |
@@ -78,6 +83,11 @@
 | `tests/unit/test_baseline_agent.py` | BaselineAgent 请求构造、校验失败反馈段落与错误传播。 | `python -m pytest tests/unit/test_baseline_agent.py` |
 | `tests/integration/test_llm_runner.py` | Mock LLM baseline 完整对局与审计/回放、重连超阈值判无效、校验反馈重试计数。 | `python -m pytest tests/integration/test_llm_runner.py` |
 | `tests/unit/context/test_broadcast.py` | 上下文播报器单元测试（Stage 4B）：豁免事件返回 None、全引擎事件类型穷举（白名单+豁免覆盖全部 49 个事件）、未注册事件抛异常、确定性渲染、涉己/旁观差异（card_drawn、card_discarded、chance_card_stolen）、payment_made 银行/玩家、player_jailed 原因映射、棋盘名称回退。 | `python -m pytest tests/unit/context/test_broadcast.py` |
+| `tests/unit/context/test_conversation.py` | 会话管理器单元测试（Stage 4C）：窗口边界计算（空历史、少于/正好/超过窗口大小）、消息添加和查询、窗口内/外消息区分、行动回合列表、历史播报轮次管理、事件记录。 | `python -m pytest tests/unit/context/test_conversation.py` |
+| `tests/unit/context/test_composer.py` | Prompt 组装器单元测试（Stage 4C）：10 段结构完整性、无历史时跳过段 3+4、窗口内/外历史正确渲染、校验反馈附加、Token 限制下的裁剪、保护段不被裁剪、消息列表格式。 | `python -m pytest tests/unit/context/test_composer.py` |
+| `tests/unit/context/test_rules.py` | 游戏规则加载器单元测试（Stage 4C）：规则文件加载、LRU 缓存机制、内容完整性。 | `python -m pytest tests/unit/context/test_rules.py` |
+| `tests/unit/context/test_validation_feedback.py` | 校验反馈格式化器单元测试（Stage 4C）：反馈文本格式化、重试次数显示、多行错误信息。 | `python -m pytest tests/unit/context/test_validation_feedback.py` |
+| `tests/unit/context/test_token_guard.py` | Token 保护器单元测试（Stage 4C）：Token 估算准确性（空/英文/中文/混合/CJK 范围）、预算管理、分段裁剪策略、保护段完整性、超限异常。 | `python -m pytest tests/unit/context/test_token_guard.py` |
 | `tests/manual/render_history_broadcast.py` | 手动验收脚本（Stage 4B）：使用直接状态注入（从 `test_chance_cards.py` 习得的模式）创建 20 个独立场景，通过控制玩家位置、直接注入机会卡、设置产权归属和控制骰子序列，覆盖全部 33 个白名单事件（每个事件≥2次出现）。生成 `tests/manual/history_broadcast_report.txt` 完整事件日志供项目负责人人工审核中文句式质量。2026-08-19 运行通过，exit status 0，33/33 事件达标。 | `.venv/Scripts/python.exe tests/manual/render_history_broadcast.py` |
 | `tests/unit/game/test_board.py` | 40 格棋盘数据完整性与产权数值。 | `python -m pytest tests/unit/game/test_board.py` |
 | `tests/unit/game/test_engine.py` | 移动、租金、抵押、建造和双骰入狱等核心规则。 | `python -m pytest tests/unit/game/test_engine.py` |
