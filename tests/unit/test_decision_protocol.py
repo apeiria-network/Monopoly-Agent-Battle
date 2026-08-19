@@ -1,6 +1,6 @@
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import cast
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
@@ -357,8 +357,8 @@ def test_prompt_renders_other_players_naturally(tmp_path: Path) -> None:
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
     assert "其他玩家状态" in prompt
-    b_block = block(prompt, "玩家「b」", ("## ",))          # b 的块：到下一节为止
-    assert "现金：999" in b_block                            # 现在绑死在 b 名下
+    b_block = block(prompt, "玩家「b」", ("## ",))  # b 的块：到下一节为止
+    assert "现金：999" in b_block  # 现在绑死在 b 名下
     assert "位置：格子 3（Baltic Avenue，街道）" in b_block
     assert "持有机会卡数量：1" in b_block
     assert "持有出狱卡数量：0" in b_block
@@ -571,16 +571,19 @@ def test_prompt_renders_target_instructions(tmp_path: Path) -> None:
 
     # 改法：拆成三步独立断言，每一步的期望值都是字面量
     mortgage_selected = by_option_id["mortgage"]["response_format"]["selected_option"]
-    assert set(mortgage_selected.keys()) == {"option", "target"}   # 结构：多/少字段都抓得到
-    assert mortgage_selected["option"] == "mortgage"               # 值：写死
-    assert mortgage_selected["target"] == 1                        # ← 关键：填协议实际约定的占位内容
+    assert set(mortgage_selected.keys()) == {"option", "target"}  # 结构：多/少字段都抓得到
+    assert mortgage_selected["option"] == "mortgage"  # 值：写死
+    assert (
+        mortgage_selected["target"] == "填写需要抵押的目标格子编号"
+    )  # 占位文本（wording.py 约定）
 
-    swap_selected = by_option_id["use_chance_card-chance-swap-property"]["response_format"]["selected_option"]
-    assert swap_selected["option"] == "use_chance_card-chance-swap-property"
-    # 多字段 target 不只断言键，连每个字段的占位内容一起写死
+    swap_option_id = "use_chance_card-chance-swap-property"
+    swap_selected = by_option_id[swap_option_id]["response_format"]["selected_option"]
+    assert swap_selected["option"] == swap_option_id
+    # 多字段 target 不只断言键，连每个字段的占位文本一起写死
     assert swap_selected["target"] == {
-        "swap_in_position": 3,   # 填协议约定的实际值
-        "swap_out_position": 1,
+        "swap_in_position": "填写换入的目标格子id",
+        "swap_out_position": "填写换出的目标格子id",
     }
 
 
@@ -611,12 +614,13 @@ def test_selected_target_is_validated_and_reconstructed(tmp_path: Path) -> None:
     )
     assert not invalid.valid
 
+
 def test_prompt_board_table_renders_all_40_spaces(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
-    board_block = block(prompt, "棋盘状态", ("## ",))   # 复用致命级问题3的切块 helper
+    board_block = block(prompt, "棋盘状态", ("## ",))  # 复用致命级问题3的切块 helper
     positions = sorted(int(p) for p in re.findall(r"^\| (\d+) \|", board_block, flags=re.M))
 
     assert positions == list(range(40)), (
@@ -624,5 +628,3 @@ def test_prompt_board_table_renders_all_40_spaces(tmp_path: Path) -> None:
         f"缺失: {sorted(set(range(40)) - set(positions))}，"
         f"重复: {sorted(p for p in set(positions) if positions.count(p) > 1)}"
     )
-
-

@@ -31,7 +31,8 @@ _OUTPUT_GUIDE = (
     "只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。\n"
     "- `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的"
     "待指定目标。\n"
-    '- 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 '
+    "- 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量"
+    '（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 '
     '`{"swap_in_position": 1, "swap_out_position": 3}`。\n'
     "- 不需要目标的选项若模型填了 `target`，按忽略处理。"
 )
@@ -246,3 +247,21 @@ def _alliance_effects(visible: dict[str, Any], player_id: str) -> str:
 
 def _json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2)
+
+
+_OPTIONS_HEADER = "## 合法候选操作\n"
+
+
+def options_from_prompt(prompt: str) -> list[dict[str, object]]:
+    """Parse the rendered candidate options out of a decision prompt.
+
+    Used by deterministic mock clients; the prompt format is owned here, so any
+    format change to the candidates section must keep this parser in sync.
+    """
+    start = prompt.index(_OPTIONS_HEADER) + len(_OPTIONS_HEADER)
+    end = prompt.find("\n## ", start)
+    section = prompt[start : end if end != -1 else len(prompt)]
+    document = json.loads(section)
+    if not isinstance(document, list):
+        raise ValueError("rendered decision options must be a JSON array")
+    return cast(list[dict[str, object]], document)

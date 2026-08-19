@@ -63,7 +63,7 @@ def test_connection_failures_are_retried_then_recorded_as_fallback(tmp_path: Pat
     artifacts = RunArtifacts.create(config)
     attempts = 0
 
-    def disconnected_controller(_request: DecisionRequest) -> str:
+    def disconnected_controller(_request: DecisionRequest, _feedback: str | None = None) -> str:
         nonlocal attempts
         attempts += 1
         raise ConnectionError("service unavailable")
@@ -90,6 +90,34 @@ def test_connection_failures_are_retried_then_recorded_as_fallback(tmp_path: Pat
     assert decisions[0]["attempted_validation"]["validation_error"] == "response is not valid JSON"
 
 
+def test_invalid_output_is_retried_with_feedback_then_falls_back(tmp_path: Path) -> None:
+    config = make_config(tmp_path)
+    artifacts = RunArtifacts.create(config)
+    feedbacks: list[str | None] = []
+
+    def invalid_controller(request: DecisionRequest, feedback: str | None = None) -> str:
+        feedbacks.append(feedback)
+        return '{"selected_option": {"option": "not-a-candidate"}, "reason": "x"}'
+
+    run_decision_game(GameEngine(config), invalid_controller, artifacts)
+
+    decisions = [
+        json.loads(line)
+        for line in (artifacts.run_directory / "decisions.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert decisions[0]["fallback"] is True
+    assert decisions[0]["validation_retries"] == 2
+    assert decisions[0]["validation_errors"] == [
+        "selected_option is not a legal candidate",
+        "selected_option is not a legal candidate",
+    ]
+    assert feedbacks[0] is None
+    assert feedbacks[1] is not None and "你的上一次输出无效" in feedbacks[1]
+    assert feedbacks[2] is not None and "你的上一次输出无效" in feedbacks[2]
+
+
 def test_jail_waiting_is_advanced_without_a_jail_prompt(tmp_path: Path) -> None:
     config = make_config(tmp_path)
     artifacts = RunArtifacts.create(config)
@@ -97,7 +125,7 @@ def test_jail_waiting_is_advanced_without_a_jail_prompt(tmp_path: Path) -> None:
     engine.state.players["a"].jail_status = JailStatus.WAITING
     requests: list[DecisionRequest] = []
 
-    def controller(request: DecisionRequest) -> str:
+    def controller(request: DecisionRequest, _feedback: str | None = None) -> str:
         requests.append(request)
         default = next(option for option in request.options if option.is_default)
         return json.dumps(
