@@ -114,8 +114,8 @@ def test_invalid_output_is_retried_with_feedback_then_falls_back(tmp_path: Path)
         "selected_option is not a legal candidate",
     ]
     assert feedbacks[0] is None
-    assert feedbacks[1] is not None and "你的上一次输出无效" in feedbacks[1]
-    assert feedbacks[2] is not None and "你的上一次输出无效" in feedbacks[2]
+    assert feedbacks[1] is not None and "Error: 不合法的选项id" in feedbacks[1]
+    assert feedbacks[2] is not None and "Error: 不合法的选项id" in feedbacks[2]
 
 
 def test_jail_waiting_is_advanced_without_a_jail_prompt(tmp_path: Path) -> None:

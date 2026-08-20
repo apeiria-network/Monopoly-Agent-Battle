@@ -40,18 +40,18 @@ def test_append_event_before_start_turn_is_ignored() -> None:
 def test_append_decision_requires_active_turn() -> None:
     conv = AgentConversation(agent_id="a", window_turns=1)
     with pytest.raises(RuntimeError, match="before start_turn"):
-        conv.append_decision(decision_id="d1", user_snapshot="snap", assistant_reply="reply")
+        conv.append_decision(decision_id="d1", question_summary="Q1", assistant_reply="reply")
 
 
 def test_entries_preserve_time_order() -> None:
     conv = AgentConversation(agent_id="a", window_turns=1)
     conv.start_turn(1, segment3_budget_tokens=10_000)
     conv.append_event(_event("dice_rolled", player_id="a", dice=(2, 3)))
-    conv.append_decision(decision_id="d1", user_snapshot="Q1", assistant_reply="A1")
+    conv.append_decision(decision_id="d1", question_summary="Q1", assistant_reply="A1")
     conv.append_event(
         _event("payment_made", payer_id="a", recipient_id=None, amount=10, reason="tax")
     )
-    conv.append_decision(decision_id="d2", user_snapshot="Q2", assistant_reply="A2")
+    conv.append_decision(decision_id="d2", question_summary="Q2", assistant_reply="A2")
 
     assert conv.current_turn is not None
     entries = conv.current_turn.entries
@@ -90,12 +90,43 @@ def test_segment3_cache_applies_budget_and_emits_warning() -> None:
     assert conv.segment3_warning is None or conv.segment3_warning.kind == "segment3_overflow"
 
 
-def test_pending_feedback_lifecycle() -> None:
+def test_append_error_records_in_current_turn_only() -> None:
     conv = AgentConversation(agent_id="a", window_turns=1)
-    conv.set_pending_feedback(bad_reply="bad-json", feedback="try again")
-    assert conv.pending_bad_reply == "bad-json"
-    assert conv.pending_feedback == "try again"
+    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.append_error(
+        decision_id="d1",
+        question_summary="Q1",
+        bad_reply="bad-json",
+        feedback_text="try again",
+    )
 
-    conv.clear_pending_feedback()
-    assert conv.pending_bad_reply is None
-    assert conv.pending_feedback is None
+    assert conv.current_turn is not None
+    entry = conv.current_turn.entries[-1]
+    from monopoly_agent_battle.context.conversation import ErrorEntry
+
+    assert isinstance(entry, ErrorEntry)
+    assert entry.decision_id == "d1"
+    assert entry.question_summary == "Q1"
+    assert entry.bad_reply == "bad-json"
+    assert entry.feedback_text == "try again"
+
+
+def test_append_error_before_start_turn_is_ignored() -> None:
+    conv = AgentConversation(agent_id="a", window_turns=1)
+    conv.append_error(decision_id="d1", question_summary="Q1", bad_reply="bad", feedback_text="fb")
+    assert conv.current_turn is None
+    assert conv.completed_turns == []
+
+
+def test_segment3_skips_error_entries_from_completed_turns() -> None:
+    """Errors from prior turns must never leak into the compressed history."""
+    conv = AgentConversation(agent_id="a", window_turns=1)
+    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.append_event(_event("dice_rolled", player_id="a", dice=(3, 4)))
+    conv.append_error(decision_id="d1", question_summary="Q1", bad_reply="bad", feedback_text="fb")
+    conv.start_turn(2, segment3_budget_tokens=10_000)
+
+    sentences = conv.segment3_sentences
+    assert len(sentences) == 1
+    assert "3+4=7" in sentences[0]
+    assert all("bad" not in s and "fb" not in s for s in sentences)

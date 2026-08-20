@@ -4,7 +4,7 @@ Run from the repository root:
     .venv/Scripts/python.exe tests/manual/render_decision_prompt.py
 
 Writes the full transcript to tests/manual/render_decision_prompt_report.txt
-(UTF-8) and echoes a short summary to stdout. Four scenarios exercise the
+(UTF-8) and echoes a short summary to stdout. Five scenarios exercise the
 10-segment composer's key branches:
 
   A – First decision of the game (no completed turns; no in-turn history).
@@ -15,6 +15,10 @@ Writes the full transcript to tests/manual/render_decision_prompt_report.txt
       Expected: segment 4 replays prior decision(s) with assistant + user interleaved.
   D – Segment 3 overflow triggers truncation and a warning.
       Expected: earliest events are dropped; ContextWarning emitted.
+  E – Validation errors during a single decision → runner exhausts retries and
+      falls back. ErrorEntry replays each bad reply + feedback within the
+      current turn; DecisionEntry.assistant_reply carries the synthesized
+      default-option JSON whose ``reason`` explains the fallback.
 """
 
 from __future__ import annotations
@@ -26,6 +30,8 @@ from tempfile import TemporaryDirectory
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.context.composer import compose_prompt
 from monopoly_agent_battle.context.conversation import AgentConversation
+from monopoly_agent_battle.context.validation_feedback import build_feedback
+from monopoly_agent_battle.decision.protocol import parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import GameEvent, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
@@ -129,17 +135,11 @@ def scenario_c(buf: StringIO, directory: str) -> None:
     conversation = AgentConversation(agent_id="a", window_turns=1)
     conversation.start_turn(1, segment3_budget_tokens=2000)
     # 假设 a 已经在本回合内做过一次决策；期间发生了几个事件（本回合为第 0 完整轮次）。
-    conversation.append_event(
-        _event("dice_rolled", player_id="a", dice=(2, 3)), complete_round=0
-    )
+    conversation.append_event(_event("dice_rolled", player_id="a", dice=(2, 3)), complete_round=0)
     conversation.append_event(_event("player_moved", player_id="a", to=5), complete_round=0)
     conversation.append_decision(
         decision_id="prompt-inspection-c-1",
-        user_snapshot=(
-            "## 当前决策\n现在是你的资产管理阶段。（示例快照）\n\n"
-            "## 合法候选操作\n[候选列表-旧]\n\n"
-            "## 输出要求\n[输出要求-旧]"
-        ),
+        question_summary="## 当前决策\n现在是你的资产管理阶段。（示例快照）",
         assistant_reply=(
             '{"reason": "第一次先抵押第 1 格筹资。", '
             '"selected_option": {"option": "mortgage_property", "target": 1}}'
@@ -175,6 +175,49 @@ def scenario_d(buf: StringIO, directory: str) -> None:
     _write_messages(buf, messages, warning)
 
 
+def scenario_e(buf: StringIO, directory: str) -> None:
+    _write_header(
+        buf,
+        "E",
+        "校验失败错误记录 — 单次决策内两次出错后触发回退，回退 assistant 用系统默认 JSON",
+    )
+    engine = _make_engine(directory)
+    request = build_decision_request(engine, sequence=1)
+    from monopoly_agent_battle.decision.prompts import render_decision_question
+
+    conversation = AgentConversation(agent_id="a", window_turns=1)
+    conversation.start_turn(1, segment3_budget_tokens=2000)
+
+    bad_reply_1 = '{"selected_option": {"option": "not-a-real-option"}, "reason": "尝试1"}'
+    validation_1 = parse_and_validate(bad_reply_1, request)
+    conversation.append_error(
+        decision_id=request.decision_id,
+        question_summary=render_decision_question(request),
+        bad_reply=bad_reply_1,
+        feedback_text=build_feedback(validation_1, request),
+    )
+    bad_reply_2 = '{"selected_option": {"option": "mortgage"}, "reason": "尝试2"}'
+    validation_2 = parse_and_validate(bad_reply_2, request)
+    conversation.append_error(
+        decision_id=request.decision_id,
+        question_summary=render_decision_question(request),
+        bad_reply=bad_reply_2,
+        feedback_text=build_feedback(validation_2, request),
+    )
+
+    conversation.append_decision(
+        decision_id=request.decision_id,
+        question_summary=render_decision_question(request),
+        assistant_reply=(
+            '{"selected_option": {"option": "end_turn"}, '
+            '"reason": "多次重试仍未给出合法回复，自动选择系统默认选项。"}'
+        ),
+    )
+
+    messages, warning = compose_prompt(conversation, request)
+    _write_messages(buf, messages, warning)
+
+
 def main() -> None:
     buf = StringIO()
     with TemporaryDirectory() as directory:
@@ -182,6 +225,7 @@ def main() -> None:
         scenario_b(buf, directory)
         scenario_c(buf, directory)
         scenario_d(buf, directory)
+        scenario_e(buf, directory)
     _REPORT_PATH.write_text(buf.getvalue(), encoding="utf-8")
     print(f"Wrote {_REPORT_PATH} ({len(buf.getvalue())} chars)")
 

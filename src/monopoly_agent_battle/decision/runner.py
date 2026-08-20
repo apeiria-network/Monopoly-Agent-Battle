@@ -15,7 +15,7 @@ from monopoly_agent_battle.decision.models import (
     validation_record,
 )
 from monopoly_agent_battle.decision.prompts import (
-    render_decision_and_options,
+    render_decision_question,
     render_system_prompt,
 )
 from monopoly_agent_battle.decision.protocol import (
@@ -34,7 +34,7 @@ from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 RawDecisionController = Callable[[DecisionRequest, str | None], str]
 
 _DEFAULT_REASON = "选择系统默认合法操作。"
-_FALLBACK_REASON = "系统回退至默认合法操作。"
+_FALLBACK_REASON = "多次重试仍未给出合法回复，自动选择系统默认选项。"
 _CURRENT_SEGMENTS_TOKEN_RESERVE = 1500
 
 
@@ -127,19 +127,23 @@ def run_decision_game(
         attempted_validation = parse_and_validate(raw_response, request)
         validation = attempted_validation
         fallback = not attempted_validation.valid
+        # ``persisted_reply`` is what gets written to segment 4's DecisionEntry.
+        # For a normal success it's the AI's own reply; for a fallback we
+        # substitute a synthesized default-option JSON whose ``reason``
+        # explains the auto-selection so the AI can see it in later turns.
+        persisted_reply = raw_response
         if fallback:
             decision_fallbacks += 1
             default = next(option for option in request.options if option.is_default)
-            validation = parse_and_validate(
-                json.dumps(
-                    {
-                        "selected_option": default_option_json(default),
-                        "reason": _FALLBACK_REASON,
-                    },
-                    ensure_ascii=False,
-                ),
-                request,
+            fallback_reply = json.dumps(
+                {
+                    "selected_option": default_option_json(default),
+                    "reason": _FALLBACK_REASON,
+                },
+                ensure_ascii=False,
             )
+            persisted_reply = fallback_reply
+            validation = parse_and_validate(fallback_reply, request)
             if artifacts is not None:
                 artifacts.append_runtime(
                     "decision_fallback",
@@ -148,11 +152,10 @@ def run_decision_game(
         if validation.option is None:
             raise AssertionError("validated decision has no selected option")
         if current_conv is not None:
-            current_conv.clear_pending_feedback()
             current_conv.append_decision(
                 decision_id=request.decision_id,
-                user_snapshot=render_decision_and_options(request),
-                assistant_reply=raw_response,
+                question_summary=render_decision_question(request),
+                assistant_reply=persisted_reply,
             )
             _log_segment3_warning(current_conv, request, artifacts)
         command = command_from_option(request, validation.option, validation.target)
@@ -323,11 +326,12 @@ def _request_response(
 
     Returns ``(raw_response, connection_errors, validation_retries_used, attempts,
     validation_errors)``. A connection error retries up to ``max_connection_retries``
-    times; an invalid response re-sends the same request with the validation
-    error stashed on the conversation as pending feedback (segment-4 tail) up to
-    ``validation_retries`` times. On the fresh conversation-less path (legacy
-    tests using ``DeterministicPolicyController``) the feedback is passed to the
-    controller via its ``feedback`` parameter.
+    times; an invalid response records an ``ErrorEntry`` on the conversation
+    (so segment 4 replays ``assistant(bad_reply) + user(feedback)`` for the
+    rest of this turn) and re-sends the same request up to ``validation_retries``
+    times. On the fresh conversation-less path (legacy tests using
+    ``DeterministicPolicyController``) the feedback is passed to the
+    controller via its ``feedback`` parameter instead.
     """
     feedback: str | None = None
     connection_errors = 0
@@ -350,8 +354,6 @@ def _request_response(
                     },
                 )
             if connection_errors > max_connection_retries:
-                if conversation is not None:
-                    conversation.clear_pending_feedback()
                 return "", connection_errors, validation_retries_used, attempts, validation_errors
             continue
         validation = parse_and_validate(raw_response, request)
@@ -372,10 +374,16 @@ def _request_response(
                 validation_errors,
             )
         validation_retries_used += 1
-        validation_errors.append(validation.error or "")
-        feedback = build_feedback(validation.error or "")
+        error_text = validation.error or ""
+        validation_errors.append(error_text)
+        feedback = build_feedback(validation, request)
         if conversation is not None:
-            conversation.set_pending_feedback(bad_reply=raw_response, feedback=feedback)
+            conversation.append_error(
+                decision_id=request.decision_id,
+                question_summary=render_decision_question(request),
+                bad_reply=raw_response,
+                feedback_text=feedback,
+            )
 
 
 def _validity_status(llm_calls: int, reconnect_events: int) -> str:

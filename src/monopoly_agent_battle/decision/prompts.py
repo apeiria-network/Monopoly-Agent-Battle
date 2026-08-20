@@ -7,6 +7,10 @@ from typing import Any, cast
 
 from monopoly_agent_battle.context.rules import load_game_rules
 from monopoly_agent_battle.decision.models import DecisionKind, DecisionRequest
+from monopoly_agent_battle.game.board_data.classic_us_40 import (
+    COLOR_GROUPS,
+    RAILROAD_RENTS,
+)
 
 PLAYER_INSTRUCTION = """你正在代表玩家「{player_id}」（座位 {seat}）参与一局大富翁。
 你的目标：在回合上限结束时拥有最高净资产。
@@ -49,8 +53,13 @@ def render_role(request: DecisionRequest) -> str:
 
 
 def render_rules() -> str:
-    """Segment 2: game rules text loaded from ``doc/monopoly_rules_basic.md``."""
-    return "## 游戏规则\n" + load_game_rules().strip()
+    """Segment 2: game rules text loaded from ``doc/monopoly_rules_basic.md``.
+
+    The markdown file itself carries the static board reference (§十一), so no
+    programmatic rendering is needed here — the file is the single source of
+    truth for both the human-facing and Agent-facing rules text.
+    """
+    return load_game_rules().strip()
 
 
 def render_system_prompt(request: DecisionRequest) -> str:
@@ -64,7 +73,7 @@ def render_situation(visible: dict[str, Any]) -> str:
 
 
 def render_decision_and_options(request: DecisionRequest) -> str:
-    """Segments 8+9+10 combined (the "14" snapshot for past decisions)."""
+    """Segments 8+9+10 combined (full ask: question + candidates + output guide)."""
     visible: dict[str, Any] = request.visible_state
     options = [
         {
@@ -82,6 +91,17 @@ def render_decision_and_options(request: DecisionRequest) -> str:
             "## 输出要求\n" + _OUTPUT_GUIDE,
         )
     )
+
+
+def render_decision_question(request: DecisionRequest) -> str:
+    """Segment 8 only — the "## 当前决策" text without candidates or output guide.
+
+    Used as the segment-4 replay for decisions the AI has already answered:
+    candidates and output guide are dropped so tokens are not wasted echoing
+    what the AI has already committed to.
+    """
+    visible: dict[str, Any] = request.visible_state
+    return "## 当前决策\n" + _render_decision(request, visible)
 
 
 def render_current_user_message(request: DecisionRequest) -> str:
@@ -213,30 +233,114 @@ def _render_other_players(visible: dict[str, Any], board: dict[int, dict[str, An
 
 
 def _render_board(visible: dict[str, Any]) -> str:
+    """Render only owned spaces with dynamic state; static data lives in segment 2."""
     color_effects = _color_group_effects(visible["ongoing_effects"])
+    board_by_position: dict[int, dict[str, Any]] = {
+        int(space["position"]): space for space in visible["board"]
+    }
+    owned = [space for space in visible["board"] if space.get("owner_id")]
+    if not owned:
+        return "（当前无地产被拥有。）"
+    ownership_by_kind = _ownership_by_kind(visible["board"])
+    jailed_players = _jailed_player_ids(visible)
     rows = [
-        "| 格 | 类型 | 颜色组 | 所有者 | 建筑 | 地块价格 | 房屋单价 | "
-        "租金（无房 / 1房 / 2房 / 3房 / 4房 / 酒店） | 状态 |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| 格 | 类型 | 所有者 | 建筑 | 状态 | 当前租金 |",
+        "|---|---|---|---|---|---|",
     ]
-    rows.extend(_board_row(space, color_effects) for space in visible["board"])
+    rows.extend(
+        _board_row(space, color_effects, ownership_by_kind, board_by_position, jailed_players)
+        for space in owned
+    )
+    rows.append("（未列出的地产均无主。）")
     return "\n".join(rows)
 
 
-def _board_row(space: dict[str, Any], color_effects: dict[str, dict[str, int]]) -> str:
+def _jailed_player_ids(visible: dict[str, Any]) -> set[str]:
+    """Player ids currently in jail; C-014 says such owners collect 0 rent."""
+    result: set[str] = set()
+    me = visible["your_state"]
+    if me["jail_status"] != "free":
+        result.add(str(me["player_id"]))
+    for other in visible["players"]:
+        if other["jail_status"] != "free":
+            result.add(str(other["player_id"]))
+    return result
+
+
+def _ownership_by_kind(board: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    """Count owned railroads/utilities per player (needed for current-rent maths)."""
+    result: dict[str, dict[str, int]] = {}
+    for space in board:
+        owner = space.get("owner_id")
+        if not owner:
+            continue
+        kind = str(space["kind"])
+        result.setdefault(str(owner), {}).setdefault(kind, 0)
+        result[str(owner)][kind] += 1
+    return result
+
+
+def _board_row(
+    space: dict[str, Any],
+    color_effects: dict[str, dict[str, int]],
+    ownership_by_kind: dict[str, dict[str, int]],
+    board_by_position: dict[int, dict[str, Any]],
+    jailed_players: set[str],
+) -> str:
     is_street = space["kind"] == "street"
     cells = [
         str(space["position"]),
         _SPACE_KIND_CN[space["kind"]],
-        space["color_group"] or "-",
         space["owner_id"] or "-",
         str(space["building_level"]) if is_street else "-",
-        str(space["price"]) if space["price"] is not None else "-",
-        str(space["building_cost"]) if space["building_cost"] is not None else "-",
-        _rents_text(space["rents"]),
         _space_status(space, color_effects),
+        _current_rent(space, color_effects, ownership_by_kind, board_by_position, jailed_players),
     ]
     return "| " + " | ".join(cells) + " |"
+
+
+def _current_rent(
+    space: dict[str, Any],
+    color_effects: dict[str, dict[str, int]],
+    ownership_by_kind: dict[str, dict[str, int]],
+    board_by_position: dict[int, dict[str, Any]],
+    jailed_players: set[str],
+) -> str:
+    """Return the rent the current owner would collect on a stopover.
+
+    Mortgaged / rent-frozen / owner-in-jail spaces return "0". Utilities depend
+    on the roller's dice, so return a formula string instead of a fixed value.
+    """
+    if space["mortgaged"]:
+        return "0（抵押）"
+    color_group = space.get("color_group")
+    effects = color_effects.get(color_group) if color_group else None
+    if effects and "rent_freeze" in effects:
+        return "0（查封）"
+    owner_id = str(space["owner_id"])
+    if owner_id in jailed_players:
+        return "0（业主入狱）"
+    kind = space["kind"]
+    if kind == "street":
+        base = int(space["rents"][int(space["building_level"])])
+        if space["building_level"] == 0:
+            group_positions = COLOR_GROUPS.get(str(color_group), ())
+            if group_positions and all(
+                board_by_position.get(pos, {}).get("owner_id") == owner_id
+                for pos in group_positions
+            ):
+                base *= 2
+        if effects and "rent_surge" in effects:
+            base *= 2
+        return str(base)
+    if kind == "railroad":
+        count = ownership_by_kind.get(str(owner_id), {}).get("railroad", 0)
+        return str(RAILROAD_RENTS[count - 1]) if 1 <= count <= 4 else "-"
+    if kind == "utility":
+        count = ownership_by_kind.get(str(owner_id), {}).get("utility", 0)
+        multiplier = 10 if count == 2 else 4
+        return f"{multiplier}×骰点"
+    return "-"
 
 
 def _space_status(space: dict[str, Any], color_effects: dict[str, dict[str, int]]) -> str:
@@ -262,10 +366,6 @@ def _color_group_effects(effects: list[dict[str, Any]]) -> dict[str, dict[str, i
             result[color] = {}
         result[color][effect["kind"]] = effect["remaining_turns"]
     return result
-
-
-def _rents_text(rents: list[int]) -> str:
-    return " / ".join(str(rent) for rent in rents) if rents else "-"
 
 
 def _space_location(position: int, board: dict[int, dict[str, Any]]) -> str:

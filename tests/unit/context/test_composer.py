@@ -57,7 +57,7 @@ def test_second_decision_same_turn_appends_prior_turn_pair(tmp_path: Path) -> No
     conv.append_event(_event("dice_rolled", player_id="a", dice=(2, 3)))
     conv.append_decision(
         decision_id="d1",
-        user_snapshot="## 当前决策（旧）\n上一次决策的问题",
+        question_summary="## 当前决策\n上一次决策的问题",
         assistant_reply='{"selected_option":{"option":"end_turn"},"reason":"r"}',
     )
     conv.append_event(
@@ -68,34 +68,66 @@ def test_second_decision_same_turn_appends_prior_turn_pair(tmp_path: Path) -> No
     messages, _warning = compose_prompt(conv, request)
 
     roles = [m.role for m in messages]
-    # Segment 4: user(dice + old snapshot) → assistant(reply) → user(payment + segments 5-10)
     assert roles == ["system", "user", "assistant", "user"]
     prior_user = messages[1]
     assert "掷出" in prior_user.content
     assert "上一次决策的问题" in prior_user.content
     trailing_user = messages[-1]
-    assert "支付" in trailing_user.content  # payment_made broadcast merges into trailing user
-    assert "合法候选操作" in trailing_user.content  # current segments 5-10
+    assert "支付" in trailing_user.content
+    assert "合法候选操作" in trailing_user.content
 
 
-def test_pending_feedback_appended_as_assistant_and_user(tmp_path: Path) -> None:
+def test_error_entry_appended_as_assistant_and_user(tmp_path: Path) -> None:
     engine = _make_engine(tmp_path)
     conv = AgentConversation(agent_id="a", window_turns=1)
     conv.start_turn(1, segment3_budget_tokens=10_000)
-    conv.set_pending_feedback(
+    conv.append_error(
+        decision_id="d-err",
+        question_summary="## 当前决策\n你需要选一个合法选项。",
         bad_reply='{"selected_option":"broken"}',
-        feedback="你的上一次输出无效：xxx",
+        feedback_text="Error: 决策回复必须是一个JSON",
     )
 
     request = build_decision_request(engine, sequence=1)
     messages, _warning = compose_prompt(conv, request)
 
     roles = [m.role for m in messages]
-    assert roles == ["system", "assistant", "user"]
-    assert messages[1].content == '{"selected_option":"broken"}'
+    assert roles == ["system", "user", "assistant", "user"]
+    prior_user = messages[1]
+    assert "你需要选一个合法选项" in prior_user.content
+    assert messages[2].content == '{"selected_option":"broken"}'
     trailing_user = messages[-1]
-    assert "你的上一次输出无效" in trailing_user.content
-    assert "合法候选操作" in trailing_user.content  # feedback merges into current segments 5-10
+    assert "Error: 决策回复必须是一个JSON" in trailing_user.content
+    assert "合法候选操作" in trailing_user.content
+
+
+def test_error_entries_persist_across_multi_decisions_within_turn(tmp_path: Path) -> None:
+    """A validation-failed reply stays visible in segment 4 for the whole turn."""
+    engine = _make_engine(tmp_path)
+    conv = AgentConversation(agent_id="a", window_turns=1)
+    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.append_error(
+        decision_id="d1",
+        question_summary="## 当前决策\n第一次决策的问题",
+        bad_reply="bad1",
+        feedback_text="fb1",
+    )
+    conv.append_decision(
+        decision_id="d1",
+        question_summary="## 当前决策\n第一次决策的问题",
+        assistant_reply='{"selected_option":{"option":"end_turn"},"reason":"r"}',
+    )
+
+    request = build_decision_request(engine, sequence=2)
+    messages, _warning = compose_prompt(conv, request)
+
+    roles = [m.role for m in messages]
+    assert roles == ["system", "user", "assistant", "user", "assistant", "user"]
+    assert "第一次决策的问题" in messages[1].content
+    assert messages[2].content == "bad1"
+    assert "fb1" in messages[3].content
+    assert messages[4].content.startswith('{"selected_option"')
+    assert "合法候选操作" in messages[-1].content
 
 
 def test_segment3_from_completed_turn_appears_between_system_and_user(
