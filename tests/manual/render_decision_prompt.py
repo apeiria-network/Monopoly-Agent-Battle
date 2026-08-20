@@ -7,8 +7,10 @@ Writes the full transcript to tests/manual/render_decision_prompt_report.txt
 (UTF-8) and echoes a short summary to stdout. Five scenarios exercise the
 10-segment composer's key branches:
 
-  A – First decision of the game (no completed turns; no in-turn history).
-      Expected: messages = [system(段 1+2), user(段 5-10)].
+  A – First decision of the game with several held Chance cards (no completed
+      turns; no in-turn history). Shows that usable cards are independent
+      candidates while a card's own targets remain folded. Expected: messages =
+      [system(段 1+2), user(段 5-10)].
   B – Fresh action turn after prior completed turns (window=1).
       Expected: segment 3 renders past events; segment 4 is still empty.
   C – Same action turn, second decision.
@@ -16,9 +18,9 @@ Writes the full transcript to tests/manual/render_decision_prompt_report.txt
   D – Segment 3 overflow triggers truncation and a warning.
       Expected: earliest events are dropped; ContextWarning emitted.
   E – Validation errors during a single decision → runner exhausts retries and
-      falls back. ErrorEntry replays each bad reply + feedback within the
-      current turn; DecisionEntry.assistant_reply carries the synthesized
-      default-option JSON whose ``reason`` explains the fallback.
+      falls back to ``end_turn``. The real fallback enters ``FORCED_DISCARD``
+      after A has drawn a fifth Chance card, so the final message asks the
+      still-current player A to choose one of those cards to discard.
 """
 
 from __future__ import annotations
@@ -32,8 +34,11 @@ from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.context.composer import compose_prompt
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.context.validation_feedback import build_feedback
+from monopoly_agent_battle.decision.models import DecisionKind
+from monopoly_agent_battle.decision.prompts import render_decision_question
 from monopoly_agent_battle.decision.protocol import parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request
+from monopoly_agent_battle.domain.commands import EndTurn, RollDice
 from monopoly_agent_battle.domain.models import GameEvent, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.protocol import LLMMessage
@@ -87,9 +92,25 @@ def _event(event_type: str, **payload: object) -> GameEvent:
 
 
 def scenario_a(buf: StringIO, directory: str) -> None:
-    _write_header(buf, "A", "首次决策 — 无任何历史（段 3、段 4 均省略）")
+    _write_header(buf, "A", "首次决策 — 持有多张机会卡，无任何历史（段 3、段 4 均省略）")
     engine = _make_engine(directory)
+    player = engine.state.players["a"]
+    player.chance_cards.extend(["chance-jail", "chance-build"])
+
     request = build_decision_request(engine, sequence=1)
+    chance_options = [
+        option for option in request.options if option.command_type == "use_chance_card"
+    ]
+    by_card_id = {cast(str, option.parameters["card_id"]): option for option in chance_options}
+    if list(by_card_id) != ["chance-swap-property", "chance-jail", "chance-build"]:
+        raise AssertionError("Scenario A must preserve held Chance-card candidate order")
+    if by_card_id["chance-jail"].target is None:
+        raise AssertionError("Scenario A jail card must expose its legal player target")
+    if by_card_id["chance-build"].target is None or by_card_id[
+        "chance-build"
+    ].target.legal_values != ((1,),):
+        raise AssertionError("Scenario A build card must fold its property targets")
+
     conversation = AgentConversation(agent_id="a", window_turns=1)
     messages, warning = compose_prompt(conversation, request)
     _write_messages(buf, messages, warning)
@@ -180,14 +201,30 @@ def scenario_e(buf: StringIO, directory: str) -> None:
     _write_header(
         buf,
         "E",
-        "校验失败错误记录 — 单次决策内两次出错后触发回退，回退 assistant 用系统默认 JSON",
+        "校验失败后默认结束回合 — A 抽到第 5 张机会卡后必须弃置",
     )
     engine = _make_engine(directory)
-    request = build_decision_request(engine, sequence=1)
-    from monopoly_agent_battle.decision.prompts import render_decision_question
+    player = engine.state.players["a"]
+    player.position = 3
+    player.chance_cards = [
+        "chance-build",
+        "chance-buy",
+        "chance-jail",
+        "chance-tax",
+    ]
+    engine.state.chance_draw_pile = ["chance-waiver"]
+    engine.state.turn_phase = TurnPhase.ROLLING
+    dice = iter((1, 3))
+    engine.random.randint = lambda _low, _high: next(dice)  # type: ignore[method-assign]
 
     conversation = AgentConversation(agent_id="a", window_turns=1)
     conversation.start_turn(1, segment3_budget_tokens=2000)
+    for event in engine.execute(RollDice("a")):
+        conversation.append_event(event, complete_round=engine.state.complete_rounds)
+
+    if len(player.chance_cards) != 5:
+        raise AssertionError("Scenario E requires A to draw a fifth Chance card")
+    request = build_decision_request(engine, sequence=1)
 
     bad_reply_1 = '{"selected_option": {"option": "not-a-real-option"}, "reason": "尝试1"}'
     validation_1 = parse_and_validate(bad_reply_1, request)
@@ -206,16 +243,38 @@ def scenario_e(buf: StringIO, directory: str) -> None:
         feedback_text=build_feedback(validation_2, request),
     )
 
+    fallback_reply = (
+        '{"selected_option": {"option": "end_turn"}, '
+        '"reason": "多次重试仍未给出合法回复，自动选择系统默认选项。"}'
+    )
     conversation.append_decision(
         decision_id=request.decision_id,
         question_summary=render_decision_question(request),
-        assistant_reply=(
-            '{"selected_option": {"option": "end_turn"}, '
-            '"reason": "多次重试仍未给出合法回复，自动选择系统默认选项。"}'
-        ),
+        assistant_reply=fallback_reply,
     )
+    for event in engine.execute(EndTurn("a")):
+        conversation.append_event(event, complete_round=engine.state.complete_rounds)
 
-    messages, warning = compose_prompt(conversation, request)
+    phase = cast(TurnPhase, engine.state.turn_phase)
+    if engine.state.current_player_id != "a" or phase is not TurnPhase.FORCED_DISCARD:
+        raise AssertionError("Scenario E fallback must leave A in forced discard")
+    forced_discard_request = build_decision_request(engine, sequence=2)
+    if forced_discard_request.kind is not DecisionKind.FORCED_DISCARD:
+        raise AssertionError("Scenario E must render a forced-discard request")
+    discard_options = [
+        option
+        for option in forced_discard_request.options
+        if option.command_type == "discard_chance_card"
+    ]
+    expected_card_ids = tuple(player.chance_cards)
+    if [option.parameters for option in discard_options] != [
+        {"card_id": card_id} for card_id in expected_card_ids
+    ]:
+        raise AssertionError("Scenario E must list each held Chance card as a distinct candidate")
+    if any(option.target is not None for option in discard_options):
+        raise AssertionError("Scenario E card-specific discard candidates must not require targets")
+
+    messages, warning = compose_prompt(conversation, forced_discard_request)
     _write_messages(buf, messages, warning)
 
 
