@@ -71,3 +71,38 @@ card_data_version: classic-cards-v1
     )
 
     assert load_game_config(config_path).game_id == "game-001"
+
+
+def test_config_accepts_model_profiles_and_player_binding() -> None:
+    data = config_data()
+    data["model_profiles"] = {"mock": {"provider": "mock", "model": "mock-baseline-v1"}}
+    data["players"] = [
+        {"player_id": "a", "seat": 1, "model_profile": "mock"},
+        {"player_id": "b", "seat": 2},
+    ]
+
+    config = GameConfig.model_validate(data)
+    assert config.players[0].model_profile == "mock"
+    assert config.players[1].model_profile is None
+    assert config.model_profiles["mock"].provider == "mock"
+    assert config.model_profiles["mock"].model == "mock-baseline-v1"
+
+
+def test_config_rejects_undefined_model_profile() -> None:
+    data = config_data()
+    data["model_profiles"] = {}
+    data["players"] = [
+        {"player_id": "a", "seat": 1, "model_profile": "missing"},
+        {"player_id": "b", "seat": 2},
+    ]
+
+    with pytest.raises(ValidationError, match="model_profile not defined"):
+        GameConfig.model_validate(data)
+
+
+def test_config_has_stage4_context_defaults() -> None:
+    config = GameConfig.model_validate(config_data())
+    assert config.validation_retries == 2
+    assert config.window_turns == 1
+    assert config.sentence_template_version is None
+    assert config.context_token_cap is None

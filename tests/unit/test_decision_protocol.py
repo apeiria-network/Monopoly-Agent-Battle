@@ -1,6 +1,6 @@
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import cast
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
@@ -195,16 +195,17 @@ def test_response_requires_one_known_option_and_reason(tmp_path: Path) -> None:
     illegal = parse_and_validate(
         json.dumps({"selected_option": {"option": "build-1"}, "reason": "越权操作。"}), request
     )
-    altered = parse_and_validate(
+    # Extra fields inside selected_option are silently ignored (§4C-remake rules).
+    extra_field_ok = parse_and_validate(
         json.dumps(
-            {"selected_option": {"option": "roll_dice", "extra": 1}, "reason": "篡改结构。"}
+            {"selected_option": {"option": "roll_dice", "extra": 1}, "reason": "多余字段被忽略。"}
         ),
         request,
     )
 
     assert valid.valid
     assert not illegal.valid
-    assert not altered.valid
+    assert extra_field_ok.valid
 
 
 def test_prompt_contains_request_and_fixed_response_contract(tmp_path: Path) -> None:
@@ -357,8 +358,8 @@ def test_prompt_renders_other_players_naturally(tmp_path: Path) -> None:
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
     assert "其他玩家状态" in prompt
-    b_block = block(prompt, "玩家「b」", ("## ",))          # b 的块：到下一节为止
-    assert "现金：999" in b_block                            # 现在绑死在 b 名下
+    b_block = block(prompt, "玩家「b」", ("## ",))  # b 的块：到下一节为止
+    assert "现金：999" in b_block  # 现在绑死在 b 名下
     assert "位置：格子 3（Baltic Avenue，街道）" in b_block
     assert "持有机会卡数量：1" in b_block
     assert "持有出狱卡数量：0" in b_block
@@ -388,15 +389,13 @@ def test_prompt_renders_board_table(tmp_path: Path) -> None:
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
     assert "棋盘状态" in prompt
-    assert "| 0 | GO | 起点 | - | - | - | - | - | - | - |" in prompt
-    assert (
-        "| 1 | Mediterranean Avenue | 街道 | brown | a | 2 | 60 | 50 | "
-        "2 / 10 / 30 / 90 / 160 / 250 | 查封（剩余 2 回合） |"
-    ) in prompt
-    assert (
-        "| 6 | Oriental Avenue | 街道 | light_blue | b | 0 | 100 | 50 | "
-        "6 / 30 / 90 / 270 / 400 / 550 | 抵押 |"
-    ) in prompt
+    # Dynamic table lists only owned spaces; 6-column format:
+    # 格 / 类型 / 所有者 / 建筑 / 状态 / 当前租金
+    assert "| 1 | 街道 | a | 2 | 查封（剩余 2 回合） | 0（查封） |" in prompt
+    assert "| 6 | 街道 | b | 0 | 抵押 | 0（抵押） |" in prompt
+    # Non-owned spaces (including position 0 GO) are no longer listed as rows.
+    assert "\n| 0 | 起点" not in prompt
+    assert "（未列出的地产均无主。）" in prompt
 
 
 def test_prompt_renders_other_player_jail_and_alliance(tmp_path: Path) -> None:
@@ -571,16 +570,19 @@ def test_prompt_renders_target_instructions(tmp_path: Path) -> None:
 
     # 改法：拆成三步独立断言，每一步的期望值都是字面量
     mortgage_selected = by_option_id["mortgage"]["response_format"]["selected_option"]
-    assert set(mortgage_selected.keys()) == {"option", "target"}   # 结构：多/少字段都抓得到
-    assert mortgage_selected["option"] == "mortgage"               # 值：写死
-    assert mortgage_selected["target"] == 1                        # ← 关键：填协议实际约定的占位内容
+    assert set(mortgage_selected.keys()) == {"option", "target"}  # 结构：多/少字段都抓得到
+    assert mortgage_selected["option"] == "mortgage"  # 值：写死
+    assert (
+        mortgage_selected["target"] == "填写需要抵押的目标格子编号"
+    )  # 占位文本（wording.py 约定）
 
-    swap_selected = by_option_id["use_chance_card-chance-swap-property"]["response_format"]["selected_option"]
-    assert swap_selected["option"] == "use_chance_card-chance-swap-property"
-    # 多字段 target 不只断言键，连每个字段的占位内容一起写死
+    swap_option_id = "use_chance_card-chance-swap-property"
+    swap_selected = by_option_id[swap_option_id]["response_format"]["selected_option"]
+    assert swap_selected["option"] == swap_option_id
+    # 多字段 target 不只断言键，连每个字段的占位文本一起写死
     assert swap_selected["target"] == {
-        "swap_in_position": 3,   # 填协议约定的实际值
-        "swap_out_position": 1,
+        "swap_in_position": "填写换入的目标格子id",
+        "swap_out_position": "填写换出的目标格子id",
     }
 
 
@@ -611,18 +613,16 @@ def test_selected_target_is_validated_and_reconstructed(tmp_path: Path) -> None:
     )
     assert not invalid.valid
 
-def test_prompt_board_table_renders_all_40_spaces(tmp_path: Path) -> None:
-    engine = make_engine(tmp_path)
-    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
-    prompt = render_decision_prompt(build_decision_request(engine, 1))
 
-    board_block = block(prompt, "棋盘状态", ("## ",))   # 复用致命级问题3的切块 helper
-    positions = sorted(int(p) for p in re.findall(r"^\| (\d+) \|", board_block, flags=re.M))
+def test_prompt_static_board_reference_lists_all_40_spaces(tmp_path: Path) -> None:
+    """Segment 2 rules text includes a static reference table covering all 40 board spaces."""
+    from monopoly_agent_battle.decision.prompts import render_rules
 
-    assert positions == list(range(40)), (
-        f"棋盘应完整渲染 40 格，实际 {len(positions)} 格，"
-        f"缺失: {sorted(set(range(40)) - set(positions))}，"
-        f"重复: {sorted(p for p in set(positions) if positions.count(p) > 1)}"
-    )
+    rules_text = render_rules()
 
-
+    ref_block = block(rules_text, "棋盘布局参考", ("## ",))
+    positions = sorted(int(p) for p in re.findall(r"^\| (\d+) \|", ref_block, flags=re.M))
+    # All 40 spaces (0-39) are listed: 22 streets + 4 railroads + 2 utilities
+    # + 12 non-property spaces (GO/Chance×3/Community Chest×3/Tax×2/Jail/
+    # Free Parking/Go To Jail).
+    assert positions == list(range(40))

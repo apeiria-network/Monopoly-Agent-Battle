@@ -65,49 +65,96 @@ _COMMAND_FACTORIES: dict[str, CommandFactory] = {
 
 
 def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionValidation:
-    """Accept exactly one JSON object containing a known option, its target, and a reason."""
+    """Parse an untrusted controller reply into one of the five outcomes.
+
+    Sets ``DecisionValidation.error_category`` on failure so the feedback
+    renderer can pick the right template:
+
+    - ``not_json``          — JSON parsing or top-level structure is broken;
+                              includes missing/non-string ``reason``.
+    - ``missing_option``    — ``selected_option`` block or its ``option`` field
+                              is absent or not a string.
+    - ``invalid_option``    — ``option`` value does not match any candidate.
+    - ``missing_target``    — the option requires a target but none supplied.
+    - ``invalid_target``    — target was supplied but value(s) illegal.
+
+    Extra top-level fields, extra keys inside ``selected_option`` and a
+    ``target`` on an option that does not need one are all silently ignored.
+    ``reason`` longer than ``_MAX_REASON_CHARS`` is truncated (not an error).
+    """
     try:
         document = json.loads(raw_response)
     except json.JSONDecodeError:
-        return DecisionValidation(None, None, "response is not valid JSON", raw_response)
+        return _fail("not_json", "response is not valid JSON", raw_response)
     if not isinstance(document, dict):
-        return DecisionValidation(None, None, "response must be a JSON object", raw_response)
+        return _fail("not_json", "response must be a JSON object", raw_response)
     document = cast(dict[str, object], document)
-    if set(document) != {"selected_option", "reason"}:
-        return DecisionValidation(
-            None, None, "response must contain exactly selected_option and reason", raw_response
-        )
-    selected = document["selected_option"]
-    reason = document["reason"]
-    if not isinstance(selected, dict) or not isinstance(reason, str):
-        return DecisionValidation(
-            None,
-            None,
-            "selected_option must be an object and reason must be a string",
+
+    reason = document.get("reason")
+    if not isinstance(reason, str):
+        return _fail("not_json", "reason field is missing or not a string", raw_response)
+    reason = reason[:_MAX_REASON_CHARS]
+
+    selected = document.get("selected_option")
+    if not isinstance(selected, dict):
+        return _fail(
+            "missing_option",
+            "selected_option field is missing or not a JSON object",
             raw_response,
         )
     selected = cast(dict[str, object], selected)
-    if "option" not in selected or not set(selected) <= {"option", "target"}:
-        return DecisionValidation(
-            None, None, "selected_option must contain option and an optional target", raw_response
-        )
-    option_id = selected["option"]
+    option_id = selected.get("option")
     if not isinstance(option_id, str):
-        return DecisionValidation(
-            None, None, "selected_option.option must be a string", raw_response
+        return _fail(
+            "missing_option",
+            "selected_option.option field is missing or not a string",
+            raw_response,
         )
-    reason = reason[:_MAX_REASON_CHARS]
+
     option = next((item for item in request.options if item.option_id == option_id), None)
     if option is None:
-        return DecisionValidation(
-            None, None, "selected_option is not a legal candidate", raw_response
-        )
+        return _fail("invalid_option", "selected_option is not a legal candidate", raw_response)
+
     raw_target = selected.get("target")
+    if option.target is not None and raw_target is None:
+        return _fail(
+            "missing_target",
+            "target field is required for this option but was not provided",
+            raw_response,
+            option=option,
+        )
+
     target = _validate_target(option.target, raw_target)
     if target is None:
-        return DecisionValidation(None, None, "target is not a legal value", raw_response)
+        return _fail(
+            "invalid_target",
+            "target value is not legal for this option",
+            raw_response,
+            option=option,
+        )
     return DecisionValidation(
-        DecisionResponse(option_id, raw_target, reason), option, None, raw_response, target
+        DecisionResponse(option_id, raw_target, reason),
+        option,
+        None,
+        raw_response,
+        target,
+    )
+
+
+def _fail(
+    category: str,
+    error: str,
+    raw_response: str,
+    *,
+    option: DecisionOption | None = None,
+) -> DecisionValidation:
+    return DecisionValidation(
+        response=None,
+        option=option,
+        error=error,
+        raw_response=raw_response,
+        target=None,
+        error_category=category,
     )
 
 

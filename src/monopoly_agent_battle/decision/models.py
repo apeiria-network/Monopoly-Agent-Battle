@@ -79,6 +79,7 @@ class DecisionValidation:
     error: str | None
     raw_response: str
     target: dict[str, object] | None = None
+    error_category: str | None = None
 
     @property
     def valid(self) -> bool:
