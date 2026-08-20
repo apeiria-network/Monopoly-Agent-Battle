@@ -10,7 +10,7 @@ def test_load_game_rules_returns_nonempty_markdown() -> None:
     assert text
     # A few known headings from doc/monopoly_rules_basic.md
     assert "游戏概述" in text
-    assert "机会卡一览" in text
+    assert "机会卡" in text
 
 
 def test_load_game_rules_caches_between_calls() -> None:

@@ -215,9 +215,9 @@ def _render_other_players(visible: dict[str, Any], board: dict[int, dict[str, An
 def _render_board(visible: dict[str, Any]) -> str:
     color_effects = _color_group_effects(visible["ongoing_effects"])
     rows = [
-        "| 格 | 名称 | 类型 | 颜色组 | 所有者 | 建筑 | 地块价格 | 房屋单价 | "
+        "| 格 | 类型 | 颜色组 | 所有者 | 建筑 | 地块价格 | 房屋单价 | "
         "租金（无房 / 1房 / 2房 / 3房 / 4房 / 酒店） | 状态 |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     rows.extend(_board_row(space, color_effects) for space in visible["board"])
     return "\n".join(rows)
@@ -227,7 +227,6 @@ def _board_row(space: dict[str, Any], color_effects: dict[str, dict[str, int]]) 
     is_street = space["kind"] == "street"
     cells = [
         str(space["position"]),
-        space["name"],
         _SPACE_KIND_CN[space["kind"]],
         space["color_group"] or "-",
         space["owner_id"] or "-",

@@ -101,7 +101,9 @@ def run_decision_game(
         automatic_command = _automatic_command(engine)
         if automatic_command is not None:
             command_events = _execute_and_audit(engine, automatic_command, artifacts)
-            _dispatch_events(command_events, conv_map, turn_counters, segment3_budget, artifacts)
+            _dispatch_events(
+                command_events, conv_map, turn_counters, segment3_budget, artifacts, engine
+            )
             events.extend(command_events)
             continue
         request = build_decision_request(engine, sequence)
@@ -155,7 +157,9 @@ def run_decision_game(
             _log_segment3_warning(current_conv, request, artifacts)
         command = command_from_option(request, validation.option, validation.target)
         command_events = _execute_and_audit(engine, command, artifacts)
-        _dispatch_events(command_events, conv_map, turn_counters, segment3_budget, artifacts)
+        _dispatch_events(
+            command_events, conv_map, turn_counters, segment3_budget, artifacts, engine
+        )
         events.extend(command_events)
         if artifacts is not None:
             artifacts.append_decision(
@@ -209,11 +213,13 @@ def _dispatch_events(
     turn_counters: dict[str, int],
     segment3_budget: int,
     artifacts: RunArtifacts | None,
+    engine: GameEngine,
 ) -> None:
     """Route engine events to every Agent conversation for history tracking."""
     if not conversations:
         return
     for event in engine_events:
+        complete_round = engine.state.complete_rounds
         if event.event_type == "turn_started":
             player_id = str(event.payload["player_id"])
             for agent_id, conversation in conversations.items():
@@ -225,10 +231,10 @@ def _dispatch_events(
                     )
                     _log_start_turn_warning(conversation, agent_id, artifacts)
                 else:
-                    conversation.append_event(event)
+                    conversation.append_event(event, complete_round)
         else:
             for conversation in conversations.values():
-                conversation.append_event(event)
+                conversation.append_event(event, complete_round)
 
 
 def _log_start_turn_warning(

@@ -25,9 +25,17 @@ from monopoly_agent_battle.domain.models import GameEvent
 
 @dataclass(frozen=True, slots=True)
 class EventEntry:
-    """One engine event observed during an Agent's action turn."""
+    """One engine event observed during an Agent's action turn.
+
+    ``complete_round`` is the ``GameState.complete_rounds`` snapshot when the
+    event fires; used to prefix ``[第N轮]`` in broadcast rendering. Defaults
+    to 0 so unit tests that construct fixtures without a live engine don't
+    have to thread the counter through — production runners always pass the
+    real value from ``engine.state.complete_rounds``.
+    """
 
     event: GameEvent
+    complete_round: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,8 +98,13 @@ class AgentConversation:
         self.current_turn = TurnRecord(turn_num=turn_num, entries=[])
         self._rebuild_segment3_cache(segment3_budget_tokens)
 
-    def append_event(self, event: GameEvent) -> None:
+    def append_event(self, event: GameEvent, complete_round: int = 0) -> None:
         """Record an engine event under the current action turn.
+
+        ``complete_round`` is the ``GameState.complete_rounds`` snapshot at the
+        time the event fires; used to prefix ``[第N轮]`` in broadcast rendering
+        so segment 3 / segment 4 stay aligned with the manual broadcast report.
+        Defaults to 0 for test fixtures without a live engine.
 
         Events that arrive before ``start_turn`` (e.g. the game's very first
         ``turn_started`` before any Agent turn has begun) are silently ignored
@@ -99,7 +112,7 @@ class AgentConversation:
         """
         if self.current_turn is None:
             return
-        self.current_turn.entries.append(EventEntry(event=event))
+        self.current_turn.entries.append(EventEntry(event=event, complete_round=complete_round))
 
     def append_decision(
         self, *, decision_id: str, user_snapshot: str, assistant_reply: str
@@ -168,7 +181,7 @@ class AgentConversation:
                     continue
                 sentence = render_event(entry.event, self.agent_id)
                 if sentence is not None:
-                    rendered.append(sentence)
+                    rendered.append(f"[第{entry.complete_round}轮] {sentence}")
         kept, warning = truncate_events_to_budget(rendered, budget_tokens)
         self._segment3_cache = kept
         self._segment3_warning = warning

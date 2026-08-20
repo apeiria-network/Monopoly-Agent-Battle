@@ -388,13 +388,13 @@ def test_prompt_renders_board_table(tmp_path: Path) -> None:
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
     assert "棋盘状态" in prompt
-    assert "| 0 | GO | 起点 | - | - | - | - | - | - | - |" in prompt
+    assert "| 0 | 起点 | - | - | - | - | - | - | - |" in prompt
     assert (
-        "| 1 | Mediterranean Avenue | 街道 | brown | a | 2 | 60 | 50 | "
+        "| 1 | 街道 | brown | a | 2 | 60 | 50 | "
         "2 / 10 / 30 / 90 / 160 / 250 | 查封（剩余 2 回合） |"
     ) in prompt
     assert (
-        "| 6 | Oriental Avenue | 街道 | light_blue | b | 0 | 100 | 50 | "
+        "| 6 | 街道 | light_blue | b | 0 | 100 | 50 | "
         "6 / 30 / 90 / 270 / 400 / 550 | 抵押 |"
     ) in prompt
 

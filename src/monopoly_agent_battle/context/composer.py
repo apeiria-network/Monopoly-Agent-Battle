@@ -5,19 +5,17 @@ the list of ``LLMMessage`` objects that will be sent to the LLM. The mapping
 follows the Stage 4C-remake specification:
 
 - Segments 1+2 (role + game rules) → one ``system`` message.
-- Segment 3 (compressed history events, viewer-scoped) → one ``user`` message
-  if the conversation has any completed turns; otherwise skipped.
-- Segment 4 (current action turn: prior decisions + between-decision events)
-  → interleaved messages. ``assistant`` breaks user accumulation; consecutive
-  user pieces merge into a single message.
-- Optional validation-failure feedback: appended to segment 4 as
-  ``assistant(bad_reply)`` then ``user(feedback)`` before the final segment 5-10.
-- Segments 5-10 (latest state + current decision + candidates + output guide)
-  → merged into the last ``user`` message (concatenates onto any pending user
-  buffer from segment 4).
-
-Segments 3 and 4 are omitted for the very first decision (no completed turns
-and no prior entries in the current turn).
+- Segments 3, 4 and 5-10 all render into ``user`` chunks; only ``assistant``
+  entries (this AI's prior JSON replies + optional pending validation-failure
+  reply) break the user accumulation. Consecutive user chunks are merged into
+  a single user message so the LLM never receives two adjacent user messages.
+- Segment 3 (compressed history events, viewer-scoped) is skipped when the
+  conversation has no completed turns.
+- Segment 4 replays the current action turn's entries in time order.
+- Optional validation feedback is inserted as ``assistant(bad_reply)`` followed
+  by the ``user(feedback)`` piece just before the segment 5-10 message.
+- Segments 5-10 always terminate the prompt as (part of) the final user
+  message.
 """
 
 from __future__ import annotations
@@ -51,24 +49,22 @@ def compose_prompt(
     # Segment 1 + 2 → single system message.
     messages.append(LLMMessage(role="system", content=render_system_prompt(request)))
 
-    # Segment 3 → one user message if there is compressed history.
-    if conversation.segment3_sentences:
-        messages.append(
-            LLMMessage(
-                role="user",
-                content="## 历史事件播报\n" + "\n".join(conversation.segment3_sentences),
-            )
-        )
-
-    # Segment 4 → stream from the current turn's entries; consecutive user
-    # chunks merge; assistant chunks break the merge.
+    # User buffer collects segment 3 + segment 4 user pieces + segment 5-10;
+    # only assistant chunks flush and break the merge, guaranteeing no two
+    # adjacent user messages ever reach the LLM.
     buffer: list[str] = []
+
+    # Segment 3 → one user chunk (merges with anything that follows).
+    if conversation.segment3_sentences:
+        buffer.append("## 历史事件播报\n" + "\n".join(conversation.segment3_sentences))
+
+    # Segment 4 → stream from the current turn's entries in time order.
     if conversation.current_turn is not None:
         for entry in conversation.current_turn.entries:
             if isinstance(entry, EventEntry):
                 sentence = render_event(entry.event, conversation.agent_id)
                 if sentence is not None:
-                    buffer.append(sentence)
+                    buffer.append(f"[第{entry.complete_round}轮] {sentence}")
             else:  # DecisionEntry
                 buffer.append(entry.user_snapshot)
                 messages.append(LLMMessage(role="user", content=_join(buffer)))

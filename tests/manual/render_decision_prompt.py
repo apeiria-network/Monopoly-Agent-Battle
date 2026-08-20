@@ -94,23 +94,27 @@ def scenario_b(buf: StringIO, directory: str) -> None:
     request = build_decision_request(engine, sequence=5)
 
     conversation = AgentConversation(agent_id="a", window_turns=1)
-    # 玩家 a 的第 1 个行动回合：投骰、移动、结束。
+    # 玩家 a 的第 1 个行动回合（complete_rounds=0）：投骰、移动、结束。
     conversation.start_turn(1, segment3_budget_tokens=2000)
     for evt in (
         _event("dice_rolled", player_id="a", dice=(3, 4)),
         _event("player_moved", player_id="a", to=7),
-        _event("turn_ended", player_id="a"),
     ):
-        conversation.append_event(evt)
+        conversation.append_event(evt, complete_round=0)
+    # a 是最后一名玩家前的座位；turn_ended 时轮次尚未推进，仍在第 0 轮。
+    conversation.append_event(_event("turn_ended", player_id="a"), complete_round=0)
 
-    # 玩家 b 的一个行动回合被观察到。
-    conversation.append_event(_event("turn_started", player_id="b"))
-    conversation.append_event(_event("dice_rolled", player_id="b", dice=(2, 5)))
-    conversation.append_event(_event("player_moved", player_id="b", to=14))
-    conversation.append_event(_event("property_purchased", player_id="b", position=14, price=140))
-    conversation.append_event(_event("turn_ended", player_id="b"))
+    # 玩家 b 的一个行动回合被观察到（假设 a 是首位，b 之后 complete_rounds 保持 0）。
+    conversation.append_event(_event("turn_started", player_id="b"), complete_round=0)
+    conversation.append_event(_event("dice_rolled", player_id="b", dice=(2, 5)), complete_round=0)
+    conversation.append_event(_event("player_moved", player_id="b", to=14), complete_round=0)
+    conversation.append_event(
+        _event("property_purchased", player_id="b", position=14, price=140), complete_round=0
+    )
+    # b 若为末位玩家，其 turn_ended 之后 complete_rounds+1。
+    conversation.append_event(_event("turn_ended", player_id="b"), complete_round=1)
 
-    # 现在进入玩家 a 的第 2 个行动回合。
+    # 现在进入玩家 a 的第 2 个行动回合，位于第 1 完整轮次。
     conversation.start_turn(2, segment3_budget_tokens=2000)
 
     messages, warning = compose_prompt(conversation, request)
@@ -124,9 +128,11 @@ def scenario_c(buf: StringIO, directory: str) -> None:
 
     conversation = AgentConversation(agent_id="a", window_turns=1)
     conversation.start_turn(1, segment3_budget_tokens=2000)
-    # 假设 a 已经在本回合内做过一次决策；期间发生了几个事件。
-    conversation.append_event(_event("dice_rolled", player_id="a", dice=(2, 3)))
-    conversation.append_event(_event("player_moved", player_id="a", to=5))
+    # 假设 a 已经在本回合内做过一次决策；期间发生了几个事件（本回合为第 0 完整轮次）。
+    conversation.append_event(
+        _event("dice_rolled", player_id="a", dice=(2, 3)), complete_round=0
+    )
+    conversation.append_event(_event("player_moved", player_id="a", to=5), complete_round=0)
     conversation.append_decision(
         decision_id="prompt-inspection-c-1",
         user_snapshot=(
@@ -139,7 +145,9 @@ def scenario_c(buf: StringIO, directory: str) -> None:
             '"selected_option": {"option": "mortgage_property", "target": 1}}'
         ),
     )
-    conversation.append_event(_event("property_mortgaged", player_id="a", position=1, amount=60))
+    conversation.append_event(
+        _event("property_mortgaged", player_id="a", position=1, amount=60), complete_round=0
+    )
 
     messages, warning = compose_prompt(conversation, request)
     _write_messages(buf, messages, warning)
@@ -152,10 +160,14 @@ def scenario_d(buf: StringIO, directory: str) -> None:
 
     conversation = AgentConversation(agent_id="a", window_turns=1)
     conversation.start_turn(1, segment3_budget_tokens=100)  # 初始预算充足
-    # 塞入大量事件（远超后续极小预算）。
+    # 塞入大量事件（远超后续极小预算），分散在多个完整轮次中。
     for i in range(20):
-        conversation.append_event(_event("dice_rolled", player_id="a", dice=(3, 4)))
-        conversation.append_event(_event("player_moved", player_id="a", to=7 + i % 3))
+        conversation.append_event(
+            _event("dice_rolled", player_id="a", dice=(3, 4)), complete_round=i // 4
+        )
+        conversation.append_event(
+            _event("player_moved", player_id="a", to=7 + i % 3), complete_round=i // 4
+        )
 
     # 用极小预算触发全部裁剪与警告。
     conversation.start_turn(2, segment3_budget_tokens=5)
