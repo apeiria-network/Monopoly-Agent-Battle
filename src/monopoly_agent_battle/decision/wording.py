@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from monopoly_agent_battle.domain.commands import GameCommand, UseChanceCard
+from monopoly_agent_battle.domain.commands import DiscardChanceCard, GameCommand, UseChanceCard
+from monopoly_agent_battle.game.cards.classic_cards import CARDS_BY_ID
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,17 +53,6 @@ _COMMAND_WORDING: dict[str, OptionWording] = {
             "selected_option": {
                 "option": "{option_id}",
                 "target": "填写选择赎回的目标格子编号；",
-            },
-        },
-    ),
-    "DiscardChanceCard": OptionWording(
-        "弃置机会卡",
-        "选择手牌中的一张机会卡并弃置该卡。",
-        {
-            "reason": "填写选择弃置该机会卡的理由。",
-            "selected_option": {
-                "option": "{option_id}",
-                "target": "填写选择弃置的目标机会卡 ID。",
             },
         },
     ),
@@ -296,6 +286,16 @@ def option_wording(command: GameCommand) -> OptionWording:
     """Return the wording for a candidate command."""
     if isinstance(command, UseChanceCard):
         return _CARD_WORDING[command.card_id]
+    if isinstance(command, DiscardChanceCard):
+        card_name = CARDS_BY_ID[command.card_id].name
+        return OptionWording(
+            f"弃置机会卡「{card_name}」",
+            f"弃置你持有的机会卡「{card_name}」。",
+            {
+                "reason": "填写选择弃置该机会卡的理由。",
+                "selected_option": {"option": "{option_id}"},
+            },
+        )
     return _COMMAND_WORDING.get(
         type(command).__name__,
         OptionWording(

@@ -399,7 +399,7 @@ def _target_fields(command: GameCommand) -> tuple[tuple[str, str], ...]:
         return _chance_target_fields(CARDS_BY_ID[command.card_id].effect)
     if isinstance(command, (SellBuilding, Mortgage, RedeemMortgage)):
         return (("position", "position"),)
-    if isinstance(command, (DiscardChanceCard, SelectStolenChanceCard)):
+    if isinstance(command, SelectStolenChanceCard):
         return (("card_id", "card_id"),)
     return ()
 

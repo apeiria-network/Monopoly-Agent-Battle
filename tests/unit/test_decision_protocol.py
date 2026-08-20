@@ -5,9 +5,14 @@ from typing import cast
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.decision.prompts import render_decision_prompt
-from monopoly_agent_battle.decision.protocol import command_from_option, parse_and_validate
+from monopoly_agent_battle.decision.protocol import (
+    command_from_option,
+    default_option_json,
+    parse_and_validate,
+)
 from monopoly_agent_battle.decision.requests import build_decision_request, player_visible_state
 from monopoly_agent_battle.domain.commands import (
+    DiscardChanceCard,
     Mortgage,
     RollDice,
     SelectStolenChanceCard,
@@ -20,6 +25,7 @@ from monopoly_agent_battle.domain.models import (
     OngoingEffectKind,
     TurnPhase,
 )
+from monopoly_agent_battle.game.cards.classic_cards import CARDS_BY_ID
 from monopoly_agent_battle.game.engine import GameEngine
 
 
@@ -264,7 +270,74 @@ def test_prompt_payment_decision_text(tmp_path: Path) -> None:
     assert "请出售建筑或抵押地产来筹足款项。" in prompt
 
 
-def test_prompt_forced_discard_decision_text(tmp_path: Path) -> None:
+def test_forced_discard_lists_each_held_card_as_its_own_candidate(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.FORCED_DISCARD
+    held_cards = [
+        "chance-waiver",
+        "chance-build",
+        "chance-tax",
+        "chance-steal",
+        "chance-jail",
+    ]
+    engine.state.players["a"].chance_cards.extend(held_cards)
+
+    request = build_decision_request(engine, 1)
+    discard_options = [
+        option for option in request.options if option.command_type == "discard_chance_card"
+    ]
+
+    assert [option.option_id for option in discard_options] == [
+        f"discard_chance_card-{card_id}" for card_id in held_cards
+    ]
+    assert [option.parameters for option in discard_options] == [
+        {"card_id": card_id} for card_id in held_cards
+    ]
+    assert all(option.target is None for option in discard_options)
+    assert all(
+        CARDS_BY_ID[card_id].name in option.title
+        for card_id, option in zip(held_cards, discard_options, strict=True)
+    )
+
+    for card_id, option in zip(held_cards, discard_options, strict=True):
+        validation = parse_and_validate(
+            json.dumps({"selected_option": {"option": option.option_id}, "reason": "弃置该卡。"}),
+            request,
+        )
+        assert validation.valid
+        assert validation.option == option
+        command = command_from_option(request, option, validation.target)
+        assert command == DiscardChanceCard("a", card_id)
+
+    assert default_option_json(discard_options[0]) == {
+        "option": "discard_chance_card-chance-waiver"
+    }
+
+
+def test_asset_management_keeps_cards_separate_and_folds_each_card_targets(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    player = engine.state.players["a"]
+    player.properties.update({1, 3})
+    engine.state.properties[1].owner_id = "a"
+    engine.state.properties[3].owner_id = "a"
+    player.chance_cards.extend(["chance-jail", "chance-build"])
+
+    request = build_decision_request(engine, 1)
+    chance_options = [
+        option for option in request.options if option.command_type == "use_chance_card"
+    ]
+    by_card_id = {cast(str, option.parameters["card_id"]): option for option in chance_options}
+
+    assert list(by_card_id) == ["chance-jail", "chance-build"]
+    assert len(chance_options) == 2
+    assert by_card_id["chance-jail"].option_id == "use_chance_card-chance-jail"
+    assert by_card_id["chance-build"].option_id == "use_chance_card-chance-build"
+    assert by_card_id["chance-jail"].target is not None
+    assert by_card_id["chance-jail"].target.legal_values == (("b",),)
+    assert by_card_id["chance-build"].target is not None
+    assert by_card_id["chance-build"].target.legal_values == ((1,), (3,))
+
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.FORCED_DISCARD
     engine.state.players["a"].chance_cards.extend(
@@ -275,6 +348,23 @@ def test_prompt_forced_discard_decision_text(tmp_path: Path) -> None:
 
     assert "当前持有 5 张机会卡，超过 4 张上限" in prompt
     assert "必须弃置到 4 张后才能结束回合。" in prompt
+    candidates = json.loads(prompt.split("## 合法候选操作\n", 1)[1].split("\n\n## 输出要求", 1)[0])
+    discard_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate["option_id"].startswith("discard_chance_card-")
+    ]
+    assert len(discard_candidates) == 5
+    for candidate, card_id in zip(
+        discard_candidates,
+        ["chance-waiver", "chance-build", "chance-tax", "chance-steal", "chance-jail"],
+        strict=True,
+    ):
+        assert set(candidate) == {"option_id", "title", "preview", "response_format"}
+        assert CARDS_BY_ID[card_id].name in candidate["title"]
+        assert candidate["response_format"]["selected_option"] == {
+            "option": f"discard_chance_card-{card_id}"
+        }
 
 
 def test_prompt_asset_management_decision_text(tmp_path: Path) -> None:
@@ -520,6 +610,10 @@ def test_theft_selection_reveals_target_cards_only_during_selection(tmp_path: Pa
         ],
     }
     assert {option.command_type for option in request.options} == {"select_stolen_chance_card"}
+    theft_option = request.options[0]
+    assert theft_option.parameters == {}
+    assert theft_option.target is not None
+    assert theft_option.target.legal_values == (("chance-build",), ("chance-tax",))
     assert "chance-build" in serialized
 
     engine.execute(SelectStolenChanceCard("a", "chance-build"))
