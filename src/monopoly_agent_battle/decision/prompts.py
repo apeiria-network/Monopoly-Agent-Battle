@@ -63,8 +63,14 @@ def render_rules() -> str:
 
 
 def render_system_prompt(request: DecisionRequest) -> str:
-    """Segments 1+2 merged for the single system message."""
-    return render_role(request) + "\n\n" + render_rules()
+    """Segments 1+2 plus the stable output contract in one system message."""
+    return "\n\n".join(
+        (
+            render_role(request),
+            render_rules(),
+            "## 输出要求\n" + _OUTPUT_GUIDE,
+        )
+    )
 
 
 def render_situation(visible: dict[str, Any]) -> str:
@@ -73,7 +79,7 @@ def render_situation(visible: dict[str, Any]) -> str:
 
 
 def render_decision_and_options(request: DecisionRequest) -> str:
-    """Segments 8+9+10 combined (full ask: question + candidates + output guide)."""
+    """Segments 8+9 for the current dynamic user message."""
     visible: dict[str, Any] = request.visible_state
     options = [
         {
@@ -88,57 +94,36 @@ def render_decision_and_options(request: DecisionRequest) -> str:
         (
             "## 当前决策\n" + _render_decision(request, visible),
             "## 合法候选操作\n" + _json(options),
-            "## 输出要求\n" + _OUTPUT_GUIDE,
         )
     )
 
 
 def render_decision_question(request: DecisionRequest) -> str:
-    """Segment 8 only — the "## 当前决策" text without candidates or output guide.
+    """Segment 8 only — the "## 当前决策" text without candidates.
 
     Used as the segment-4 replay for decisions the AI has already answered:
-    candidates and output guide are dropped so tokens are not wasted echoing
-    what the AI has already committed to.
+    candidates are dropped because the AI has already committed to an answer,
+    while the fixed output contract already lives in the system message.
     """
     visible: dict[str, Any] = request.visible_state
     return "## 当前决策\n" + _render_decision(request, visible)
 
 
 def render_current_user_message(request: DecisionRequest) -> str:
-    """Segments 5-10 merged for the final user message of a prompt."""
+    """Segments 5-9 merged for the final dynamic user message."""
     visible: dict[str, Any] = request.visible_state
     return render_situation(visible) + "\n\n" + render_decision_and_options(request)
 
 
 def render_decision_prompt(request: DecisionRequest) -> str:
-    """Legacy single-string entry point retained for 4A/4B tests.
+    """Return a compatibility single-string view of the current request.
 
-    Returns segments 1 + 5-10 concatenated (no segment 2/3/4) — matches the
-    prompt shape accepted for the Stage 3 human review. Stage 4C conversations
-    should use the messages produced by ``compose_prompt`` instead.
+    The view preserves the Stage 4C ordering: role, rules and fixed output
+    contract precede the dynamic situation, decision and candidate options.
+    Stage 4C conversations should instead use the messages from
+    ``compose_prompt``.
     """
-    visible: dict[str, Any] = request.visible_state
-    options = [
-        {
-            "option_id": option.option_id,
-            "title": option.title,
-            "preview": option.preview,
-            "response_format": _render_response_format(option.response_format, option.option_id),
-        }
-        for option in request.options
-    ]
-    return "\n\n".join(
-        (
-            PLAYER_INSTRUCTION.format(
-                player_id=request.player_id,
-                seat=visible["your_state"]["seat"],
-            ),
-            "## 当前局面\n" + _render_situation(visible),
-            "## 当前决策\n" + _render_decision(request, visible),
-            "## 合法候选操作\n" + _json(options),
-            "## 输出要求\n" + _OUTPUT_GUIDE,
-        )
-    )
+    return render_system_prompt(request) + "\n\n" + render_current_user_message(request)
 
 
 def _render_response_format(value: object, option_id: str) -> object:

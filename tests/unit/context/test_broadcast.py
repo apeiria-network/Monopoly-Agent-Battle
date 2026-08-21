@@ -13,6 +13,13 @@ from monopoly_agent_battle.context.broadcast import (
 from monopoly_agent_battle.domain.models import GameEvent
 
 
+def _rendered(event: GameEvent, viewer_id: str | None = None) -> str:
+    """Render a whitelisted event and narrow the optional return type for tests."""
+    rendered = render_event(event, viewer_id)
+    assert rendered is not None
+    return rendered
+
+
 def test_exempt_events_return_none() -> None:
     """Exempt events return None without raising."""
     for event_type in EXEMPT:
@@ -88,8 +95,8 @@ def test_unregistered_event_raises() -> None:
 def test_render_deterministic() -> None:
     """Calling render_event twice with the same input returns the same string."""
     event = GameEvent("dice_rolled", {"player_id": "a", "dice": [3, 4]})
-    result1 = render_event(event, None)
-    result2 = render_event(event, None)
+    result1 = _rendered(event)
+    result2 = _rendered(event)
     assert result1 == result2
     assert result1 == "玩家a掷出3+4=7点。"
 
@@ -106,11 +113,11 @@ def test_card_drawn_chance_observer_hides_card_name() -> None:
         },
     )
 
-    observer_result = render_event(event, "b")
+    observer_result = _rendered(event, "b")
     assert observer_result == "玩家a抽得一张机会卡。"
     assert "免费卡" not in observer_result
 
-    self_result = render_event(event, "a")
+    self_result = _rendered(event, "a")
     assert "免费卡" in self_result
     assert self_result == "玩家a抽得机会卡「免费卡」。"
 
@@ -127,11 +134,11 @@ def test_card_drawn_community_chest_always_public() -> None:
         },
     )
 
-    observer_result = render_event(event, "b")
+    observer_result = _rendered(event, "b")
     assert "出狱卡" in observer_result
     assert "收入手牌" in observer_result
 
-    self_result = render_event(event, "a")
+    self_result = _rendered(event, "a")
     assert "出狱卡" in self_result
 
 
@@ -142,11 +149,11 @@ def test_card_discarded_observer_hides_card_name() -> None:
         {"player_id": "a", "card_id": "chance-waiver", "deck": "chance"},
     )
 
-    observer_result = render_event(event, "b")
+    observer_result = _rendered(event, "b")
     assert observer_result == "玩家a弃置一张机会卡。"
     assert "免费卡" not in observer_result
 
-    self_result = render_event(event, "a")
+    self_result = _rendered(event, "a")
     assert "免费卡" in self_result
     assert self_result == "玩家a弃置了机会卡「免费卡」。"
 
@@ -162,14 +169,14 @@ def test_chance_card_stolen_observer_hides_card_name() -> None:
         },
     )
 
-    observer_result = render_event(event, "c")
+    observer_result = _rendered(event, "c")
     assert "一张机会卡" in observer_result
     assert "查税卡" not in observer_result
 
-    thief_result = render_event(event, "a")
+    thief_result = _rendered(event, "a")
     assert "查税卡" in thief_result
 
-    victim_result = render_event(event, "b")
+    victim_result = _rendered(event, "b")
     assert "查税卡" in victim_result
 
 
@@ -186,7 +193,7 @@ def test_payment_made_to_bank() -> None:
         },
     )
 
-    result = render_event(event, None)
+    result = _rendered(event)
     assert "银行" in result
     assert result == "玩家a支付50给银行（原因：税费）。"
 
@@ -204,7 +211,7 @@ def test_payment_made_to_player() -> None:
         },
     )
 
-    result = render_event(event, None)
+    result = _rendered(event)
     assert "玩家b" in result
     assert result == "玩家a支付100给玩家b（原因：租金）。"
 
@@ -212,15 +219,15 @@ def test_payment_made_to_player() -> None:
 def test_player_jailed_reason_mapping() -> None:
     """player_jailed maps reason to human-readable text."""
     event_doubles = GameEvent("player_jailed", {"player_id": "a", "reason": "third_doubles"})
-    result_doubles = render_event(event_doubles, None)
+    result_doubles = _rendered(event_doubles)
     assert "连续三次双骰" in result_doubles
 
     event_go_to_jail = GameEvent("player_jailed", {"player_id": "a", "reason": "go_to_jail"})
-    result_go_to_jail = render_event(event_go_to_jail, None)
+    result_go_to_jail = _rendered(event_go_to_jail)
     assert "踩到入狱格" in result_go_to_jail
 
     event_card = GameEvent("player_jailed", {"player_id": "a", "reason": "chance-jail"})
-    result_card = render_event(event_card, None)
+    result_card = _rendered(event_card)
     assert "陷害卡" in result_card
 
 
@@ -232,7 +239,7 @@ def test_jail_released_method_mapping() -> None:
         ("fine", "缴纳罚款"),
     ]:
         event = GameEvent("jail_released", {"player_id": "a", "method": method})
-        result = render_event(event, None)
+        result = _rendered(event)
         assert expected_text in result
 
 
@@ -248,7 +255,7 @@ def test_chance_card_used_with_targets() -> None:
             "target_color_group": None,
         },
     )
-    result = render_event(event_player_target, None)
+    result = _rendered(event_player_target)
     assert "查税卡" in result
     assert "目标：玩家b" in result
 
@@ -262,7 +269,7 @@ def test_chance_card_used_with_targets() -> None:
             "target_color_group": None,
         },
     )
-    result = render_event(event_position_target, None)
+    result = _rendered(event_position_target)
     assert "空地卡" in result
     assert "目标：第1格" in result
 
@@ -276,7 +283,7 @@ def test_chance_card_used_with_targets() -> None:
             "target_color_group": None,
         },
     )
-    result = render_event(event_no_target, None)
+    result = _rendered(event_no_target)
     assert "核弹卡" in result
     assert "目标" not in result
 
@@ -293,7 +300,7 @@ def test_ongoing_effect_created_with_targets() -> None:
             "color_group": None,
         },
     )
-    result = render_event(event_with_player, None)
+    result = _rendered(event_with_player)
     assert "同盟效果创建" in result
     assert "目标：玩家b" in result
 
@@ -307,7 +314,7 @@ def test_ongoing_effect_created_with_targets() -> None:
             "color_group": "red",
         },
     )
-    result = render_event(event_with_color, None)
+    result = _rendered(event_with_color)
     assert "涨价效果创建" in result
     assert "颜色组：red" in result
 
@@ -318,7 +325,7 @@ def test_property_events_include_board_names() -> None:
         "property_purchased",
         {"player_id": "a", "position": 1, "price": 60},
     )
-    result = render_event(event, None)
+    result = _rendered(event)
     assert "Mediterranean Avenue" in result or "第1格" in result
 
 
@@ -328,5 +335,5 @@ def test_board_position_fallback() -> None:
         "player_moved",
         {"player_id": "a", "from": 0, "to": 999, "steps": 999},
     )
-    result = render_event(event, None)
+    result = _rendered(event)
     assert "第999格" in result

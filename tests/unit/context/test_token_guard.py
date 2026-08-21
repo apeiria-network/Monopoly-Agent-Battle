@@ -43,7 +43,8 @@ def test_truncate_events_drops_earliest_first() -> None:
     # The last event is always tail; the earliest is the one dropped.
     assert kept[-1] == events[-1]
     assert events[0] not in kept
-    assert warning is None
+    assert warning is not None
+    assert warning.kind == "segment3_overflow"
 
 
 def test_truncate_events_zero_budget_emits_warning() -> None:
@@ -60,10 +61,10 @@ def test_truncate_events_empty_input_no_warning() -> None:
     assert warning is None
 
 
-def test_truncate_events_single_tail_still_over_budget_warns() -> None:
-    # One long sentence, budget too small.
-    events = ("这" * 100,)  # 100 CJK tokens
+def test_truncate_events_single_tail_over_budget_is_dropped() -> None:
+    # The cap is strict: one oversized event must not overflow segment 3.
+    events = ("这" * 100,)
     kept, warning = truncate_events_to_budget(events, budget_tokens=20)
-    # The truncator drops the only sentence to satisfy the budget.
     assert kept == ()
     assert warning is not None
+    assert warning.kind == "segment3_overflow"

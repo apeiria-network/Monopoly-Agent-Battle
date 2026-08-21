@@ -9,6 +9,7 @@ from monopoly_agent_battle.context.conversation import (
     DecisionEntry,
     EventEntry,
 )
+from monopoly_agent_battle.context.token_guard import estimate_tokens
 from monopoly_agent_battle.domain.models import GameEvent
 
 
@@ -18,9 +19,9 @@ def _event(event_type: str, **payload: object) -> GameEvent:
 
 def test_start_turn_finalises_prior_turn_and_creates_new() -> None:
     conv = AgentConversation(agent_id="a", window_turns=1)
-    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.start_turn(1)
     conv.append_event(_event("dice_rolled", player_id="a", dice=(3, 4)))
-    conv.start_turn(2, segment3_budget_tokens=10_000)
+    conv.start_turn(2)
 
     assert len(conv.completed_turns) == 1
     assert conv.completed_turns[0].turn_num == 1
@@ -45,7 +46,7 @@ def test_append_decision_requires_active_turn() -> None:
 
 def test_entries_preserve_time_order() -> None:
     conv = AgentConversation(agent_id="a", window_turns=1)
-    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.start_turn(1)
     conv.append_event(_event("dice_rolled", player_id="a", dice=(2, 3)))
     conv.append_decision(decision_id="d1", question_summary="Q1", assistant_reply="A1")
     conv.append_event(
@@ -65,11 +66,11 @@ def test_entries_preserve_time_order() -> None:
 
 def test_segment3_cache_renders_completed_turn_events_with_viewer_scope() -> None:
     conv = AgentConversation(agent_id="a", window_turns=1)
-    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.start_turn(1)
     # A whitelisted event that renders identically for observer/self:
     conv.append_event(_event("dice_rolled", player_id="a", dice=(2, 3)))
     conv.append_event(_event("dice_rolled", player_id="b", dice=(4, 5)))
-    conv.start_turn(2, segment3_budget_tokens=10_000)
+    conv.start_turn(2)
 
     sentences = conv.segment3_sentences
     assert len(sentences) == 2
@@ -78,21 +79,37 @@ def test_segment3_cache_renders_completed_turn_events_with_viewer_scope() -> Non
     assert conv.segment3_warning is None
 
 
-def test_segment3_cache_applies_budget_and_emits_warning() -> None:
+def test_segment3_cache_strictly_caps_history_at_500_tokens_and_keeps_tail() -> None:
     conv = AgentConversation(agent_id="a", window_turns=1)
-    conv.start_turn(1, segment3_budget_tokens=10_000)
-    for _ in range(5):
+    conv.start_turn(1)
+    for _ in range(50):
         conv.append_event(_event("dice_rolled", player_id="a", dice=(6, 6)))
-    conv.start_turn(2, segment3_budget_tokens=15)  # forcefully small
+    conv.start_turn(2)
 
-    # At most 1 sentence fits under 15 tokens (each is ~13 chars ≥ 13 tokens).
-    assert len(conv.segment3_sentences) < 5
-    assert conv.segment3_warning is None or conv.segment3_warning.kind == "segment3_overflow"
+    sentences = conv.segment3_sentences
+    assert len(sentences) < 50
+    assert sentences[-1].endswith("玩家a掷出6+6=12点。")
+    assert estimate_tokens("\n".join(sentences)) <= 500
+    assert conv.segment3_warning is not None
+    assert conv.segment3_warning.kind == "segment3_overflow"
+
+
+def test_segment3_cache_remains_stable_within_an_action_turn() -> None:
+    conv = AgentConversation(agent_id="a", window_turns=1)
+    conv.start_turn(1)
+    for _ in range(50):
+        conv.append_event(_event("dice_rolled", player_id="a", dice=(6, 6)))
+    conv.start_turn(2)
+    before = conv.segment3_sentences
+
+    conv.append_event(_event("dice_rolled", player_id="a", dice=(1, 2)))
+
+    assert conv.segment3_sentences == before
 
 
 def test_append_error_records_in_current_turn_only() -> None:
     conv = AgentConversation(agent_id="a", window_turns=1)
-    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.start_turn(1)
     conv.append_error(
         decision_id="d1",
         question_summary="Q1",
@@ -121,10 +138,10 @@ def test_append_error_before_start_turn_is_ignored() -> None:
 def test_segment3_skips_error_entries_from_completed_turns() -> None:
     """Errors from prior turns must never leak into the compressed history."""
     conv = AgentConversation(agent_id="a", window_turns=1)
-    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.start_turn(1)
     conv.append_event(_event("dice_rolled", player_id="a", dice=(3, 4)))
     conv.append_error(decision_id="d1", question_summary="Q1", bad_reply="bad", feedback_text="fb")
-    conv.start_turn(2, segment3_budget_tokens=10_000)
+    conv.start_turn(2)
 
     sentences = conv.segment3_sentences
     assert len(sentences) == 1

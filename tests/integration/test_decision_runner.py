@@ -2,10 +2,14 @@ import json
 from pathlib import Path
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
+from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.protocol import default_option_json
-from monopoly_agent_battle.decision.runner import DeterministicPolicyController, run_decision_game
-from monopoly_agent_battle.domain.models import JailStatus
+from monopoly_agent_battle.decision.runner import (
+    DeterministicPolicyController,
+    run_decision_game,
+)
+from monopoly_agent_battle.domain.models import GameEvent, JailStatus
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.replay import verify_run
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
@@ -116,6 +120,35 @@ def test_invalid_output_is_retried_with_feedback_then_falls_back(tmp_path: Path)
     assert feedbacks[0] is None
     assert feedbacks[1] is not None and "Error: 不合法的选项id" in feedbacks[1]
     assert feedbacks[2] is not None and "Error: 不合法的选项id" in feedbacks[2]
+
+
+def test_segment3_overflow_is_logged_once_per_action_turn(tmp_path: Path) -> None:
+    config = make_config(tmp_path)
+    artifacts = RunArtifacts.create(config)
+    conversations = {
+        player_id: AgentConversation(agent_id=player_id, window_turns=1) for player_id in ("a", "b")
+    }
+    conversations["a"].start_turn(0)
+    for _ in range(50):
+        conversations["a"].append_event(
+            GameEvent(event_type="dice_rolled", payload={"player_id": "a", "dice": (6, 6)})
+        )
+
+    run_decision_game(
+        GameEngine(config), DeterministicPolicyController(), artifacts, conversations=conversations
+    )
+
+    runtime = [
+        json.loads(line)
+        for line in (artifacts.run_directory / "runtime.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    segment3_records = [record for record in runtime if record["event_type"] == "segment3_overflow"]
+    assert len(segment3_records) == 1
+    assert segment3_records[0]["payload"]["agent_id"] == "a"
+    assert segment3_records[0]["payload"]["turn_num"] == 1
+    assert conversations["a"].segment3_warning is not None
 
 
 def test_jail_waiting_is_advanced_without_a_jail_prompt(tmp_path: Path) -> None:
