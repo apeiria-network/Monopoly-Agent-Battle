@@ -83,20 +83,26 @@ def test_baseline_agent_returns_client_content_and_builds_multi_message_request(
     assert llm_request.model == "mock-baseline-v1"
     assert llm_request.temperature == 0.5
     assert llm_request.max_tokens == 100
-    # First decision, no history → system + user (segments 1+2 + segments 5-10).
+    # First decision, no history → system + dynamic user (segments 1+2+output + 5-9).
     roles = [message.role for message in llm_request.messages]
     assert roles == ["system", "user"]
-    # Segment 2 (game rules) must be in the system message.
-    assert "游戏规则" in llm_request.messages[0].content
-    # Segment 8+9+10 belong to the trailing user message.
-    assert "合法候选操作" in llm_request.messages[-1].content
+    # The fixed output contract follows segment 2 in the system message.
+    system = llm_request.messages[0].content
+    assert "游戏规则" in system
+    assert "## 输出要求" in system
+    assert system.index("游戏规则") < system.index("## 输出要求")
+    # Candidate JSON stays in the trailing user message and retains its local schema.
+    trailing_user = llm_request.messages[-1].content
+    assert "合法候选操作" in trailing_user
+    assert '"response_format"' in trailing_user
+    assert "## 输出要求" not in trailing_user
 
 
 def test_baseline_agent_replays_error_entries_from_conversation(tmp_path: Path) -> None:
     client = StubClient("x")
     _engine, request = _make_request_and_engine(tmp_path)
     agent, conversation = _agent(client, ModelProfile(provider="mock", model="m"))
-    conversation.start_turn(1, segment3_budget_tokens=10_000)
+    conversation.start_turn(1)
     conversation.append_error(
         decision_id="d1",
         question_summary="## 当前决策\n你需要选一个合法选项。",

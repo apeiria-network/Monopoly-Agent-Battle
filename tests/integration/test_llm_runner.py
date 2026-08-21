@@ -9,6 +9,7 @@ from typing import Any
 from monopoly_agent_battle.agents.baseline import BaselineAgent
 from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
 from monopoly_agent_battle.context.conversation import AgentConversation
+from monopoly_agent_battle.context.token_guard import estimate_tokens
 from monopoly_agent_battle.decision.prompts import options_from_prompt
 from monopoly_agent_battle.decision.runner import (
     DispatchController,
@@ -76,7 +77,13 @@ def _result_document(run_directory: Path) -> dict[str, Any]:
 def test_mock_baseline_completes_full_game_with_audit(tmp_path: Path) -> None:
     config = make_config(tmp_path)
     artifacts = RunArtifacts.create(config)
-    controller, conversations = _dispatch(config, artifacts)
+    captured_requests: list[LLMRequest] = []
+
+    def inspect_prompt_policy(request: LLMRequest) -> str:
+        captured_requests.append(request)
+        return MockLLMClient(seed=0).complete(request).content
+
+    controller, conversations = _dispatch(config, artifacts, inspect_prompt_policy)
 
     result = run_decision_game(
         GameEngine(config), controller, artifacts, conversations=conversations
@@ -92,6 +99,23 @@ def test_mock_baseline_completes_full_game_with_audit(tmp_path: Path) -> None:
     assert result_document["reconnect_events"] == 0
     assert result_document["validity_status"] == "valid"
     assert all("caller_role" in record and "model" in record for record in llm_calls)
+    first_messages = captured_requests[0].messages
+    assert [message.role for message in first_messages] == ["system", "user"]
+    system, dynamic_user = first_messages
+    assert "## 输出要求" in system.content
+    assert system.content.index("游戏规则") < system.content.index("## 输出要求")
+    assert "## 输出要求" not in dynamic_user.content
+    assert '"response_format"' in dynamic_user.content
+    assert all(
+        "controller_connection_error" not in message.content
+        and "segment3_overflow" not in message.content
+        for request in captured_requests
+        for message in request.messages
+    )
+    assert all(
+        estimate_tokens("\n".join(conversation.segment3_sentences)) <= 500
+        for conversation in conversations.values()
+    )
     verify_run(artifacts.run_directory)
 
 
@@ -120,7 +144,7 @@ def test_invalid_output_retries_with_feedback_then_executes(tmp_path: Path) -> N
         call_counts.append(len(call_counts))
         if len(call_counts) == 1:
             return '{"selected_option": {"option": "not-a-legal-option"}, "reason": "x"}'
-        # Extract candidate list from the trailing user message (segments 5-10).
+        # Extract candidate list from the trailing dynamic user message (segments 5-9).
         trailing_user = request.messages[-1].content
         options = options_from_prompt(trailing_user)
         option_id = options[0]["option_id"]

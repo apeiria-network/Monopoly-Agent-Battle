@@ -1,10 +1,10 @@
 import json
 import re
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
-from monopoly_agent_battle.decision.prompts import render_decision_prompt
+from monopoly_agent_battle.decision.prompts import options_from_prompt, render_decision_prompt
 from monopoly_agent_battle.decision.protocol import (
     command_from_option,
     default_option_json,
@@ -224,6 +224,8 @@ def test_prompt_contains_request_and_fixed_response_contract(tmp_path: Path) -> 
     assert "## 当前决策" in prompt
     assert "## 合法候选操作" in prompt
     assert "## 输出要求" in prompt
+    assert prompt.index("游戏规则") < prompt.index("## 输出要求")
+    assert prompt.index("## 输出要求") < prompt.index("## 当前局面")
     assert '"option_id"' in prompt
     assert '"title"' in prompt
     assert '"preview"' in prompt
@@ -348,7 +350,7 @@ def test_asset_management_keeps_cards_separate_and_folds_each_card_targets(tmp_p
 
     assert "当前持有 5 张机会卡，超过 4 张上限" in prompt
     assert "必须弃置到 4 张后才能结束回合。" in prompt
-    candidates = json.loads(prompt.split("## 合法候选操作\n", 1)[1].split("\n\n## 输出要求", 1)[0])
+    candidates = cast(list[dict[str, Any]], options_from_prompt(prompt))
     discard_candidates = [
         candidate
         for candidate in candidates
@@ -484,7 +486,8 @@ def test_prompt_renders_board_table(tmp_path: Path) -> None:
     assert "| 1 | 街道 | a | 2 | 查封（剩余 2 回合） | 0（查封） |" in prompt
     assert "| 6 | 街道 | b | 0 | 抵押 | 0（抵押） |" in prompt
     # Non-owned spaces (including position 0 GO) are no longer listed as rows.
-    assert "\n| 0 | 起点" not in prompt
+    dynamic_prompt = prompt.split("## 当前局面\n", 1)[1]
+    assert "\n| 0 | 起点" not in dynamic_prompt
     assert "（未列出的地产均无主。）" in prompt
 
 
@@ -659,7 +662,7 @@ def test_prompt_renders_target_instructions(tmp_path: Path) -> None:
     engine.state.players["a"].chance_cards.append("chance-swap-property")
 
     prompt = render_decision_prompt(build_decision_request(engine, 1))
-    options = json.loads(prompt.split("## 合法候选操作\n", 1)[1].split("\n\n## 输出要求", 1)[0])
+    options = cast(list[dict[str, Any]], options_from_prompt(prompt))
     by_option_id = {option["option_id"]: option for option in options}
 
     # 改法：拆成三步独立断言，每一步的期望值都是字面量

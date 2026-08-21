@@ -10,7 +10,7 @@ Writes the full transcript to tests/manual/render_decision_prompt_report.txt
   A – First decision of the game with several held Chance cards (no completed
       turns; no in-turn history). Shows that usable cards are independent
       candidates while a card's own targets remain folded. Expected: messages =
-      [system(段 1+2), user(段 5-10)].
+      [system(段 1+2+固定输出约定), user(段 5-9)].
   B – Fresh action turn after prior completed turns (window=1).
       Expected: segment 3 renders past events; segment 4 is still empty.
   C – Same action turn, second decision.
@@ -33,6 +33,7 @@ from typing import cast
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.context.composer import compose_prompt
 from monopoly_agent_battle.context.conversation import AgentConversation
+from monopoly_agent_battle.context.token_guard import estimate_tokens
 from monopoly_agent_battle.context.validation_feedback import build_feedback
 from monopoly_agent_battle.decision.models import DecisionKind
 from monopoly_agent_battle.decision.prompts import render_decision_question
@@ -113,6 +114,25 @@ def scenario_a(buf: StringIO, directory: str) -> None:
 
     conversation = AgentConversation(agent_id="a", window_turns=1)
     messages, warning = compose_prompt(conversation, request)
+    if [message.role for message in messages] != ["system", "user"]:
+        raise AssertionError("Scenario A must begin with exactly system + dynamic user messages")
+    system, dynamic_user = messages
+    if "## 输出要求" not in system.content or system.content.index(
+        "游戏规则"
+    ) >= system.content.index("## 输出要求"):
+        raise AssertionError(
+            "Scenario A must place fixed output requirements after rules in system"
+        )
+    if "## 输出要求" in dynamic_user.content:
+        raise AssertionError(
+            "Scenario A dynamic user message must not repeat fixed output requirements"
+        )
+    if '"response_format"' not in dynamic_user.content:
+        raise AssertionError(
+            "Scenario A candidate JSON must retain option-specific response_format"
+        )
+    if "手中机会卡不得超过4张" not in system.content:
+        raise AssertionError("Scenario A system rules must state the four-card Chance limit")
     _write_messages(buf, messages, warning)
 
 
@@ -123,7 +143,7 @@ def scenario_b(buf: StringIO, directory: str) -> None:
 
     conversation = AgentConversation(agent_id="a", window_turns=1)
     # 玩家 a 的第 1 个行动回合（complete_rounds=0）：投骰、移动、结束。
-    conversation.start_turn(1, segment3_budget_tokens=2000)
+    conversation.start_turn(1)
     for evt in (
         _event("dice_rolled", player_id="a", dice=(3, 4)),
         _event("player_moved", player_id="a", to=7),
@@ -143,7 +163,7 @@ def scenario_b(buf: StringIO, directory: str) -> None:
     conversation.append_event(_event("turn_ended", player_id="b"), complete_round=1)
 
     # 现在进入玩家 a 的第 2 个行动回合，位于第 1 完整轮次。
-    conversation.start_turn(2, segment3_budget_tokens=2000)
+    conversation.start_turn(2)
 
     messages, warning = compose_prompt(conversation, request)
     _write_messages(buf, messages, warning)
@@ -155,7 +175,7 @@ def scenario_c(buf: StringIO, directory: str) -> None:
     request = build_decision_request(engine, sequence=2)
 
     conversation = AgentConversation(agent_id="a", window_turns=1)
-    conversation.start_turn(1, segment3_budget_tokens=2000)
+    conversation.start_turn(1)
     # 假设 a 已经在本回合内做过一次决策；期间发生了几个事件（本回合为第 0 完整轮次）。
     conversation.append_event(_event("dice_rolled", player_id="a", dice=(2, 3)), complete_round=0)
     conversation.append_event(_event("player_moved", player_id="a", to=5), complete_round=0)
@@ -172,6 +192,15 @@ def scenario_c(buf: StringIO, directory: str) -> None:
     )
 
     messages, warning = compose_prompt(conversation, request)
+    prior_user = messages[-3]
+    first_event = "[第0轮] 玩家a掷出2+3=5点。"
+    second_event = "[第0轮] 玩家a移动到第5格（Reading Railroad）。"
+    if f"{first_event}\n{second_event}" not in prior_user.content:
+        raise AssertionError("Scenario C adjacent event broadcasts must use one newline")
+    if f"{first_event}\n\n{second_event}" in prior_user.content:
+        raise AssertionError("Scenario C must not insert a blank line between adjacent events")
+    if f"{second_event}\n\n## 当前决策" not in prior_user.content:
+        raise AssertionError("Scenario C must preserve a semantic block break before the decision")
     _write_messages(buf, messages, warning)
 
 
@@ -181,8 +210,8 @@ def scenario_d(buf: StringIO, directory: str) -> None:
     request = build_decision_request(engine, sequence=5)
 
     conversation = AgentConversation(agent_id="a", window_turns=1)
-    conversation.start_turn(1, segment3_budget_tokens=100)  # 初始预算充足
-    # 塞入大量事件（远超后续极小预算），分散在多个完整轮次中。
+    conversation.start_turn(1)
+    # 50 visible events exceed the fixed, independent 500-token segment-3 cap.
     for i in range(20):
         conversation.append_event(
             _event("dice_rolled", player_id="a", dice=(3, 4)), complete_round=i // 4
@@ -191,9 +220,15 @@ def scenario_d(buf: StringIO, directory: str) -> None:
             _event("player_moved", player_id="a", to=7 + i % 3), complete_round=i // 4
         )
 
-    # 用极小预算触发全部裁剪与警告。
-    conversation.start_turn(2, segment3_budget_tokens=5)
+    # Start a new action turn to rebuild the capped history cache and emit its warning.
+    conversation.start_turn(2)
     messages, warning = compose_prompt(conversation, request)
+    if warning is None or warning.kind != "segment3_overflow":
+        raise AssertionError("Scenario D must emit a segment-3 overflow warning")
+    if estimate_tokens("\n".join(conversation.segment3_sentences)) > 500:
+        raise AssertionError("Scenario D segment 3 must stay within the fixed 500-token cap")
+    if len(conversation.segment3_sentences) >= 40:
+        raise AssertionError("Scenario D must drop earliest historical events")
     _write_messages(buf, messages, warning)
 
 
@@ -218,7 +253,7 @@ def scenario_e(buf: StringIO, directory: str) -> None:
     engine.random.randint = lambda _low, _high: next(dice)  # type: ignore[method-assign]
 
     conversation = AgentConversation(agent_id="a", window_turns=1)
-    conversation.start_turn(1, segment3_budget_tokens=2000)
+    conversation.start_turn(1)
     for event in engine.execute(RollDice("a")):
         conversation.append_event(event, complete_round=engine.state.complete_rounds)
 
@@ -275,6 +310,13 @@ def scenario_e(buf: StringIO, directory: str) -> None:
         raise AssertionError("Scenario E card-specific discard candidates must not require targets")
 
     messages, warning = compose_prompt(conversation, forced_discard_request)
+    roles = [message.role for message in messages]
+    if roles != ["system", "user", "assistant", "user", "assistant", "user", "assistant", "user"]:
+        raise AssertionError("Scenario E must preserve error-retry assistant/user replay ordering")
+    if any("controller_connection_error" in message.content for message in messages):
+        raise AssertionError(
+            "Scenario E must not expose runtime infrastructure details to the Agent"
+        )
     _write_messages(buf, messages, warning)
 
 

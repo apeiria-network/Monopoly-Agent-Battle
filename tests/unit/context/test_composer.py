@@ -43,17 +43,41 @@ def test_first_decision_no_history_skips_segments_3_and_4(tmp_path: Path) -> Non
     messages, warning = compose_prompt(conv, request)
 
     roles = [m.role for m in messages]
-    # Expect exactly [system(1+2), user(5-10)]; no segment-3 user, no segment-4 chatter.
+    # Expect exactly [system(1+2+fixed output contract), user(5-9)]; no
+    # segment-3 user, no segment-4 chatter.
     assert roles == ["system", "user"]
     assert "游戏规则" in messages[0].content
+    assert "## 输出要求" in messages[0].content
+    assert messages[0].content.index("游戏规则") < messages[0].content.index("## 输出要求")
     assert "合法候选操作" in messages[-1].content
+    assert "## 输出要求" not in messages[-1].content
     assert warning is None
 
 
-def test_second_decision_same_turn_appends_prior_turn_pair(tmp_path: Path) -> None:
+def test_adjacent_events_share_one_event_block_with_single_newlines(tmp_path: Path) -> None:
     engine = _make_engine(tmp_path)
     conv = AgentConversation(agent_id="a", window_turns=1)
-    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.start_turn(1)
+    conv.append_event(_event("dice_rolled", player_id="a", dice=(2, 3)), complete_round=0)
+    conv.append_event(_event("player_moved", player_id="a", to=5), complete_round=0)
+    conv.append_decision(
+        decision_id="d1",
+        question_summary="## 当前决策\n上一次决策的问题",
+        assistant_reply='{"selected_option":{"option":"end_turn"},"reason":"r"}',
+    )
+
+    request = build_decision_request(engine, sequence=2)
+    messages, _warning = compose_prompt(conv, request)
+
+    prior_user = messages[1].content
+    first_event = "[第0轮] 玩家a掷出2+3=5点。"
+    second_event = "[第0轮] 玩家a移动到第5格（Reading Railroad）。"
+    assert f"{first_event}\n{second_event}" in prior_user
+    assert f"{first_event}\n\n{second_event}" not in prior_user
+    assert f"{second_event}\n\n## 当前决策" in prior_user
+    engine = _make_engine(tmp_path)
+    conv = AgentConversation(agent_id="a", window_turns=1)
+    conv.start_turn(1)
     conv.append_event(_event("dice_rolled", player_id="a", dice=(2, 3)))
     conv.append_decision(
         decision_id="d1",
@@ -80,7 +104,7 @@ def test_second_decision_same_turn_appends_prior_turn_pair(tmp_path: Path) -> No
 def test_error_entry_appended_as_assistant_and_user(tmp_path: Path) -> None:
     engine = _make_engine(tmp_path)
     conv = AgentConversation(agent_id="a", window_turns=1)
-    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.start_turn(1)
     conv.append_error(
         decision_id="d-err",
         question_summary="## 当前决策\n你需要选一个合法选项。",
@@ -105,7 +129,7 @@ def test_error_entries_persist_across_multi_decisions_within_turn(tmp_path: Path
     """A validation-failed reply stays visible in segment 4 for the whole turn."""
     engine = _make_engine(tmp_path)
     conv = AgentConversation(agent_id="a", window_turns=1)
-    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.start_turn(1)
     conv.append_error(
         decision_id="d1",
         question_summary="## 当前决策\n第一次决策的问题",
@@ -135,9 +159,9 @@ def test_segment3_from_completed_turn_appears_between_system_and_user(
 ) -> None:
     engine = _make_engine(tmp_path)
     conv = AgentConversation(agent_id="a", window_turns=1)
-    conv.start_turn(1, segment3_budget_tokens=10_000)
+    conv.start_turn(1)
     conv.append_event(_event("dice_rolled", player_id="b", dice=(1, 2)))
-    conv.start_turn(2, segment3_budget_tokens=10_000)
+    conv.start_turn(2)
 
     request = build_decision_request(engine, sequence=3)
     messages, warning = compose_prompt(conv, request)

@@ -58,10 +58,9 @@ def truncate_events_to_budget(
     - If ``budget_tokens <= 0``: drop every sentence and emit an overflow warning
       unless the input is already empty.
     - Otherwise drop the earliest sentences one-by-one; keep the trailing tail
-      that fits. If a single trailing sentence alone exceeds the budget, keep
-      that one sentence and emit an overflow warning (the caller decided the
-      hard cap is a soft target).
-    - If everything fits (or input is empty), warning is ``None``.
+      that fits, accounting for the newlines that join retained events. A
+      warning records every truncation, including the case where every event
+      must be dropped to keep the cap strict.
     """
     if not rendered_events:
         return (), None
@@ -72,33 +71,25 @@ def truncate_events_to_budget(
         )
 
     total_tokens = [estimate_tokens(sentence) for sentence in rendered_events]
-    running_total = sum(total_tokens)
+    separator_tokens = estimate_tokens("\n")
+    running_total = sum(total_tokens) + separator_tokens * (len(rendered_events) - 1)
     if running_total <= budget_tokens:
         return tuple(rendered_events), None
 
-    # Drop from the earliest until the tail fits.
+    # Drop complete events from the earliest end until the retained, newline-
+    # joined tail fits the strict cap.
     dropped = 0
     while dropped < len(rendered_events) and running_total > budget_tokens:
         running_total -= total_tokens[dropped]
+        if dropped < len(rendered_events) - 1:
+            running_total -= separator_tokens
         dropped += 1
 
     kept = tuple(rendered_events[dropped:])
-    if not kept:
-        return kept, ContextWarning(
-            kind="segment3_overflow",
-            detail=(
-                f"dropped all {len(rendered_events)} segment-3 events "
-                f"but budget {budget_tokens} still not enough"
-            ),
-        )
-    # `kept` fits by construction; but if only one sentence remains and it
-    # alone exceeds the budget, we still return it and warn.
-    if running_total > budget_tokens:
-        return kept, ContextWarning(
-            kind="segment3_overflow",
-            detail=(
-                f"kept {len(kept)} tail event(s) still exceed budget "
-                f"{budget_tokens} (estimated {running_total})"
-            ),
-        )
-    return kept, None
+    return kept, ContextWarning(
+        kind="segment3_overflow",
+        detail=(
+            f"dropped {dropped} of {len(rendered_events)} segment-3 events "
+            f"to fit strict budget {budget_tokens} (estimated {running_total})"
+        ),
+    )

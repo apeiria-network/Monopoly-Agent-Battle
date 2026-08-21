@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from monopoly_agent_battle.context.broadcast import render_event
 from monopoly_agent_battle.context.token_guard import (
     ContextWarning,
+    estimate_tokens,
     truncate_events_to_budget,
 )
 from monopoly_agent_battle.domain.models import GameEvent
@@ -78,6 +79,8 @@ class ErrorEntry:
 
 TurnEntry = EventEntry | DecisionEntry | ErrorEntry
 
+_SEGMENT3_TOKEN_CAP = 500
+
 
 @dataclass(slots=True)
 class TurnRecord:
@@ -107,18 +110,17 @@ class AgentConversation:
     # Turn lifecycle
     # ------------------------------------------------------------------
 
-    def start_turn(self, turn_num: int, *, segment3_budget_tokens: int) -> None:
-        """Begin a new Agent action turn.
+    def start_turn(self, turn_num: int) -> None:
+        """Begin a new Agent action turn and rebuild its fixed segment-3 cache.
 
-        Moves the prior ``current_turn`` (if any) into ``completed_turns`` and
-        rebuilds the segment-3 render cache from all completed turns' events.
-        Error entries are inherently discarded at this point — segment 3 only
-        renders ``EventEntry`` items.
+        Segment 3 is independently capped at 500 estimated tokens. It is
+        rebuilt only at this action-turn boundary, so subsequent decisions in
+        the same turn observe an identical history cache.
         """
         if self.current_turn is not None:
             self.completed_turns.append(self.current_turn)
         self.current_turn = TurnRecord(turn_num=turn_num, entries=[])
-        self._rebuild_segment3_cache(segment3_budget_tokens)
+        self._rebuild_segment3_cache()
 
     def append_event(self, event: GameEvent, complete_round: int = 0) -> None:
         """Record an engine event under the current action turn.
@@ -191,7 +193,7 @@ class AgentConversation:
     # Internal
     # ------------------------------------------------------------------
 
-    def _rebuild_segment3_cache(self, budget_tokens: int) -> None:
+    def _rebuild_segment3_cache(self) -> None:
         rendered: list[str] = []
         for turn in self.completed_turns:
             for entry in turn.entries:
@@ -200,7 +202,9 @@ class AgentConversation:
                 sentence = render_event(entry.event, self.agent_id)
                 if sentence is not None:
                     rendered.append(f"[第{entry.complete_round}轮] {sentence}")
-        kept, warning = truncate_events_to_budget(rendered, budget_tokens)
+        kept, warning = truncate_events_to_budget(rendered, _SEGMENT3_TOKEN_CAP)
+        if estimate_tokens("\n".join(kept)) > _SEGMENT3_TOKEN_CAP:
+            raise AssertionError("segment 3 cache exceeds its fixed token cap")
         self._segment3_cache = kept
         self._segment3_warning = warning
         self._segment3_cache_for_turn = (

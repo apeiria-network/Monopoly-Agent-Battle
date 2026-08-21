@@ -7,17 +7,13 @@ from collections.abc import Callable, Mapping
 from dataclasses import asdict
 
 from monopoly_agent_battle.context.conversation import AgentConversation
-from monopoly_agent_battle.context.token_guard import estimate_tokens
 from monopoly_agent_battle.context.validation_feedback import build_feedback
 from monopoly_agent_battle.decision.models import (
     DecisionRequest,
     decision_request_record,
     validation_record,
 )
-from monopoly_agent_battle.decision.prompts import (
-    render_decision_question,
-    render_system_prompt,
-)
+from monopoly_agent_battle.decision.prompts import render_decision_question
 from monopoly_agent_battle.decision.protocol import (
     command_from_option,
     default_option_json,
@@ -35,7 +31,6 @@ RawDecisionController = Callable[[DecisionRequest, str | None], str]
 
 _DEFAULT_REASON = "选择系统默认合法操作。"
 _FALLBACK_REASON = "多次重试仍未给出合法回复，自动选择系统默认选项。"
-_CURRENT_SEGMENTS_TOKEN_RESERVE = 1500
 
 
 class DeterministicPolicyController:
@@ -76,8 +71,8 @@ def run_decision_game(
     When ``conversations`` is provided, each engine event is dispatched to every
     Agent's conversation for Stage 4C history tracking; ``turn_started`` events
     trigger ``start_turn`` on the matching Agent (rebuilding its segment-3 cache
-    against the token budget). Validation-failure feedback is stashed on the
-    conversation for the composer to render on retries.
+    with its independent fixed 500-token cap). Validation-failure feedback is
+    stashed on the conversation for the composer to render on retries.
     """
     events: list[GameEvent] = []
     sequence = 1
@@ -86,23 +81,31 @@ def run_decision_game(
     decision_fallbacks = 0
     conv_map: dict[str, AgentConversation] = dict(conversations or {})
     turn_counters: dict[str, int] = dict.fromkeys(conv_map, 0)
-    segment3_budget = _segment3_budget(engine)
+    logged_segment3_warning_turns: set[tuple[str, int]] = set()
     # Bootstrap the first Agent's turn: the engine never emits ``turn_started``
     # for its initial player, so ``start_turn`` must be called explicitly here.
     initial_player_id = engine.state.current_player_id
     if initial_player_id in conv_map:
         turn_counters[initial_player_id] += 1
-        conv_map[initial_player_id].start_turn(
+        conv_map[initial_player_id].start_turn(turn_counters[initial_player_id])
+        _record_segment3_warning(
+            conv_map[initial_player_id],
+            initial_player_id,
             turn_counters[initial_player_id],
-            segment3_budget_tokens=segment3_budget,
+            logged_segment3_warning_turns,
+            artifacts,
         )
-        _log_start_turn_warning(conv_map[initial_player_id], initial_player_id, artifacts)
     while not engine.state.finished:
         automatic_command = _automatic_command(engine)
         if automatic_command is not None:
             command_events = _execute_and_audit(engine, automatic_command, artifacts)
             _dispatch_events(
-                command_events, conv_map, turn_counters, segment3_budget, artifacts, engine
+                command_events,
+                conv_map,
+                turn_counters,
+                logged_segment3_warning_turns,
+                artifacts,
+                engine,
             )
             events.extend(command_events)
             continue
@@ -157,11 +160,15 @@ def run_decision_game(
                 question_summary=render_decision_question(request),
                 assistant_reply=persisted_reply,
             )
-            _log_segment3_warning(current_conv, request, artifacts)
         command = command_from_option(request, validation.option, validation.target)
         command_events = _execute_and_audit(engine, command, artifacts)
         _dispatch_events(
-            command_events, conv_map, turn_counters, segment3_budget, artifacts, engine
+            command_events,
+            conv_map,
+            turn_counters,
+            logged_segment3_warning_turns,
+            artifacts,
+            engine,
         )
         events.extend(command_events)
         if artifacts is not None:
@@ -195,26 +202,11 @@ def run_decision_game(
     return ScriptedRunResult(tuple(events), "completed")
 
 
-def _segment3_budget(engine: GameEngine) -> int:
-    """Return the token budget allocated to segment 3 for this game.
-
-    The current segments (1+2 rules, 5-10 current decision) are given a fixed
-    reserve; segment 3 gets whatever remains inside ``context_token_cap``.
-    """
-    cap = engine.config.context_token_cap or 6000
-    # Rough estimate of segment 1+2 using a synthetic reference; we cannot build
-    # a DecisionRequest without an active phase so we use the raw rules text.
-    from monopoly_agent_battle.context.rules import load_game_rules
-
-    rules_tokens = estimate_tokens(load_game_rules())
-    return max(200, cap - rules_tokens - _CURRENT_SEGMENTS_TOKEN_RESERVE)
-
-
 def _dispatch_events(
     engine_events: list[GameEvent],
     conversations: dict[str, AgentConversation],
     turn_counters: dict[str, int],
-    segment3_budget: int,
+    logged_segment3_warning_turns: set[tuple[str, int]],
     artifacts: RunArtifacts | None,
     engine: GameEngine,
 ) -> None:
@@ -228,11 +220,14 @@ def _dispatch_events(
             for agent_id, conversation in conversations.items():
                 if agent_id == player_id:
                     turn_counters[agent_id] += 1
-                    conversation.start_turn(
+                    conversation.start_turn(turn_counters[agent_id])
+                    _record_segment3_warning(
+                        conversation,
+                        agent_id,
                         turn_counters[agent_id],
-                        segment3_budget_tokens=segment3_budget,
+                        logged_segment3_warning_turns,
+                        artifacts,
                     )
-                    _log_start_turn_warning(conversation, agent_id, artifacts)
                 else:
                     conversation.append_event(event, complete_round)
         else:
@@ -240,42 +235,23 @@ def _dispatch_events(
                 conversation.append_event(event, complete_round)
 
 
-def _log_start_turn_warning(
+def _record_segment3_warning(
     conversation: AgentConversation,
     agent_id: str,
+    turn_num: int,
+    logged_turns: set[tuple[str, int]],
     artifacts: RunArtifacts | None,
 ) -> None:
     warning = conversation.segment3_warning
-    if warning is None or artifacts is None:
+    key = (agent_id, turn_num)
+    if warning is None or artifacts is None or key in logged_turns:
         return
+    logged_turns.add(key)
     artifacts.append_runtime(
         "segment3_overflow",
         {
             "agent_id": agent_id,
-            "kind": warning.kind,
-            "detail": warning.detail,
-        },
-    )
-
-
-def _log_segment3_warning(
-    conversation: AgentConversation,
-    request: DecisionRequest,
-    artifacts: RunArtifacts | None,
-) -> None:
-    """Log segment-3 overflow when observed via a decision request (idempotent).
-
-    ``AgentConversation.segment3_warning`` is set once per turn (in
-    ``start_turn``) so the guard here catches the case where a decision is
-    generated at game start before a ``turn_started`` event has fired.
-    """
-    warning = conversation.segment3_warning
-    if warning is None or artifacts is None:
-        return
-    artifacts.append_runtime(
-        "segment3_overflow_at_decision",
-        {
-            "decision_id": request.decision_id,
+            "turn_num": turn_num,
             "kind": warning.kind,
             "detail": warning.detail,
         },
@@ -391,7 +367,3 @@ def _validity_status(llm_calls: int, reconnect_events: int) -> str:
     if llm_calls > 0 and reconnect_events * 10 >= llm_calls:
         return "invalid"
     return "valid"
-
-
-# render_system_prompt import is retained for potential future runner-side pre-render use.
-_ = render_system_prompt

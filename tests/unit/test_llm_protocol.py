@@ -21,11 +21,8 @@ from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 
 
 def _prompt_with_options(options: list[dict[str, object]]) -> str:
-    return (
-        "## 当前局面\n状况。\n"
-        "## 合法候选操作\n"
-        + json.dumps(options, ensure_ascii=False, indent=2)
-        + "\n## 输出要求\n只输出 JSON。"
+    return "## 当前局面\n状况。\n## 合法候选操作\n" + json.dumps(
+        options, ensure_ascii=False, indent=2
     )
 
 
