@@ -1,11 +1,13 @@
-"""Render Stage 4C decision-prompt scenarios for human review.
+"""Render Stage 4D Baseline context-confirmation scenarios for human review.
 
 Run from the repository root:
     .venv/Scripts/python.exe tests/manual/render_decision_prompt.py
 
-Writes the full transcript to tests/manual/render_decision_prompt_report.txt
-(UTF-8) and echoes a short summary to stdout. Five scenarios exercise the
-10-segment composer's key branches:
+Writes the full Baseline context-confirmation report to
+``tests/manual/render_decision_prompt_report.txt`` (UTF-8) and echoes a short
+summary to stdout. The report begins with the review checklist, followed by
+five scenarios that exercise the actual Stage 4C composer used by
+``BaselineAgent``:
 
   A – First decision of the game with several held Chance cards (no completed
       turns; no in-turn history). Shows that usable cards are independent
@@ -31,6 +33,7 @@ from tempfile import TemporaryDirectory
 from typing import cast
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
+from monopoly_agent_battle.context.broadcast import render_event
 from monopoly_agent_battle.context.composer import compose_prompt
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.context.token_guard import estimate_tokens
@@ -48,6 +51,79 @@ _DIVIDER = "=" * 60
 _REPORT_PATH = Path("tests/manual/render_decision_prompt_report.txt")
 
 
+def _write_confirmation_checklist(buf: StringIO) -> None:
+    """Write the Stage 4D owner-review checklist before the concrete messages.
+
+    The items describe the production Baseline path. Scenario labels identify
+    where the reviewer can inspect rendered evidence in this report; the
+    companion integration test verifies the four-player runtime wiring.
+    """
+    buf.write("STAGE 4D BASELINE 上下文确认清单（供项目负责人逐项人工审核）\n")
+    buf.write(f"{'=' * 60}\n\n")
+    buf.write(
+        "审阅范围：以下 messages 均由 compose_prompt() 生成；BaselineAgent 在实际 LLM "
+        "调用中原样传入 LLMRequest.messages。四玩家端到端装配、审计与回放由 "
+        "tests/integration/test_llm_runner.py 覆盖。\n\n"
+    )
+    items = (
+        (
+            "1. 10 段与消息角色",
+            "段 1（角色与目标）+ 段 2（游戏规则）+ 段 10（固定 JSON 输出要求）仅在 "
+            "system；段 3–9 属于动态 user；同回合既有模型回复严格作为 assistant。"
+            " 见 A、C、E。",
+        ),
+        (
+            "2. 每次实际决策字段与候选格式",
+            "动态末尾包含最新的你的状态、其他玩家状态、棋盘状态、当前决策和仅由引擎 "
+            "给出的合法候选；每项候选保留 response_format。决策/运行审计 ID、牌堆顺序、"
+            "RNG 与冻结命令参数不在 Prompt 中。见 A。",
+        ),
+        (
+            "3. 私有会话与窗口",
+            "每玩家一条独立 AgentConversation；window_turns=1 时，段 3 在本玩家新行动回合 "
+            "开始一次性建立并在该回合内保持不变，段 4 只保留当前行动回合。见 B、C；"
+            "四玩家独立实例见端到端集成测试。",
+        ),
+        (
+            "4. 历史播报与可见性",
+            "段 3/4 只使用 4B 白名单的 viewer-scoped 固定中文句式；黑名单/豁免内部事件 "
+            "不播报。本人可见自己的机会卡名称，旁观者对机会卡只见泛称；社区基金卡公开，"
+            "抢夺选择是协议层单次受控例外。见 B、C；播报细节由 "
+            "render_history_broadcast.py 已验收。",
+        ),
+        (
+            "5. 500-token 历史上限",
+            "仅段 3 独立严格限制为 500 估算 token；从最早完整播报事件开始删除，规则、"
+            "当前状态、候选和段 4 均不截断。裁剪警告仅供 runtime 审计。见 D。",
+        ),
+        (
+            "6. 校验反馈生命周期",
+            "非法输出仅在出错 Agent 的当前行动回合内以 user(问题) → assistant(错误回复) → "
+            "user(Error: …) 重放；下一行动回合的段 3 跳过 ErrorEntry。重试耗尽后，后续 "
+            "上下文看到合成的默认候选 assistant 回复及其原因。见 E。",
+        ),
+        (
+            "7. 运行时基础设施隔离",
+            "断线、超时、重连次数、segment3_overflow 和回退机制记录到 runtime.jsonl / "
+            "result.json，但绝不进入 Agent message；实际执行动作产生的游戏事件照常播报。"
+            "见 E 与端到端集成测试。",
+        ),
+        (
+            "8. 冻结与审计边界",
+            "window_turns、sentence_template_version、validation_retries 和 ModelProfile 随 "
+            "GameConfig/config_hash 冻结；每次调用的模型、用量、耗时和错误写入 "
+            "llm_calls.jsonl，决策与回放产物可追溯。见 A–E 和端到端集成测试。",
+        ),
+    )
+    for title, detail in items:
+        buf.write(f"- {title}：{detail}\n")
+    buf.write(
+        "\n报告中的完整 messages 是上述清单的人工审阅证据；自动化断言仅防止已确认 "
+        "语义发生回归，不能替代负责人确认。报告中单列的 ContextWarning 是私有审计/运行时证据，"
+        "不是 system、user 或 assistant 消息；无需也不得在 Prompt 中再次实现其隔离。\n"
+    )
+
+
 def _write_header(buf: StringIO, label: str, title: str) -> None:
     buf.write(f"\n{_DIVIDER}\n")
     buf.write(f"SCENARIO {label}: {title}\n")
@@ -60,7 +136,12 @@ def _write_messages(buf: StringIO, messages: tuple[LLMMessage, ...], warning: ob
         buf.write(msg.content)
         buf.write("\n")
     if warning is not None:
-        buf.write(f"\n[ContextWarning] {warning!r}\n")
+        buf.write(
+            "\n"
+            "--- 以下为私有审计/运行时信息，供负责人人工审阅，绝不进入 Agent 的 LLM 消息 ---\n"
+            f"[ContextWarning] {warning!r}\n"
+            "--- BaselineAgent 只向 LLMRequest.messages 传入上面的 system/user/assistant 消息 ---\n"
+        )
 
 
 def _make_engine(directory: str) -> GameEngine:
@@ -205,30 +286,289 @@ def scenario_c(buf: StringIO, directory: str) -> None:
 
 
 def scenario_d(buf: StringIO, directory: str) -> None:
-    _write_header(buf, "D", "段 3 溢出 — 大量历史事件触发裁剪与警告")
+    _write_header(buf, "D", "段 3 溢出 — 真实回合历史触发裁剪与警告")
     engine = _make_engine(directory)
     request = build_decision_request(engine, sequence=5)
 
     conversation = AgentConversation(agent_id="a", window_turns=1)
     conversation.start_turn(1)
-    # 50 visible events exceed the fixed, independent 500-token segment-3 cap.
-    for i in range(20):
-        conversation.append_event(
-            _event("dice_rolled", player_id="a", dice=(3, 4)), complete_round=i // 4
-        )
-        conversation.append_event(
-            _event("player_moved", player_id="a", to=7 + i % 3), complete_round=i // 4
-        )
+    history_events: list[tuple[int, GameEvent]] = []
+
+    def append_round(round_number: int, *events: GameEvent) -> None:
+        for event in events:
+            history_events.append((round_number, event))
+            conversation.append_event(event, complete_round=round_number)
+
+    # 这是供上下文人工审阅的手工历史夹具，而非从上面的最小引擎快照重放。
+    # 它使用引擎真实会产生的白名单事件和 payload，保留两个玩家连续行动的因果顺序。
+    append_round(
+        0,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(1, 2)),
+        _event("player_moved", player_id="a", to=3),
+        _event("property_purchased", player_id="a", position=3, price=60),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(3, 4)),
+        _event("player_moved", player_id="b", to=7),
+        _event("card_drawn", player_id="b", card_id="chance-waiver", deck="chance"),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        1,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(1, 5)),
+        _event("player_moved", player_id="a", to=9),
+        _event("property_purchased", player_id="a", position=9, price=120),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(2, 3)),
+        _event("player_moved", player_id="b", to=12),
+        _event("property_purchased", player_id="b", position=12, price=140),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        2,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(1, 2)),
+        _event("player_moved", player_id="a", to=12),
+        _event(
+            "payment_made",
+            payer_id="a",
+            recipient_id="b",
+            amount=12,
+            reason="rent",
+        ),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(4, 5)),
+        _event("player_moved", player_id="b", to=21),
+        _event("property_purchased", player_id="b", position=21, price=220),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        3,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(5, 6)),
+        _event("player_moved", player_id="a", to=23),
+        _event("property_purchased", player_id="a", position=23, price=220),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(5, 6)),
+        _event("player_moved", player_id="b", to=32),
+        _event("property_purchased", player_id="b", position=32, price=300),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        4,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(4, 5)),
+        _event("player_moved", player_id="a", to=32),
+        _event("payment_made", payer_id="a", recipient_id="b", amount=26, reason="rent"),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(4, 5)),
+        _event("player_moved", player_id="b", to=1),
+        _event("go_salary_collected", player_id="b", amount=200),
+        _event("property_purchased", player_id="b", position=1, price=60),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        5,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(3, 4)),
+        _event("player_moved", player_id="a", to=39),
+        _event("property_purchased", player_id="a", position=39, price=400),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(1, 3)),
+        _event("player_moved", player_id="b", to=5),
+        _event("property_purchased", player_id="b", position=5, price=200),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        6,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(1, 2)),
+        _event("player_moved", player_id="a", to=2),
+        _event("go_salary_collected", player_id="a", amount=200),
+        _event("card_drawn", player_id="a", card_id="community-refund", deck="community_chest"),
+        _event("cash_received", player_id="a", amount=20, reason="community-refund"),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(2, 3)),
+        _event("player_moved", player_id="b", to=10),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        7,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(1, 2)),
+        _event("player_moved", player_id="a", to=5),
+        _event("payment_made", payer_id="a", recipient_id="b", amount=25, reason="rent"),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(3, 4)),
+        _event("player_moved", player_id="b", to=17),
+        _event("card_drawn", player_id="b", card_id="community-holiday", deck="community_chest"),
+        _event("cash_received", player_id="b", amount=100, reason="community-holiday"),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        8,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(1, 3)),
+        _event("player_moved", player_id="a", to=9),
+        _event("building_added", player_id="a", position=9, cost=50),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(3, 4)),
+        _event("player_moved", player_id="b", to=24),
+        _event("property_purchased", player_id="b", position=24, price=240),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        9,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(1, 2)),
+        _event("player_moved", player_id="a", to=12),
+        _event(
+            "payment_made",
+            payer_id="a",
+            recipient_id="b",
+            amount=12,
+            reason="rent",
+        ),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(1, 2)),
+        _event("player_moved", player_id="b", to=27),
+        _event("property_purchased", player_id="b", position=27, price=260),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        10,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(2, 3)),
+        _event("player_moved", player_id="a", to=17),
+        _event("card_drawn", player_id="a", card_id="community-stock", deck="community_chest"),
+        _event("cash_received", player_id="a", amount=50, reason="community-stock"),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(2, 3)),
+        _event("player_moved", player_id="b", to=32),
+        _event("building_added", player_id="b", position=32, cost=200),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        11,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(2, 3)),
+        _event("player_moved", player_id="a", to=22),
+        _event("card_drawn", player_id="a", card_id="chance-build", deck="chance"),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(3, 4)),
+        _event("player_moved", player_id="b", to=39),
+        _event("payment_made", payer_id="b", recipient_id="a", amount=50, reason="rent"),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        12,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(2, 3)),
+        _event("player_moved", player_id="a", to=27),
+        _event("payment_made", payer_id="a", recipient_id="b", amount=22, reason="rent"),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(3, 4)),
+        _event("player_moved", player_id="b", to=6),
+        _event("go_salary_collected", player_id="b", amount=200),
+        _event("property_purchased", player_id="b", position=6, price=100),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        13,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(2, 3)),
+        _event("player_moved", player_id="a", to=32),
+        _event("payment_made", payer_id="a", recipient_id="b", amount=130, reason="rent"),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(1, 2)),
+        _event("player_moved", player_id="b", to=9),
+        _event("payment_made", payer_id="b", recipient_id="a", amount=40, reason="rent"),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        14,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(4, 5)),
+        _event("player_moved", player_id="a", to=1),
+        _event("go_salary_collected", player_id="a", amount=200),
+        _event("payment_made", payer_id="a", recipient_id="b", amount=2, reason="rent"),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(2, 3)),
+        _event("player_moved", player_id="b", to=14),
+        _event("property_purchased", player_id="b", position=14, price=140),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        15,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(2, 3)),
+        _event("player_moved", player_id="a", to=6),
+        _event("payment_made", payer_id="a", recipient_id="b", amount=6, reason="rent"),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(4, 5)),
+        _event("player_moved", player_id="b", to=23),
+        _event("payment_made", payer_id="b", recipient_id="a", amount=18, reason="rent"),
+        _event("turn_ended", player_id="b"),
+    )
+    append_round(
+        16,
+        _event("turn_started", player_id="a"),
+        _event("dice_rolled", player_id="a", dice=(1, 2)),
+        _event("player_moved", player_id="a", to=9),
+        _event("building_added", player_id="a", position=9, cost=50),
+        _event("turn_ended", player_id="a"),
+        _event("turn_started", player_id="b"),
+        _event("dice_rolled", player_id="b", dice=(2, 3)),
+        _event("player_moved", player_id="b", to=28),
+        _event("property_purchased", player_id="b", position=28, price=150),
+        _event("turn_ended", player_id="b"),
+    )
+
+    full_history = tuple(
+        f"[第{complete_round}轮] {sentence}"
+        for complete_round, event in history_events
+        if (sentence := render_event(event, conversation.agent_id)) is not None
+    )
+    if estimate_tokens("\n".join(full_history)) <= 500:
+        raise AssertionError("Scenario D complete history must exceed the segment-3 token cap")
 
     # Start a new action turn to rebuild the capped history cache and emit its warning.
     conversation.start_turn(2)
     messages, warning = compose_prompt(conversation, request)
+    retained_history = conversation.segment3_sentences
     if warning is None or warning.kind != "segment3_overflow":
         raise AssertionError("Scenario D must emit a segment-3 overflow warning")
-    if estimate_tokens("\n".join(conversation.segment3_sentences)) > 500:
+    if estimate_tokens("\n".join(retained_history)) > 500:
         raise AssertionError("Scenario D segment 3 must stay within the fixed 500-token cap")
-    if len(conversation.segment3_sentences) >= 40:
+    if retained_history[0] == full_history[0]:
         raise AssertionError("Scenario D must drop earliest historical events")
+    if retained_history[-1] != full_history[-1]:
+        raise AssertionError("Scenario D must retain the latest historical event")
+    if not any("玩家a" in sentence for sentence in retained_history) or not any(
+        "玩家b" in sentence for sentence in retained_history
+    ):
+        raise AssertionError("Scenario D retained history must include both players")
+    if not any("开始行动回合" in sentence for sentence in retained_history) or not any(
+        "结束行动回合" in sentence for sentence in retained_history
+    ):
+        raise AssertionError("Scenario D retained history must preserve turn boundaries")
     _write_messages(buf, messages, warning)
 
 
@@ -322,6 +662,7 @@ def scenario_e(buf: StringIO, directory: str) -> None:
 
 def main() -> None:
     buf = StringIO()
+    _write_confirmation_checklist(buf)
     with TemporaryDirectory() as directory:
         scenario_a(buf, directory)
         scenario_b(buf, directory)
