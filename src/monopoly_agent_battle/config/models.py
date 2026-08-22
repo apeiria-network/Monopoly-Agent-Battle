@@ -20,6 +20,15 @@ class ModelProfile(BaseModel):
     timeout_seconds: float | None = Field(default=None, gt=0)
 
 
+class ShangCourtRoleProfiles(BaseModel):
+    """Independent model-profile bindings for the two Shang court roles."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    great_priest: str = Field(min_length=1)
+    emperor: str = Field(min_length=1)
+
+
 class PlayerConfig(BaseModel):
     """A player assigned to one distinct seat."""
 
@@ -30,7 +39,8 @@ class PlayerConfig(BaseModel):
     model_profile: str | None = Field(
         default=None, description="key into GameConfig.model_profiles; None means no LLM"
     )
-    controller_type: Literal["llm_baseline", "random_baseline"] | None = None
+    controller_type: Literal["llm_baseline", "random_baseline", "shang_court"] | None = None
+    court_role_profiles: ShangCourtRoleProfiles | None = None
 
 
 class GameConfig(BaseModel):
@@ -75,17 +85,50 @@ class GameConfig(BaseModel):
         if self.rules_level != 0:
             msg = "Phase 0 only accepts classic Level 0 configurations"
             raise ValueError(msg)
-        missing = {
+
+        referenced_profiles = {
             player.model_profile for player in self.players if player.model_profile is not None
-        } - set(self.model_profiles)
+        }
+        referenced_profiles.update(
+            profile_name
+            for player in self.players
+            if player.court_role_profiles is not None
+            for profile_name in (
+                player.court_role_profiles.great_priest,
+                player.court_role_profiles.emperor,
+            )
+        )
+        missing = referenced_profiles - set(self.model_profiles)
         if missing:
             msg = f"player model_profile not defined: {sorted(missing)}"
             raise ValueError(msg)
+
         for player in self.players:
-            if player.controller_type == "llm_baseline" and player.model_profile is None:
-                msg = f"LLM baseline player {player.player_id} requires model_profile"
-                raise ValueError(msg)
-            if player.controller_type == "random_baseline" and player.model_profile is not None:
-                msg = f"random baseline player {player.player_id} must not set model_profile"
+            if player.controller_type == "llm_baseline":
+                if player.model_profile is None:
+                    msg = f"LLM baseline player {player.player_id} requires model_profile"
+                    raise ValueError(msg)
+                if player.court_role_profiles is not None:
+                    msg = f"LLM baseline player {player.player_id} must not set court_role_profiles"
+                    raise ValueError(msg)
+            elif player.controller_type == "random_baseline":
+                if player.model_profile is not None:
+                    msg = f"random baseline player {player.player_id} must not set model_profile"
+                    raise ValueError(msg)
+                if player.court_role_profiles is not None:
+                    msg = (
+                        f"random baseline player {player.player_id} "
+                        "must not set court_role_profiles"
+                    )
+                    raise ValueError(msg)
+            elif player.controller_type == "shang_court":
+                if player.model_profile is not None:
+                    msg = f"Shang court player {player.player_id} must not set model_profile"
+                    raise ValueError(msg)
+                if player.court_role_profiles is None:
+                    msg = f"Shang court player {player.player_id} requires court_role_profiles"
+                    raise ValueError(msg)
+            elif player.court_role_profiles is not None:
+                msg = f"legacy player {player.player_id} must not set court_role_profiles"
                 raise ValueError(msg)
         return self

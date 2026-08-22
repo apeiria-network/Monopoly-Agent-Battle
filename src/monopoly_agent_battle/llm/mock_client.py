@@ -27,6 +27,16 @@ def _prompt_text(request: LLMRequest) -> str:
     return request.messages[-1].content
 
 
+def _is_great_priest_request(request: LLMRequest) -> bool:
+    """Identify the Shang Great Priest role without inspecting prompt content."""
+    return request.caller_role.endswith(".great_priest")
+
+
+def _oracle_response(request: LLMRequest) -> str:
+    """Return provisional deterministic oracle prose for the priest role."""
+    return "神谕提示：审视眼前局势，谨慎权衡当下行动。"
+
+
 def first_option_policy(request: LLMRequest) -> str:
     """Emit a valid response for the first rendered candidate.
 
@@ -35,6 +45,8 @@ def first_option_policy(request: LLMRequest) -> str:
     games deterministically. Candidates that require a target fall through to
     the runner's validation retries and default fallback, which fills targets.
     """
+    if _is_great_priest_request(request):
+        return _oracle_response(request)
     options = options_from_prompt(_prompt_text(request))
     if not options:
         raise ValueError("prompt contains no legal options")
@@ -58,6 +70,8 @@ def seeded_policy(seed: int) -> ResponsePolicy:
     rng = random.Random(seed)
 
     def policy(request: LLMRequest) -> str:
+        if _is_great_priest_request(request):
+            return _oracle_response(request)
         options = options_from_prompt(_prompt_text(request))
         if not options:
             raise ValueError("prompt contains no legal options")

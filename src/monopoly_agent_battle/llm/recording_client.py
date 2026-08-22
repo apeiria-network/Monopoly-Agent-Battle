@@ -22,7 +22,6 @@ class RecordingLLMClient(LLMClient):
     def __init__(self, inner: LLMClient, artifacts: RunArtifacts) -> None:
         self._inner = inner
         self._artifacts = artifacts
-        self._next_call_id = 1
 
     def complete(self, request: LLMRequest) -> LLMResponse:
         started = time.perf_counter()
@@ -39,7 +38,7 @@ class RecordingLLMClient(LLMClient):
             usage = response.usage if response is not None else None
             self._artifacts.append_llm_call(
                 {
-                    "call_id": self._next_call_id,
+                    "call_id": None,
                     "caller_role": request.caller_role,
                     "model": request.model,
                     "temperature": request.temperature,
@@ -56,4 +55,3 @@ class RecordingLLMClient(LLMClient):
                     "error": error,
                 }
             )
-            self._next_call_id += 1

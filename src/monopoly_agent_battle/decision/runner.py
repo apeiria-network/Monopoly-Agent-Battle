@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Mapping
 from dataclasses import asdict
+from typing import cast
 
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.context.validation_feedback import build_feedback
@@ -62,6 +63,19 @@ class DispatchController:
     def uses_llm_for(self, request: DecisionRequest) -> bool:
         """Return whether the controller selected for a request makes LLM calls."""
         return bool(getattr(self._controllers[request.player_id], "uses_llm", True))
+
+    def last_llm_call_count_for(self, request: DecisionRequest) -> int:
+        """Return actual LLM calls made by the selected controller invocation."""
+        selected = self._controllers[request.player_id]
+        count = getattr(selected, "last_llm_call_count", 1)
+        return int(cast(int, count))
+
+    def court_trace_for(self, request: DecisionRequest) -> dict[str, object] | None:
+        """Return private court evidence when the selected controller provides it."""
+        trace = getattr(self._controllers[request.player_id], "court_trace", None)
+        if not callable(trace):
+            return None
+        return cast(dict[str, object], trace())
 
 
 def run_decision_game(
@@ -122,7 +136,7 @@ def run_decision_game(
             raw_response,
             connection_retries,
             validation_retries_used,
-            attempts,
+            llm_attempts,
             validation_errors,
         ) = _request_response(
             controller,
@@ -133,7 +147,7 @@ def run_decision_game(
             validation_retries=engine.config.validation_retries,
         )
         if uses_llm:
-            llm_calls += attempts
+            llm_calls += llm_attempts
             reconnect_events += connection_retries
         attempted_validation = parse_and_validate(raw_response, request)
         validation = attempted_validation
@@ -180,22 +194,24 @@ def run_decision_game(
         )
         events.extend(command_events)
         if artifacts is not None:
-            artifacts.append_decision(
-                {
-                    "request": decision_request_record(request),
-                    "controller_type": "llm" if uses_llm else "non_llm",
-                    "attempted_response": raw_response,
-                    "attempted_validation": validation_record(attempted_validation),
-                    "validation": validation_record(validation),
-                    "connection_retries": connection_retries,
-                    "validation_retries": validation_retries_used,
-                    "validation_errors": validation_errors,
-                    "fallback": fallback,
-                    "executed_command": option_command_payload(
-                        request, validation.option, validation.target
-                    ),
-                }
-            )
+            decision_record: dict[str, object] = {
+                "request": decision_request_record(request),
+                "controller_type": "llm" if uses_llm else "non_llm",
+                "attempted_response": raw_response,
+                "attempted_validation": validation_record(attempted_validation),
+                "validation": validation_record(validation),
+                "connection_retries": connection_retries,
+                "validation_retries": validation_retries_used,
+                "validation_errors": validation_errors,
+                "fallback": fallback,
+                "executed_command": option_command_payload(
+                    request, validation.option, validation.target
+                ),
+            }
+            court_trace = _court_trace(controller, request)
+            if court_trace is not None:
+                decision_record["court_trace"] = court_trace
+            artifacts.append_decision(decision_record)
         sequence += 1
     if artifacts is not None:
         result = state_snapshot(engine.state, "completed")
@@ -221,6 +237,27 @@ def _uses_llm(controller: RawDecisionController, request: DecisionRequest) -> bo
     if callable(dispatch_method):
         return bool(dispatch_method(request))
     return bool(getattr(controller, "uses_llm", True))
+
+
+def _last_llm_call_count(controller: RawDecisionController, request: DecisionRequest) -> int:
+    """Read optional per-invocation call metrics with legacy-safe defaults."""
+    dispatch_method = getattr(controller, "last_llm_call_count_for", None)
+    if callable(dispatch_method):
+        return int(cast(int, dispatch_method(request)))
+    return int(cast(int, getattr(controller, "last_llm_call_count", 1)))
+
+
+def _court_trace(
+    controller: RawDecisionController, request: DecisionRequest
+) -> dict[str, object] | None:
+    """Read optional court-only evidence without exposing it to the engine."""
+    dispatch_method = getattr(controller, "court_trace_for", None)
+    if callable(dispatch_method):
+        return cast(dict[str, object], dispatch_method(request))
+    trace = getattr(controller, "court_trace", None)
+    if not callable(trace):
+        return None
+    return cast(dict[str, object], trace())
 
 
 def _dispatch_events(
@@ -321,7 +358,7 @@ def _request_response(
 ) -> tuple[str, int, int, int, list[str]]:
     """Obtain a validated response, retrying connections and invalid output.
 
-    Returns ``(raw_response, connection_errors, validation_retries_used, attempts,
+    Returns ``(raw_response, connection_errors, validation_retries_used, llm_calls,
     validation_errors)``. A connection error retries up to ``max_connection_retries``
     times; an invalid response records an ``ErrorEntry`` on the conversation
     (so segment 4 replays ``assistant(bad_reply) + user(feedback)`` for the
@@ -334,12 +371,13 @@ def _request_response(
     connection_errors = 0
     validation_retries_used = 0
     validation_errors: list[str] = []
-    attempts = 0
+    llm_attempts = 0
     while True:
-        attempts += 1
         try:
             raw_response = controller(request, feedback)
+            llm_attempts += _last_llm_call_count(controller, request)
         except ConnectionError as error:
+            llm_attempts += _last_llm_call_count(controller, request)
             connection_errors += 1
             if artifacts is not None:
                 artifacts.append_runtime(
@@ -351,7 +389,13 @@ def _request_response(
                     },
                 )
             if connection_errors > max_connection_retries:
-                return "", connection_errors, validation_retries_used, attempts, validation_errors
+                return (
+                    "",
+                    connection_errors,
+                    validation_retries_used,
+                    llm_attempts,
+                    validation_errors,
+                )
             continue
         validation = parse_and_validate(raw_response, request)
         if validation.valid:
@@ -359,7 +403,7 @@ def _request_response(
                 raw_response,
                 connection_errors,
                 validation_retries_used,
-                attempts,
+                llm_attempts,
                 validation_errors,
             )
         if validation_retries_used >= validation_retries:
@@ -367,7 +411,7 @@ def _request_response(
                 raw_response,
                 connection_errors,
                 validation_retries_used,
-                attempts,
+                llm_attempts,
                 validation_errors,
             )
         validation_retries_used += 1

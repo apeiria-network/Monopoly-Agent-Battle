@@ -9,6 +9,7 @@ from pathlib import Path
 
 from monopoly_agent_battle.agents.baseline import BaselineAgent
 from monopoly_agent_battle.agents.random_baseline import RandomBaselineController
+from monopoly_agent_battle.agents.shang import ShangCourtAgent
 from monopoly_agent_battle.config.loader import config_hash, load_game_config
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.runner import (
@@ -64,7 +65,7 @@ def run_play(config_path: Path) -> Path:
     controllers: dict[str, RawDecisionController] = {}
     conversations: dict[str, AgentConversation] = {}
     needs_mock_client = any(
-        _is_llm_baseline(player.controller_type, player.model_profile) for player in config.players
+        _is_llm_player(player.controller_type, player.model_profile) for player in config.players
     )
     if needs_mock_client:
         register_client_factory("mock", lambda profile: MockLLMClient(seed=config.seed))
@@ -72,6 +73,25 @@ def run_play(config_path: Path) -> Path:
         if _is_random_baseline(player.controller_type):
             controllers[player.player_id] = RandomBaselineController(
                 _random_baseline_rng(config.seed, player.seat, player.player_id)
+            )
+            continue
+        if player.controller_type == "shang_court":
+            assert player.court_role_profiles is not None
+            priest_profile = config.model_profiles[player.court_role_profiles.great_priest]
+            emperor_profile = config.model_profiles[player.court_role_profiles.emperor]
+            priest_client = RecordingLLMClient(create_client(priest_profile), artifacts)
+            emperor_client = RecordingLLMClient(create_client(emperor_profile), artifacts)
+            conversation = AgentConversation(
+                agent_id=player.player_id, window_turns=config.window_turns
+            )
+            conversations[player.player_id] = conversation
+            controllers[player.player_id] = ShangCourtAgent(
+                player_id=player.player_id,
+                great_priest_client=priest_client,
+                great_priest_profile=priest_profile,
+                emperor_client=emperor_client,
+                emperor_profile=emperor_profile,
+                emperor_conversation=conversation,
             )
             continue
         if player.model_profile is None:
@@ -96,6 +116,11 @@ def run_play(config_path: Path) -> Path:
         conversations=conversations,
     )
     return artifacts.run_directory
+
+
+def _is_llm_player(controller_type: str | None, model_profile: str | None) -> bool:
+    """Return whether a configured player requires LLM client infrastructure."""
+    return controller_type == "shang_court" or _is_llm_baseline(controller_type, model_profile)
 
 
 def _is_llm_baseline(controller_type: str | None, model_profile: str | None) -> bool:

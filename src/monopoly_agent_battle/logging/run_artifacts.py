@@ -22,6 +22,7 @@ class RunArtifacts:
     def __init__(self, run_directory: Path) -> None:
         self.run_directory = run_directory
         self._next_event_id = 1
+        self._next_llm_call_id = 1
 
     @classmethod
     def create(cls, config: GameConfig) -> RunArtifacts:
@@ -61,6 +62,9 @@ class RunArtifacts:
 
     def append_llm_call(self, record: dict[str, Any]) -> None:
         """Append one recorded LLM invocation to the per-call log."""
+        record = dict(record)
+        record["call_id"] = self._next_llm_call_id
+        self._next_llm_call_id += 1
         self.append_jsonl("llm_calls.jsonl", record)
 
     def append_runtime(self, event_type: str, payload: dict[str, Any]) -> None:
