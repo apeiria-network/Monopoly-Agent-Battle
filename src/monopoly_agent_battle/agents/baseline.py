@@ -26,6 +26,8 @@ class BaselineAgent:
     the composer is exposed for the runner to log to ``runtime.jsonl``.
     """
 
+    uses_llm = True
+
     def __init__(
         self,
         *,

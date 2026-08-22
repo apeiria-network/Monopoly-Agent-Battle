@@ -177,12 +177,23 @@ def option_command_payload(
     return {"command_type": type(command).__name__, "command": asdict(command)}
 
 
+def option_json(
+    option: DecisionOption, target_values: tuple[object, ...] | None = None
+) -> dict[str, object]:
+    """Encode one option and an optional legal target tuple for controller output."""
+    selected: dict[str, object] = {"option": option.option_id}
+    if option.target is not None:
+        if target_values is None:
+            msg = "target values are required for an option with a target"
+            raise ValueError(msg)
+        selected["target"] = _target_json(option.target, target_values)
+    return selected
+
+
 def default_option_json(option: DecisionOption) -> dict[str, object]:
     """Return the response object for an option using its first legal target, if any."""
-    selected: dict[str, object] = {"option": option.option_id}
-    if option.target is not None and option.target.legal_values:
-        selected["target"] = _target_json(option.target, option.target.legal_values[0])
-    return selected
+    target_values = option.target.legal_values[0] if option.target is not None else None
+    return option_json(option, target_values)
 
 
 def _validate_target(

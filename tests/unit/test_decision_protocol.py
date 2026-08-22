@@ -8,6 +8,7 @@ from monopoly_agent_battle.decision.prompts import options_from_prompt, render_d
 from monopoly_agent_battle.decision.protocol import (
     command_from_option,
     default_option_json,
+    option_json,
     parse_and_validate,
 )
 from monopoly_agent_battle.decision.requests import build_decision_request, player_visible_state
@@ -709,6 +710,31 @@ def test_selected_target_is_validated_and_reconstructed(tmp_path: Path) -> None:
         request,
     )
     assert not invalid.valid
+
+
+def test_option_json_encodes_selected_legal_target_tuple(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    player = engine.state.players["a"]
+    player.properties.add(1)
+    engine.state.properties[1].owner_id = "a"
+    engine.state.players["b"].properties.add(3)
+    engine.state.properties[3].owner_id = "b"
+    player.chance_cards.append("chance-swap-property")
+    request = build_decision_request(engine, 1)
+    option = next(
+        candidate
+        for candidate in request.options
+        if candidate.option_id == "use_chance_card-chance-swap-property"
+    )
+    assert option.target is not None
+
+    selected = option_json(option, option.target.legal_values[-1])
+
+    assert selected == {
+        "option": "use_chance_card-chance-swap-property",
+        "target": dict(zip(option.target.fields, option.target.legal_values[-1], strict=True)),
+    }
 
 
 def test_prompt_static_board_reference_lists_all_40_spaces(tmp_path: Path) -> None:

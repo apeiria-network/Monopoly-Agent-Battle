@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -29,6 +30,7 @@ class PlayerConfig(BaseModel):
     model_profile: str | None = Field(
         default=None, description="key into GameConfig.model_profiles; None means no LLM"
     )
+    controller_type: Literal["llm_baseline", "random_baseline"] | None = None
 
 
 class GameConfig(BaseModel):
@@ -79,4 +81,11 @@ class GameConfig(BaseModel):
         if missing:
             msg = f"player model_profile not defined: {sorted(missing)}"
             raise ValueError(msg)
+        for player in self.players:
+            if player.controller_type == "llm_baseline" and player.model_profile is None:
+                msg = f"LLM baseline player {player.player_id} requires model_profile"
+                raise ValueError(msg)
+            if player.controller_type == "random_baseline" and player.model_profile is not None:
+                msg = f"random baseline player {player.player_id} must not set model_profile"
+                raise ValueError(msg)
         return self

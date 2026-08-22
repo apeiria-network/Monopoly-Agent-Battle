@@ -36,6 +36,8 @@ _FALLBACK_REASON = "多次重试仍未给出合法回复，自动选择系统默
 class DeterministicPolicyController:
     """Choose the engine-defined default option for each request."""
 
+    uses_llm = False
+
     def __call__(self, request: DecisionRequest, feedback: str | None = None) -> str:
         """Return a valid response for the default candidate of the request."""
         default = next(option for option in request.options if option.is_default)
@@ -56,6 +58,10 @@ class DispatchController:
 
     def __call__(self, request: DecisionRequest, feedback: str | None = None) -> str:
         return self._controllers[request.player_id](request, feedback)
+
+    def uses_llm_for(self, request: DecisionRequest) -> bool:
+        """Return whether the controller selected for a request makes LLM calls."""
+        return bool(getattr(self._controllers[request.player_id], "uses_llm", True))
 
 
 def run_decision_game(
@@ -111,6 +117,7 @@ def run_decision_game(
             continue
         request = build_decision_request(engine, sequence)
         current_conv = conv_map.get(request.player_id)
+        uses_llm = _uses_llm(controller, request)
         (
             raw_response,
             connection_retries,
@@ -125,8 +132,9 @@ def run_decision_game(
             max_connection_retries=max_connection_retries,
             validation_retries=engine.config.validation_retries,
         )
-        llm_calls += attempts
-        reconnect_events += connection_retries
+        if uses_llm:
+            llm_calls += attempts
+            reconnect_events += connection_retries
         attempted_validation = parse_and_validate(raw_response, request)
         validation = attempted_validation
         fallback = not attempted_validation.valid
@@ -175,6 +183,7 @@ def run_decision_game(
             artifacts.append_decision(
                 {
                     "request": decision_request_record(request),
+                    "controller_type": "llm" if uses_llm else "non_llm",
                     "attempted_response": raw_response,
                     "attempted_validation": validation_record(attempted_validation),
                     "validation": validation_record(validation),
@@ -200,6 +209,18 @@ def run_decision_game(
         )
         artifacts.write_result(result)
     return ScriptedRunResult(tuple(events), "completed")
+
+
+def _uses_llm(controller: RawDecisionController, request: DecisionRequest) -> bool:
+    """Return the controller's LLM accounting classification for one request.
+
+    Legacy bare callables retain the pre-random-baseline accounting behavior and
+    count as LLM-backed unless they explicitly expose ``uses_llm = False``.
+    """
+    dispatch_method = getattr(controller, "uses_llm_for", None)
+    if callable(dispatch_method):
+        return bool(dispatch_method(request))
+    return bool(getattr(controller, "uses_llm", True))
 
 
 def _dispatch_events(
