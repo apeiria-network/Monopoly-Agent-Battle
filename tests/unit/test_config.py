@@ -100,6 +100,160 @@ def test_config_rejects_undefined_model_profile() -> None:
         GameConfig.model_validate(data)
 
 
+def test_config_accepts_explicit_random_baseline_without_model_profile() -> None:
+    data = config_data()
+    data["players"] = [
+        {"player_id": "a", "seat": 1, "controller_type": "random_baseline"},
+        {"player_id": "b", "seat": 2, "controller_type": "random_baseline"},
+    ]
+
+    config = GameConfig.model_validate(data)
+
+    assert all(player.controller_type == "random_baseline" for player in config.players)
+    assert all(player.model_profile is None for player in config.players)
+
+
+def test_config_rejects_explicit_llm_baseline_without_model_profile() -> None:
+    data = config_data()
+    data["players"] = [
+        {"player_id": "a", "seat": 1, "controller_type": "llm_baseline"},
+        {"player_id": "b", "seat": 2},
+    ]
+
+    with pytest.raises(ValidationError, match="requires model_profile"):
+        GameConfig.model_validate(data)
+
+
+def test_config_rejects_random_baseline_with_model_profile() -> None:
+    data = config_data()
+    data["model_profiles"] = {"mock": {"provider": "mock", "model": "mock-baseline-v1"}}
+    data["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "random_baseline",
+            "model_profile": "mock",
+        },
+        {"player_id": "b", "seat": 2},
+    ]
+
+    with pytest.raises(ValidationError, match="must not set model_profile"):
+        GameConfig.model_validate(data)
+
+
+def test_explicit_controller_type_changes_config_hash() -> None:
+    legacy = GameConfig.model_validate(config_data())
+    random_data = config_data()
+    random_data["players"] = [
+        {"player_id": "a", "seat": 1, "controller_type": "random_baseline"},
+        {"player_id": "b", "seat": 2, "controller_type": "random_baseline"},
+    ]
+
+    assert config_hash(legacy) != config_hash(GameConfig.model_validate(random_data))
+
+
+def test_config_accepts_shang_court_with_independent_role_profiles() -> None:
+    data = config_data()
+    data["model_profiles"] = {
+        "priest": {"provider": "mock", "model": "mock-priest-v1"},
+        "emperor": {"provider": "mock", "model": "mock-emperor-v1"},
+    }
+    data["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "shang_court",
+            "court_role_profiles": {"great_priest": "priest", "emperor": "emperor"},
+        },
+        {"player_id": "b", "seat": 2},
+    ]
+
+    config = GameConfig.model_validate(data)
+
+    assert config.players[0].model_profile is None
+    assert config.players[0].court_role_profiles is not None
+    assert config.players[0].court_role_profiles.great_priest == "priest"
+    assert config.players[0].court_role_profiles.emperor == "emperor"
+
+
+def test_config_rejects_shang_court_without_role_profiles() -> None:
+    data = config_data()
+    data["players"] = [
+        {"player_id": "a", "seat": 1, "controller_type": "shang_court"},
+        {"player_id": "b", "seat": 2},
+    ]
+
+    with pytest.raises(ValidationError, match="requires court_role_profiles"):
+        GameConfig.model_validate(data)
+
+
+def test_config_rejects_shang_court_with_legacy_profile() -> None:
+    data = config_data()
+    data["model_profiles"] = {"mock": {"provider": "mock", "model": "mock-v1"}}
+    data["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "shang_court",
+            "model_profile": "mock",
+            "court_role_profiles": {"great_priest": "mock", "emperor": "mock"},
+        },
+        {"player_id": "b", "seat": 2},
+    ]
+
+    with pytest.raises(ValidationError, match="must not set model_profile"):
+        GameConfig.model_validate(data)
+
+
+def test_config_rejects_undefined_shang_role_profile() -> None:
+    data = config_data()
+    data["model_profiles"] = {"priest": {"provider": "mock", "model": "mock-priest-v1"}}
+    data["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "shang_court",
+            "court_role_profiles": {"great_priest": "priest", "emperor": "missing"},
+        },
+        {"player_id": "b", "seat": 2},
+    ]
+
+    with pytest.raises(ValidationError, match="model_profile not defined"):
+        GameConfig.model_validate(data)
+
+
+def test_shang_role_profiles_change_config_hash() -> None:
+    first = config_data()
+    first["model_profiles"] = {
+        "priest-a": {"provider": "mock", "model": "mock-priest-a"},
+        "priest-b": {"provider": "mock", "model": "mock-priest-b"},
+        "emperor": {"provider": "mock", "model": "mock-emperor"},
+    }
+    first["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "shang_court",
+            "court_role_profiles": {"great_priest": "priest-a", "emperor": "emperor"},
+        },
+        {"player_id": "b", "seat": 2},
+    ]
+    second = dict(first)
+    second["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "shang_court",
+            "court_role_profiles": {"great_priest": "priest-b", "emperor": "emperor"},
+        },
+        {"player_id": "b", "seat": 2},
+    ]
+
+    assert config_hash(GameConfig.model_validate(first)) != config_hash(
+        GameConfig.model_validate(second)
+    )
+
+
 def test_config_has_stage4_context_defaults() -> None:
     config = GameConfig.model_validate(config_data())
     assert config.validation_retries == 2

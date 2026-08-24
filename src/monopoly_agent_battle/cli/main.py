@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import random
 from pathlib import Path
 
 from monopoly_agent_battle.agents.baseline import BaselineAgent
+from monopoly_agent_battle.agents.random_baseline import RandomBaselineController
+from monopoly_agent_battle.agents.shang import ShangCourtAgent
 from monopoly_agent_battle.config.loader import config_hash, load_game_config
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.runner import (
@@ -27,7 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     demo_parser = subparsers.add_parser("demo", help="create a Phase 0 game run skeleton")
     demo_parser.add_argument("--config", required=True, type=Path, help="path to a game YAML file")
     play_parser = subparsers.add_parser(
-        "play", help="run a complete game with credential-free mock LLM baselines"
+        "play", help="run a complete game with mock-LLM and random non-LLM baselines"
     )
     play_parser.add_argument("--config", required=True, type=Path, help="path to a game YAML file")
     return parser
@@ -55,15 +59,41 @@ def run_demo(config_path: Path) -> Path:
 
 
 def run_play(config_path: Path) -> Path:
-    """Run a full game where every player is a mock-LLM baseline agent."""
+    """Run a full game with configured mock-LLM and random non-LLM baselines."""
     config = load_game_config(config_path)
-    if not config.model_profiles:
-        raise SystemExit("play requires at least one model_profiles entry")
     artifacts = RunArtifacts.create(config)
-    register_client_factory("mock", lambda profile: MockLLMClient(seed=config.seed))
     controllers: dict[str, RawDecisionController] = {}
     conversations: dict[str, AgentConversation] = {}
+    needs_mock_client = any(
+        _is_llm_player(player.controller_type, player.model_profile) for player in config.players
+    )
+    if needs_mock_client:
+        register_client_factory("mock", lambda profile: MockLLMClient(seed=config.seed))
     for player in config.players:
+        if _is_random_baseline(player.controller_type):
+            controllers[player.player_id] = RandomBaselineController(
+                _random_baseline_rng(config.seed, player.seat, player.player_id)
+            )
+            continue
+        if player.controller_type == "shang_court":
+            assert player.court_role_profiles is not None
+            priest_profile = config.model_profiles[player.court_role_profiles.great_priest]
+            emperor_profile = config.model_profiles[player.court_role_profiles.emperor]
+            priest_client = RecordingLLMClient(create_client(priest_profile), artifacts)
+            emperor_client = RecordingLLMClient(create_client(emperor_profile), artifacts)
+            conversation = AgentConversation(
+                agent_id=player.player_id, window_turns=config.window_turns
+            )
+            conversations[player.player_id] = conversation
+            controllers[player.player_id] = ShangCourtAgent(
+                player_id=player.player_id,
+                great_priest_client=priest_client,
+                great_priest_profile=priest_profile,
+                emperor_client=emperor_client,
+                emperor_profile=emperor_profile,
+                emperor_conversation=conversation,
+            )
+            continue
         if player.model_profile is None:
             msg = f"player {player.player_id} has no model_profile"
             raise SystemExit(msg)
@@ -86,6 +116,30 @@ def run_play(config_path: Path) -> Path:
         conversations=conversations,
     )
     return artifacts.run_directory
+
+
+def _is_llm_player(controller_type: str | None, model_profile: str | None) -> bool:
+    """Return whether a configured player requires LLM client infrastructure."""
+    return controller_type == "shang_court" or _is_llm_baseline(controller_type, model_profile)
+
+
+def _is_llm_baseline(controller_type: str | None, model_profile: str | None) -> bool:
+    """Resolve the legacy controller configuration into its LLM baseline behavior."""
+    return controller_type == "llm_baseline" or (
+        controller_type is None and model_profile is not None
+    )
+
+
+def _is_random_baseline(controller_type: str | None) -> bool:
+    """Return whether an explicitly configured player is a random baseline."""
+    return controller_type == "random_baseline"
+
+
+def _random_baseline_rng(seed: int, seat: int, player_id: str) -> random.Random:
+    """Create a stable player-local RNG without consuming the engine RNG stream."""
+    material = f"random-baseline-v1:{seed}:{seat}:{player_id}".encode()
+    derived_seed = int.from_bytes(hashlib.sha256(material).digest(), "big")
+    return random.Random(derived_seed)
 
 
 def main() -> None:

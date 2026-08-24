@@ -6,23 +6,29 @@ Run from the repository root:
 Writes the full Baseline context-confirmation report to
 ``tests/manual/render_decision_prompt_report.txt`` (UTF-8) and echoes a short
 summary to stdout. The report begins with the review checklist, followed by
-five scenarios that exercise the actual Stage 4C composer used by
+seven scenarios that exercise the actual Stage 4C composer used by
 ``BaselineAgent``:
 
   A – First decision of the game with several held Chance cards (no completed
       turns; no in-turn history). Shows that usable cards are independent
       candidates while a card's own targets remain folded. Expected: messages =
-      [system(段 1+2+固定输出约定), user(段 5-9)].
+      [system(段 1+2+3+固定输出约定), user(段 6-10)].
   B – Fresh action turn after prior completed turns (window=1).
-      Expected: segment 3 renders past events; segment 4 is still empty.
+      Expected: segment 4 renders past events; segment 5 is still empty.
   C – Same action turn, second decision.
-      Expected: segment 4 replays prior decision(s) with assistant + user interleaved.
-  D – Segment 3 overflow triggers truncation and a warning.
+      Expected: segment 5 replays prior decision(s) with assistant + user interleaved.
+  D – Segment 4 overflow triggers truncation and a warning.
       Expected: earliest events are dropped; ContextWarning emitted.
   E – Validation errors during a single decision → runner exhausts retries and
       falls back to ``end_turn``. The real fallback enters ``FORCED_DISCARD``
       after A has drawn a fifth Chance card, so the final message asks the
       still-current player A to choose one of those cards to discard.
+  F – Private Court-AI message in the current action turn.
+      Expected: the message is rendered as user context with system-trusted
+      ``decision_maker`` and ``content_type`` metadata, never as public history.
+  G – Emperor's same action turn with two decisions.
+      Expected: the first Court-AI consultation and the Emperor's own reply are
+      replayed before the second decision's private Court-AI messages.
 """
 
 from __future__ import annotations
@@ -68,9 +74,9 @@ def _write_confirmation_checklist(buf: StringIO) -> None:
     items = (
         (
             "1. 10 段与消息角色",
-            "段 1（角色与目标）+ 段 2（游戏规则）+ 段 10（固定 JSON 输出要求）仅在 "
-            "system；段 3–9 属于动态 user；同回合既有模型回复严格作为 assistant。"
-            " 见 A、C、E。",
+            "段 1（角色与目标）+ 段 2（游戏规则）+ 段 3（固定 JSON 输出要求）仅在 "
+            "system；段 4–10 属于动态 user；同回合既有模型回复严格作为 assistant。"
+            "见 A、C、E、F、G。",
         ),
         (
             "2. 每次实际决策字段与候选格式",
@@ -80,26 +86,27 @@ def _write_confirmation_checklist(buf: StringIO) -> None:
         ),
         (
             "3. 私有会话与窗口",
-            "每玩家一条独立 AgentConversation；window_turns=1 时，段 3 在本玩家新行动回合 "
-            "开始一次性建立并在该回合内保持不变，段 4 只保留当前行动回合。见 B、C；"
+            "每玩家一条独立 AgentConversation；window_turns=1 时，段 4 在本玩家新行动回合 "
+            "开始一次性建立并在该回合内保持不变，段 5 只保留当前行动回合。见 B、C；"
             "四玩家独立实例见端到端集成测试。",
         ),
         (
             "4. 历史播报与可见性",
-            "段 3/4 只使用 4B 白名单的 viewer-scoped 固定中文句式；黑名单/豁免内部事件 "
-            "不播报。本人可见自己的机会卡名称，旁观者对机会卡只见泛称；社区基金卡公开，"
-            "抢夺选择是协议层单次受控例外。见 B、C；播报细节由 "
+            "段 4 只使用 4B 白名单的 viewer-scoped 固定中文句式；段 5 的朝廷内部意见 "
+            "仅由授权 CourtAgent 私有写入，以 user 上下文重放，不进入公开历史或其他玩家会话。"
+            "本人可见自己的机会卡名称，旁观者对机会卡只见泛称；社区基金卡公开，"
+            "抢夺选择是协议层单次受控例外。见 B、C、F；播报细节由 "
             "render_history_broadcast.py 已验收。",
         ),
         (
             "5. 500-token 历史上限",
-            "仅段 3 独立严格限制为 500 估算 token；从最早完整播报事件开始删除，规则、"
-            "当前状态、候选和段 4 均不截断。裁剪警告仅供 runtime 审计。见 D。",
+            "仅段 4 独立严格限制为 500 估算 token；从最早完整播报事件开始删除，规则、"
+            "当前状态、候选和段 5 均不截断。裁剪警告仅供 runtime 审计。见 D。",
         ),
         (
             "6. 校验反馈生命周期",
             "非法输出仅在出错 Agent 的当前行动回合内以 user(问题) → assistant(错误回复) → "
-            "user(Error: …) 重放；下一行动回合的段 3 跳过 ErrorEntry。重试耗尽后，后续 "
+            "user(Error: …) 重放；下一行动回合的段 4 跳过 ErrorEntry。重试耗尽后，后续 "
             "上下文看到合成的默认候选 assistant 回复及其原因。见 E。",
         ),
         (
@@ -112,7 +119,7 @@ def _write_confirmation_checklist(buf: StringIO) -> None:
             "8. 冻结与审计边界",
             "window_turns、sentence_template_version、validation_retries 和 ModelProfile 随 "
             "GameConfig/config_hash 冻结；每次调用的模型、用量、耗时和错误写入 "
-            "llm_calls.jsonl，决策与回放产物可追溯。见 A–E 和端到端集成测试。",
+            "llm_calls.jsonl，决策与回放产物可追溯。见 A–F 和端到端集成测试。",
         ),
     )
     for title, detail in items:
@@ -174,7 +181,7 @@ def _event(event_type: str, **payload: object) -> GameEvent:
 
 
 def scenario_a(buf: StringIO, directory: str) -> None:
-    _write_header(buf, "A", "首次决策 — 持有多张机会卡，无任何历史（段 3、段 4 均省略）")
+    _write_header(buf, "A", "首次决策 — 持有多张机会卡，无任何历史（段 4、段 5 均省略）")
     engine = _make_engine(directory)
     player = engine.state.players["a"]
     player.chance_cards.extend(["chance-jail", "chance-build"])
@@ -218,7 +225,7 @@ def scenario_a(buf: StringIO, directory: str) -> None:
 
 
 def scenario_b(buf: StringIO, directory: str) -> None:
-    _write_header(buf, "B", "新一轮行动回合刚开始 — 段 3 累积历史，段 4 为空")
+    _write_header(buf, "B", "新一轮行动回合刚开始 — 段 4 累积历史，段 5 为空")
     engine = _make_engine(directory)
     request = build_decision_request(engine, sequence=5)
 
@@ -251,7 +258,7 @@ def scenario_b(buf: StringIO, directory: str) -> None:
 
 
 def scenario_c(buf: StringIO, directory: str) -> None:
-    _write_header(buf, "C", "同回合多次决策 — 段 4 出现 assistant/user 交替")
+    _write_header(buf, "C", "同回合多次决策 — 段 5 出现 assistant/user 交替")
     engine = _make_engine(directory)
     request = build_decision_request(engine, sequence=2)
 
@@ -262,7 +269,7 @@ def scenario_c(buf: StringIO, directory: str) -> None:
     conversation.append_event(_event("player_moved", player_id="a", to=5), complete_round=0)
     conversation.append_decision(
         decision_id="prompt-inspection-c-1",
-        question_summary="## 当前决策\n现在是你的资产管理阶段。（示例快照）",
+        question_summary=render_decision_question(request),
         assistant_reply=(
             '{"reason": "第一次先抵押第 1 格筹资。", '
             '"selected_option": {"option": "mortgage_property", "target": 1}}'
@@ -280,13 +287,13 @@ def scenario_c(buf: StringIO, directory: str) -> None:
         raise AssertionError("Scenario C adjacent event broadcasts must use one newline")
     if f"{first_event}\n\n{second_event}" in prior_user.content:
         raise AssertionError("Scenario C must not insert a blank line between adjacent events")
-    if f"{second_event}\n\n## 当前决策" not in prior_user.content:
+    if f"{second_event}\n\n## 决策" not in prior_user.content:
         raise AssertionError("Scenario C must preserve a semantic block break before the decision")
     _write_messages(buf, messages, warning)
 
 
 def scenario_d(buf: StringIO, directory: str) -> None:
-    _write_header(buf, "D", "段 3 溢出 — 真实回合历史触发裁剪与警告")
+    _write_header(buf, "D", "段 4 溢出 — 真实回合历史触发裁剪与警告")
     engine = _make_engine(directory)
     request = build_decision_request(engine, sequence=5)
 
@@ -547,16 +554,16 @@ def scenario_d(buf: StringIO, directory: str) -> None:
         if (sentence := render_event(event, conversation.agent_id)) is not None
     )
     if estimate_tokens("\n".join(full_history)) <= 500:
-        raise AssertionError("Scenario D complete history must exceed the segment-3 token cap")
+        raise AssertionError("Scenario D complete history must exceed the segment-4 token cap")
 
     # Start a new action turn to rebuild the capped history cache and emit its warning.
     conversation.start_turn(2)
     messages, warning = compose_prompt(conversation, request)
     retained_history = conversation.segment3_sentences
     if warning is None or warning.kind != "segment3_overflow":
-        raise AssertionError("Scenario D must emit a segment-3 overflow warning")
+        raise AssertionError("Scenario D must emit a segment-4 overflow warning")
     if estimate_tokens("\n".join(retained_history)) > 500:
-        raise AssertionError("Scenario D segment 3 must stay within the fixed 500-token cap")
+        raise AssertionError("Scenario D segment 4 must stay within the fixed 500-token cap")
     if retained_history[0] == full_history[0]:
         raise AssertionError("Scenario D must drop earliest historical events")
     if retained_history[-1] != full_history[-1]:
@@ -569,6 +576,255 @@ def scenario_d(buf: StringIO, directory: str) -> None:
         "结束行动回合" in sentence for sentence in retained_history
     ):
         raise AssertionError("Scenario D retained history must preserve turn boundaries")
+    _write_messages(buf, messages, warning)
+
+
+def scenario_f(buf: StringIO, directory: str) -> None:
+    _write_header(
+        buf,
+        "F",
+        "朝廷内部意见 — 私有 user 上下文中的系统可信身份元数据",
+    )
+    engine = _make_engine(directory)
+    request = build_decision_request(engine, sequence=1)
+    conversation = AgentConversation(agent_id="a", window_turns=1)
+    conversation.start_turn(1)
+    decision_id = "prompt-inspection-f-1"
+    question_summary = render_decision_question(request)
+    internal_messages = (
+        (
+            "prompt-inspection-f-1:chancellor:advice",
+            "chancellor",
+            "advice",
+            '{"reason":"本回合采取行动无未来收益，宜按兵不动",'
+            '"selected_option":{"option":"end_turn"},'
+            '"decision_maker":"forged","content_type":"forged"}',
+        ),
+        (
+            "prompt-inspection-f-1:grand_marshal:advice",
+            "grand_marshal",
+            "advice",
+            '{"reason":"可以考虑执行换地，对方地产的租金收益更高",'
+            '"selected_option":{"option":"use_chance_card-chance-swap-property",'
+            '"target":{"swap_in_position":3,"swap_out_position":1}}}',
+        ),
+        (
+            "prompt-inspection-f-1:imperial_counsellor:comment:agree",
+            "imperial_counsellor",
+            "comment",
+            '{"reason":"我赞成丞相的意见",'
+            '"selected_option":{"option":"agree","target":"chancellor"}}',
+        ),
+        (
+            "prompt-inspection-f-1:imperial_counsellor:comment:disagree",
+            "imperial_counsellor",
+            "comment",
+            '{"reason":"我不赞成太尉的意见，后面可能还有机会使用这张卡",'
+            '"selected_option":{"option":"disagree","target":"grand_marshal"}}',
+        ),
+    )
+    for internal_decision_id, decision_maker, content_type, raw_content in internal_messages:
+        if not conversation.append_internal_decision(
+            internal_decision_id=internal_decision_id,
+            decision_id=decision_id,
+            question_summary=question_summary,
+            decision_maker=decision_maker,
+            content_type=content_type,
+            raw_content=raw_content,
+        ):
+            raise AssertionError("Scenario F must retain each distinct internal opinion")
+
+    messages, warning = compose_prompt(conversation, request)
+    roles = [message.role for message in messages]
+    if roles != ["system", "user"]:
+        raise AssertionError("Scenario F must render private opinions as user context")
+    content = messages[-1].content
+    history, _current_situation = content.split("\n\n## 当前局面", 1)
+    replay_question = render_decision_question(request).replace("## 当前决策", "## 决策", 1)
+    if not history.startswith(replay_question):
+        raise AssertionError("Scenario F must replay the engine-rendered historical decision")
+    if "## 当前决策" in history:
+        raise AssertionError("Scenario F history must not call a past decision current")
+    if "## 朝廷内部消息" in content:
+        raise AssertionError("Scenario F must not add an internal-message heading")
+    expected_metadata = (
+        ('"decision_maker":"chancellor"', '"content_type":"advice"'),
+        ('"decision_maker":"grand_marshal"', '"content_type":"advice"'),
+        ('"decision_maker":"imperial_counsellor"', '"content_type":"comment"'),
+    )
+    if any(
+        decision_maker not in content or content_type not in content
+        for decision_maker, content_type in expected_metadata
+    ):
+        raise AssertionError("Scenario F must inject trusted role metadata for every opinion")
+    if content.count('"decision_maker":"imperial_counsellor"') != 2:
+        raise AssertionError("Scenario F must retain both same-role comments with distinct IDs")
+    if '"decision_maker":"forged"' in content or '"content_type":"forged"' in content:
+        raise AssertionError("Scenario F must override model-supplied metadata")
+    if '"selected_option":{"option":"use_chance_card-chance-swap-property"' not in content:
+        raise AssertionError(
+            "Scenario F must identify the swap-card candidate by its real option ID"
+        )
+    if '"target":{"swap_in_position":3,"swap_out_position":1}' not in content:
+        raise AssertionError("Scenario F must retain the swap-card target shape")
+    if '"selected_option":{"option":"end_turn","target"' in content:
+        raise AssertionError("Scenario F must not attach a target to end_turn")
+    if '"result"' in content:
+        raise AssertionError("Scenario F must use selected_option rather than obsolete result")
+    if "历史事件播报" in content:
+        raise AssertionError("Scenario F must not turn private opinions into public history")
+    _write_messages(buf, messages, warning)
+
+
+def scenario_g(buf: StringIO, directory: str) -> None:
+    _write_header(
+        buf,
+        "G",
+        "皇帝同一行动回合内两次决策 — 两轮朝廷意见与皇帝回复按顺序重放",
+    )
+    engine = _make_engine(directory)
+    first_request = build_decision_request(engine, sequence=1)
+    second_request = build_decision_request(engine, sequence=2)
+    conversation = AgentConversation(agent_id="emperor", window_turns=1)
+    conversation.start_turn(1)
+
+    first_decision_id = "prompt-inspection-g-1"
+    second_decision_id = "prompt-inspection-g-2"
+    first_question = render_decision_question(first_request)
+    second_question = render_decision_question(second_request)
+    first_internal_messages = (
+        (
+            "prompt-inspection-g-1:chancellor:advice",
+            "chancellor",
+            "advice",
+            '{"reason":"本回合采取行动无未来收益，宜按兵不动",'
+            '"selected_option":{"option":"end_turn"},'
+            '"decision_maker":"chancellor","content_type":"advice"}',
+        ),
+        (
+            "prompt-inspection-g-1:grand_marshal:advice",
+            "grand_marshal",
+            "advice",
+            '{"reason":"可以考虑执行换地，对方地产的租金收益更高",'
+            '"selected_option":{"option":"use_chance_card-chance-swap-property",'
+            '"target":{"swap_in_position":3,"swap_out_position":1}},'
+            '"decision_maker":"grand_marshal","content_type":"advice"}',
+        ),
+        (
+            "prompt-inspection-g-1:imperial_counsellor:comment:agree",
+            "imperial_counsellor",
+            "comment",
+            '{"reason":"我赞成丞相的意见",'
+            '"selected_option":{"option":"agree","target":"chancellor"},'
+            '"decision_maker":"imperial_counsellor","content_type":"comment"}',
+        ),
+        (
+            "prompt-inspection-g-1:imperial_counsellor:comment:disagree",
+            "imperial_counsellor",
+            "comment",
+            '{"reason":"我不赞成太尉的意见，后面可能还有机会使用这张卡",'
+            '"selected_option":{"option":"disagree","target":"grand_marshal"},'
+            '"decision_maker":"imperial_counsellor","content_type":"comment"}',
+        ),
+    )
+    for internal_decision_id, decision_maker, content_type, raw_content in first_internal_messages:
+        if not conversation.append_internal_decision(
+            internal_decision_id=internal_decision_id,
+            decision_id=first_decision_id,
+            question_summary=first_question,
+            decision_maker=decision_maker,
+            content_type=content_type,
+            raw_content=raw_content,
+        ):
+            raise AssertionError("Scenario G must retain the first decision's court opinions")
+
+    first_emperor_reply = (
+        '{"reason":"我们应该在开局就拿下主动权。",'
+        '"selected_option":{"option":"use_chance_card-chance-swap-property",'
+        '"target":{"swap_in_position":3,"swap_out_position":1}}}'
+    )
+    conversation.append_decision(
+        decision_id=first_decision_id,
+        question_summary=first_question,
+        assistant_reply=first_emperor_reply,
+    )
+
+    second_internal_messages = (
+        (
+            "prompt-inspection-g-2:chancellor:advice",
+            "chancellor",
+            "advice",
+            '{"reason":"没有出售的必要",'
+            '"selected_option":{"option":"end_turn"},'
+            '"decision_maker":"chancellor","content_type":"advice"}',
+        ),
+        (
+            "prompt-inspection-g-2:grand_marshal:advice",
+            "grand_marshal",
+            "advice",
+            '{"reason":"没有出售的必要",'
+            '"selected_option":{"option":"end_turn",'
+            '"target":{"swap_in_position":3,"swap_out_position":1}},'
+            '"decision_maker":"grand_marshal","content_type":"advice"}',
+        ),
+        (
+            "prompt-inspection-g-2:imperial_counsellor:comment:agree-chancellor",
+            "imperial_counsellor",
+            "comment",
+            '{"reason":"我赞成丞相的意见",'
+            '"selected_option":{"option":"agree","target":"chancellor"},'
+            '"decision_maker":"imperial_counsellor","content_type":"comment"}',
+        ),
+        (
+            "prompt-inspection-g-2:imperial_counsellor:comment:agree-grand-marshal",
+            "imperial_counsellor",
+            "comment",
+            '{"reason":"我赞成太尉的意见",'
+            '"selected_option":{"option":"agree","target":"grand_marshal"},'
+            '"decision_maker":"imperial_counsellor","content_type":"comment"}',
+        ),
+    )
+    for internal_decision_id, decision_maker, content_type, raw_content in second_internal_messages:
+        if not conversation.append_internal_decision(
+            internal_decision_id=internal_decision_id,
+            decision_id=second_decision_id,
+            question_summary=second_question,
+            decision_maker=decision_maker,
+            content_type=content_type,
+            raw_content=raw_content,
+        ):
+            raise AssertionError("Scenario G must retain the second decision's court opinions")
+
+    messages, warning = compose_prompt(conversation, second_request)
+    roles = [message.role for message in messages]
+    if roles != ["system", "user", "assistant", "user"]:
+        raise AssertionError("Scenario G must replay two decisions as user/assistant/user")
+    first_history = messages[1].content
+    second_history_and_current = messages[-1].content
+    first_replay_question = first_question.replace("## 当前决策", "## 决策", 1)
+    second_replay_question = second_question.replace("## 当前决策", "## 决策", 1)
+    if not first_history.startswith(first_replay_question):
+        raise AssertionError("Scenario G must begin with the first historical decision")
+    if messages[2].content != first_emperor_reply:
+        raise AssertionError("Scenario G must replay the Emperor's first reply as assistant")
+    if not second_history_and_current.startswith(second_replay_question):
+        raise AssertionError("Scenario G must begin its final user message with decision two")
+    if "## 当前决策" not in second_history_and_current:
+        raise AssertionError("Scenario G must end with the second current decision")
+    history = first_history + "\n" + second_history_and_current
+    if history.count('"decision_maker":"chancellor"') != 2:
+        raise AssertionError("Scenario G must retain the Chancellor's advice twice")
+    if history.count('"decision_maker":"grand_marshal"') != 2:
+        raise AssertionError("Scenario G must retain the Grand Marshal's advice twice")
+    if history.count('"decision_maker":"imperial_counsellor"') != 4:
+        raise AssertionError("Scenario G must retain all four counsellor comments")
+    if history.count('"selected_option":{"option":"use_chance_card-chance-swap-property"') != 1:
+        raise AssertionError("Scenario G must retain the first swap-card recommendation")
+    if (
+        '"selected_option":{"option":"end_turn","target":{"swap_in_position":3,"swap_out_position":1}}'
+        not in history
+    ):
+        raise AssertionError("Scenario G must retain the second Grand Marshal target example")
     _write_messages(buf, messages, warning)
 
 
@@ -669,6 +925,8 @@ def main() -> None:
         scenario_c(buf, directory)
         scenario_d(buf, directory)
         scenario_e(buf, directory)
+        scenario_f(buf, directory)
+        scenario_g(buf, directory)
     _REPORT_PATH.write_text(buf.getvalue(), encoding="utf-8")
     print(f"Wrote {_REPORT_PATH} ({len(buf.getvalue())} chars)")
 

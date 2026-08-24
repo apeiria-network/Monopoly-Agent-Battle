@@ -4,23 +4,27 @@ Given an ``AgentConversation`` and the current ``DecisionRequest``, produce
 the list of ``LLMMessage`` objects that will be sent to the LLM. The mapping
 follows the Stage 4C-remake specification:
 
-- Segments 1+2 plus the fixed output contract → one ``system`` message.
-- Segments 3, 4 and 5-9 all render into ``user`` chunks; only ``assistant``
+- Segments 1+2+3 plus the fixed output contract → one ``system`` message.
+- Segments 4, 5 and 6-10 all render into ``user`` chunks; only ``assistant``
   entries (this AI's prior JSON replies + in-turn validation-failed replies)
   break the user accumulation. Consecutive user chunks merge into a single
   user message so the LLM never receives two adjacent user messages.
-- Segment 3 (compressed inter-turn history events, viewer-scoped) is skipped
+- Segment 4 (compressed inter-turn history events, viewer-scoped) is skipped
   when the conversation has no completed turns. It never carries error
   entries — errors are per-turn only.
-- Segment 4 replays the current action turn's entries in time order:
-  ``EventEntry`` → user broadcast; ``ErrorEntry`` → assistant(bad_reply) then
+- Segment 5 replays the current action turn's entries in time order:
+  ``EventEntry`` → user broadcast; ``InternalDecisionEntry`` → user question
+  summary + trusted internal JSON; ``ErrorEntry`` → assistant(bad_reply) then
   a user(feedback) chunk; ``DecisionEntry`` → user(snapshot) then
   assistant(reply). Errors stay visible for every decision in this turn.
-- Segments 5-9 always terminate the prompt as (part of) the final user
+- Segments 6-10 always terminate the prompt as (part of) the final user
   message.
 """
 
 from __future__ import annotations
+
+import json
+from typing import Any, cast
 
 from monopoly_agent_battle.context.broadcast import render_event
 from monopoly_agent_battle.context.conversation import (
@@ -28,6 +32,7 @@ from monopoly_agent_battle.context.conversation import (
     DecisionEntry,
     ErrorEntry,
     EventEntry,
+    InternalDecisionEntry,
 )
 from monopoly_agent_battle.context.token_guard import ContextWarning
 from monopoly_agent_battle.decision.models import DecisionRequest
@@ -74,17 +79,23 @@ def compose_prompt(
             elif isinstance(entry, ErrorEntry):
                 flush_event_block()
                 if entry.decision_id != last_flushed_decision_id:
-                    buffer.append(entry.question_summary)
+                    buffer.append(_render_replay_question(entry.question_summary))
                     last_flushed_decision_id = entry.decision_id
                 messages.append(LLMMessage(role="user", content=_join(buffer)))
                 buffer.clear()
                 messages.append(LLMMessage(role="assistant", content=entry.bad_reply))
                 buffer.append(entry.feedback_text)
+            elif isinstance(entry, InternalDecisionEntry):
+                flush_event_block()
+                if entry.decision_id != last_flushed_decision_id:
+                    buffer.append(_render_replay_question(entry.question_summary))
+                    last_flushed_decision_id = entry.decision_id
+                buffer.append(_render_internal_decision(entry))
             else:
                 assert isinstance(entry, DecisionEntry)
                 flush_event_block()
                 if entry.decision_id != last_flushed_decision_id:
-                    buffer.append(entry.question_summary)
+                    buffer.append(_render_replay_question(entry.question_summary))
                     last_flushed_decision_id = entry.decision_id
                 messages.append(LLMMessage(role="user", content=_join(buffer)))
                 buffer.clear()
@@ -96,6 +107,30 @@ def compose_prompt(
     messages.append(LLMMessage(role="user", content=_join(buffer)))
 
     return tuple(messages), conversation.segment3_warning
+
+
+def _render_internal_decision(entry: InternalDecisionEntry) -> str:
+    """Render a trusted private Court-AI message as a user context chunk."""
+    try:
+        decoded = json.loads(entry.raw_content)
+    except (json.JSONDecodeError, TypeError):
+        decoded = entry.raw_content
+    if isinstance(decoded, dict):
+        content: object = dict(cast(dict[str, Any], decoded))
+        content["decision_maker"] = entry.decision_maker
+        content["content_type"] = entry.content_type
+    else:
+        content = {
+            "content": decoded,
+            "decision_maker": entry.decision_maker,
+            "content_type": entry.content_type,
+        }
+    return json.dumps(content, ensure_ascii=False, separators=(",", ":"))
+
+
+def _render_replay_question(question_summary: str) -> str:
+    """Distinguish an in-turn historical decision from segment 9's current one."""
+    return question_summary.replace("## 当前决策", "## 决策", 1)
 
 
 def _join(pieces: list[str]) -> str:
