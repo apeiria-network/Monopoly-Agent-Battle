@@ -111,6 +111,11 @@ def test_priest_receives_only_current_question_and_emperor_receives_oracle(tmp_p
     calls = agent.court_calls()
     assert trace["decision_id"] == request.decision_id
     assert [call["role"] for call in calls] == ["great_priest", "emperor"]
+    assert calls[0]["decision_maker"] == "great_priest"
+    assert calls[0]["content_type"] == "oracle"
+    assert calls[1]["decision_maker"] == "emperor"
+    assert calls[1]["content_type"] == "final_decision"
+    assert agent.conversation.current_turn is None
 
 
 def test_priest_connection_failure_retries_priest_stage(tmp_path: Path) -> None:

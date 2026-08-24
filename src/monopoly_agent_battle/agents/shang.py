@@ -17,6 +17,11 @@ from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.prompts import render_decision_question
 from monopoly_agent_battle.llm.protocol import LLMClient, LLMMessage, LLMRequest
 
+_GREAT_PRIEST_ROLE = "great_priest"
+_EMPEROR_ROLE = "emperor"
+_ORACLE_CONTENT_TYPE = "oracle"
+_FINAL_DECISION_CONTENT_TYPE = "final_decision"
+
 _PROVISIONAL_PRIEST_SYSTEM_PROMPT = """你是商代朝廷中的大祭司。以下仅为暂定技术提示词，
 后续必须人工重写。你只根据本次收到的当前决策问题给皇帝写一段简短、神谕式的启示或提醒。
 不得输出 JSON，不得选择或推荐任何具体候选操作，不得编造游戏状态，不得要求隐藏信息，
@@ -35,6 +40,8 @@ class CourtCallTrace:
     outcome: str
     content: str | None = None
     error: str | None = None
+    decision_maker: str | None = None
+    content_type: str | None = None
 
 
 class ShangCourtAgent:
@@ -145,11 +152,19 @@ class ShangCourtAgent:
         self._trace.append(
             CourtCallTrace(
                 decision_id=request.decision_id,
-                role="great_priest",
+                role=_GREAT_PRIEST_ROLE,
                 caller_role=caller_role,
                 outcome="success",
                 content=response.content,
+                decision_maker=_GREAT_PRIEST_ROLE,
+                content_type=_ORACLE_CONTENT_TYPE,
             )
+        )
+        self._deliver_internal_message(
+            request,
+            decision_maker=_GREAT_PRIEST_ROLE,
+            content_type=_ORACLE_CONTENT_TYPE,
+            raw_content=response.content,
         )
         return response.content
 
@@ -157,7 +172,11 @@ class ShangCourtAgent:
         assert self._oracle is not None
         messages, warning = compose_prompt(self._emperor_conversation, request)
         self._last_warning = warning
-        emperor_messages = (*messages[:-1], self._with_oracle(messages[-1], self._oracle))
+        emperor_messages = messages
+        if not any(
+            self._oracle in message.content for message in messages if message.role == "user"
+        ):
+            emperor_messages = (*messages[:-1], self._with_oracle(messages[-1], self._oracle))
         caller_role = f"{self._player_id}.emperor"
         llm_request = LLMRequest(
             messages=emperor_messages,
@@ -188,9 +207,29 @@ class ShangCourtAgent:
                 caller_role=caller_role,
                 outcome="success",
                 content=response.content,
+                decision_maker=_EMPEROR_ROLE,
+                content_type=_FINAL_DECISION_CONTENT_TYPE,
             )
         )
         return response.content
+
+    def _deliver_internal_message(
+        self,
+        request: DecisionRequest,
+        *,
+        decision_maker: str,
+        content_type: str,
+        raw_content: str,
+    ) -> bool:
+        """Deliver a Court-AI result through the private conversation channel."""
+        return self._emperor_conversation.append_internal_decision(
+            internal_decision_id=f"{request.decision_id}:{decision_maker}:{content_type}",
+            decision_id=request.decision_id,
+            question_summary=render_decision_question(request),
+            decision_maker=decision_maker,
+            content_type=content_type,
+            raw_content=raw_content,
+        )
 
     @staticmethod
     def _with_oracle(message: LLMMessage, oracle: str) -> LLMMessage:

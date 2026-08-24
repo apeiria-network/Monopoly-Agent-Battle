@@ -61,6 +61,29 @@ class DecisionEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class InternalDecisionEntry:
+    """A private decision-related message emitted by another Court AI.
+
+    The receiving role's conversation stores the source role's raw response
+    separately from its trusted institutional attribution.  During prompt
+    composition the response is converted into JSON and the system-owned
+    ``decision_maker`` and ``content_type`` fields are overlaid, so an LLM
+    cannot impersonate a role by supplying either field itself.
+
+    ``internal_decision_id`` is a court-workflow-owned idempotency key.  It
+    permits a workflow to retry a downstream role without duplicating an
+    already-delivered upstream opinion in that role's current-turn history.
+    """
+
+    internal_decision_id: str
+    decision_id: str
+    question_summary: str
+    decision_maker: str
+    content_type: str
+    raw_content: str
+
+
+@dataclass(frozen=True, slots=True)
 class ErrorEntry:
     """A validation-failed AI reply within the current action turn.
 
@@ -77,7 +100,7 @@ class ErrorEntry:
     feedback_text: str
 
 
-TurnEntry = EventEntry | DecisionEntry | ErrorEntry
+TurnEntry = EventEntry | DecisionEntry | InternalDecisionEntry | ErrorEntry
 
 _SEGMENT3_TOKEN_CAP = 500
 
@@ -148,6 +171,44 @@ class AgentConversation:
                 assistant_reply=assistant_reply,
             )
         )
+
+    def append_internal_decision(
+        self,
+        *,
+        internal_decision_id: str,
+        decision_id: str,
+        question_summary: str,
+        decision_maker: str,
+        content_type: str,
+        raw_content: str,
+    ) -> bool:
+        """Deliver one trusted private Court-AI message to this conversation.
+
+        Delivery is idempotent within the active turn and completed history:
+        retrying the same workflow message does not duplicate it.  The
+        receiving conversation is the privacy boundary; callers must invoke
+        this method only for roles authorized to see the message.
+        """
+        if self.current_turn is None:
+            return False
+        if any(
+            isinstance(entry, InternalDecisionEntry)
+            and entry.internal_decision_id == internal_decision_id
+            for turn in (*self.completed_turns, self.current_turn)
+            for entry in turn.entries
+        ):
+            return False
+        self.current_turn.entries.append(
+            InternalDecisionEntry(
+                internal_decision_id=internal_decision_id,
+                decision_id=decision_id,
+                question_summary=question_summary,
+                decision_maker=decision_maker,
+                content_type=content_type,
+                raw_content=raw_content,
+            )
+        )
+        return True
 
     def append_error(
         self,

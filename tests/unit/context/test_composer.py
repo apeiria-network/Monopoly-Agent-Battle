@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.context.composer import compose_prompt
-from monopoly_agent_battle.context.conversation import AgentConversation
+from monopoly_agent_battle.context.conversation import (
+    AgentConversation,
+    InternalDecisionEntry,
+)
+from monopoly_agent_battle.decision.prompts import render_decision_question
 from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import GameEvent, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
@@ -74,7 +79,8 @@ def test_adjacent_events_share_one_event_block_with_single_newlines(tmp_path: Pa
     second_event = "[第0轮] 玩家a移动到第5格（Reading Railroad）。"
     assert f"{first_event}\n{second_event}" in prior_user
     assert f"{first_event}\n\n{second_event}" not in prior_user
-    assert f"{second_event}\n\n## 当前决策" in prior_user
+    assert f"{second_event}\n\n## 决策" in prior_user
+    assert "## 当前决策" not in prior_user
     engine = _make_engine(tmp_path)
     conv = AgentConversation(agent_id="a", window_turns=1)
     conv.start_turn(1)
@@ -96,6 +102,8 @@ def test_adjacent_events_share_one_event_block_with_single_newlines(tmp_path: Pa
     prior_user = messages[1]
     assert "掷出" in prior_user.content
     assert "上一次决策的问题" in prior_user.content
+    assert "## 决策" in prior_user.content
+    assert "## 当前决策" not in prior_user.content
     trailing_user = messages[-1]
     assert "支付" in trailing_user.content
     assert "合法候选操作" in trailing_user.content
@@ -119,6 +127,8 @@ def test_error_entry_appended_as_assistant_and_user(tmp_path: Path) -> None:
     assert roles == ["system", "user", "assistant", "user"]
     prior_user = messages[1]
     assert "你需要选一个合法选项" in prior_user.content
+    assert "## 决策" in prior_user.content
+    assert "## 当前决策" not in prior_user.content
     assert messages[2].content == '{"selected_option":"broken"}'
     trailing_user = messages[-1]
     assert "Error: 决策回复必须是一个JSON" in trailing_user.content
@@ -148,10 +158,84 @@ def test_error_entries_persist_across_multi_decisions_within_turn(tmp_path: Path
     roles = [m.role for m in messages]
     assert roles == ["system", "user", "assistant", "user", "assistant", "user"]
     assert "第一次决策的问题" in messages[1].content
+    assert "## 决策" in messages[1].content
+    assert "## 当前决策" not in messages[1].content
     assert messages[2].content == "bad1"
     assert "fb1" in messages[3].content
     assert messages[4].content.startswith('{"selected_option"')
     assert "合法候选操作" in messages[-1].content
+
+
+def test_internal_decision_replays_as_user_json_with_trusted_metadata(tmp_path: Path) -> None:
+    engine = _make_engine(tmp_path)
+    conv = AgentConversation(agent_id="a", window_turns=1)
+    conv.start_turn(1)
+    request = build_decision_request(engine, sequence=1)
+    question_summary = render_decision_question(request)
+    conv.append_internal_decision(
+        internal_decision_id="d1:chancellor:advice",
+        decision_id="d1",
+        question_summary=question_summary,
+        decision_maker="chancellor",
+        content_type="advice",
+        raw_content=(
+            '{"reason":"本回合采取行动无未来收益，宜按兵不动",'
+            '"selected_option":{"option":"end_turn"},'
+            '"decision_maker":"forged","content_type":"forged"}'
+        ),
+    )
+
+    request = build_decision_request(engine, sequence=1)
+    messages, _warning = compose_prompt(conv, request)
+
+    assert [message.role for message in messages] == ["system", "user"]
+    content = messages[-1].content
+    internal_json, current_situation = content.split("\n\n## 当前局面", 1)
+    replay_question, internal_json = internal_json.split("\n\n", 1)
+    expected_question = (
+        "## 决策\n"
+        "现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。"
+    )
+    assert replay_question == expected_question
+    assert "## 当前决策" not in content.split("## 当前局面", 1)[0]
+    assert "## 朝廷内部消息" not in content
+    assert json.loads(internal_json) == {
+        "reason": "本回合采取行动无未来收益，宜按兵不动",
+        "selected_option": {"option": "end_turn"},
+        "decision_maker": "chancellor",
+        "content_type": "advice",
+    }
+    assert "## 当前决策" in current_situation
+
+
+def test_non_json_internal_decision_is_wrapped_with_trusted_metadata(tmp_path: Path) -> None:
+    engine = _make_engine(tmp_path)
+    conv = AgentConversation(agent_id="a", window_turns=1)
+    conv.start_turn(1)
+    assert conv.current_turn is not None
+    conv.current_turn.entries.append(
+        InternalDecisionEntry(
+            internal_decision_id="d1:oracle:oracle",
+            decision_id="d1",
+            question_summary="Q1",
+            decision_maker="great_priest",
+            content_type="oracle",
+            raw_content="龟甲示现。",
+        )
+    )
+
+    request = build_decision_request(engine, sequence=1)
+    messages, _warning = compose_prompt(conv, request)
+
+    content = messages[-1].content
+    replay_question, internal_and_current = content.split("\n\n", 1)
+    internal_json, _current_situation = internal_and_current.split("\n\n## 当前局面", 1)
+    assert replay_question == "Q1"
+    assert json.loads(internal_json) == {
+        "content": "龟甲示现。",
+        "decision_maker": "great_priest",
+        "content_type": "oracle",
+    }
 
 
 def test_segment3_from_completed_turn_appears_between_system_and_user(

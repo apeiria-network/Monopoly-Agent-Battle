@@ -8,6 +8,7 @@ from monopoly_agent_battle.context.conversation import (
     AgentConversation,
     DecisionEntry,
     EventEntry,
+    InternalDecisionEntry,
 )
 from monopoly_agent_battle.context.token_guard import estimate_tokens
 from monopoly_agent_battle.domain.models import GameEvent
@@ -133,6 +134,50 @@ def test_append_error_before_start_turn_is_ignored() -> None:
     conv.append_error(decision_id="d1", question_summary="Q1", bad_reply="bad", feedback_text="fb")
     assert conv.current_turn is None
     assert conv.completed_turns == []
+
+
+def test_internal_decision_is_private_and_idempotent() -> None:
+    receiver = AgentConversation(agent_id="court", window_turns=1)
+    other_receiver = AgentConversation(agent_id="other", window_turns=1)
+    receiver.start_turn(1)
+    other_receiver.start_turn(1)
+
+    kwargs = {
+        "internal_decision_id": "d1:chancellor:proposal",
+        "decision_id": "d1",
+        "question_summary": "## 当前决策\n处理当前事务。",
+        "decision_maker": "chancellor",
+        "content_type": "proposal",
+        "raw_content": '{"reason":"建议如此"}',
+    }
+    assert receiver.append_internal_decision(**kwargs) is True
+    assert receiver.append_internal_decision(**kwargs) is False
+
+    assert receiver.current_turn is not None
+    assert len(receiver.current_turn.entries) == 1
+    entry = receiver.current_turn.entries[0]
+    assert isinstance(entry, InternalDecisionEntry)
+    assert entry.decision_maker == "chancellor"
+    assert entry.content_type == "proposal"
+    assert other_receiver.current_turn is not None
+    assert other_receiver.current_turn.entries == []
+
+
+def test_internal_decision_idempotency_survives_turn_boundary() -> None:
+    conv = AgentConversation(agent_id="court", window_turns=1)
+    conv.start_turn(1)
+    kwargs = {
+        "internal_decision_id": "d1:reviewer:review",
+        "decision_id": "d1",
+        "question_summary": "Q1",
+        "decision_maker": "reviewer",
+        "content_type": "review",
+        "raw_content": "意见",
+    }
+    assert conv.append_internal_decision(**kwargs) is True
+    conv.start_turn(2)
+
+    assert conv.append_internal_decision(**kwargs) is False
 
 
 def test_segment3_skips_error_entries_from_completed_turns() -> None:
