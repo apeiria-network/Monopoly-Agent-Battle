@@ -46,6 +46,11 @@ from monopoly_agent_battle.llm.protocol import LLMMessage
 def compose_prompt(
     conversation: AgentConversation,
     request: DecisionRequest,
+    *,
+    pre_decision_context: str | None = None,
+    role_instruction: str | None = None,
+    segment3_prompt: str | None = None,
+    post_decision_context: str | None = None,
 ) -> tuple[tuple[LLMMessage, ...], ContextWarning | None]:
     """Assemble the 10-segment prompt into a message list.
 
@@ -55,7 +60,16 @@ def compose_prompt(
     """
     messages: list[LLMMessage] = []
 
-    messages.append(LLMMessage(role="system", content=render_system_prompt(request)))
+    messages.append(
+        LLMMessage(
+            role="system",
+            content=render_system_prompt(
+                request,
+                role_instruction=role_instruction,
+                output_guide=segment3_prompt,
+            ),
+        )
+    )
 
     buffer: list[str] = []
 
@@ -102,8 +116,12 @@ def compose_prompt(
                 messages.append(LLMMessage(role="assistant", content=entry.assistant_reply))
 
         flush_event_block()
+        if pre_decision_context:
+            buffer.append(pre_decision_context)
 
     buffer.append(render_current_user_message(request))
+    if post_decision_context:
+        buffer.append(post_decision_context)
     messages.append(LLMMessage(role="user", content=_join(buffer)))
 
     return tuple(messages), conversation.segment3_warning

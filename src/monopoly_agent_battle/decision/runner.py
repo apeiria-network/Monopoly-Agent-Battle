@@ -34,6 +34,9 @@ _DEFAULT_REASON = "选择系统默认合法操作。"
 _FALLBACK_REASON = "多次重试仍未给出合法回复，自动选择系统默认选项。"
 
 
+ConversationBinding = AgentConversation | Mapping[str, AgentConversation]
+
+
 class DeterministicPolicyController:
     """Choose the engine-defined default option for each request."""
 
@@ -56,6 +59,12 @@ class DispatchController:
 
     def __init__(self, controllers: Mapping[str, RawDecisionController]) -> None:
         self._controllers = dict(controllers)
+
+    def record_final_decision_for(self, request: DecisionRequest, reply: str) -> None:
+        """Forward final decision persistence to a court-aware controller."""
+        recorder = getattr(self._controllers[request.player_id], "record_final_decision", None)
+        if callable(recorder):
+            recorder(request, reply)
 
     def __call__(self, request: DecisionRequest, feedback: str | None = None) -> str:
         return self._controllers[request.player_id](request, feedback)
@@ -84,7 +93,7 @@ def run_decision_game(
     artifacts: RunArtifacts | None = None,
     *,
     max_connection_retries: int = 2,
-    conversations: Mapping[str, AgentConversation] | None = None,
+    conversations: Mapping[str, ConversationBinding] | None = None,
 ) -> ScriptedRunResult:
     """Drive a game by validating controller output and auditing deterministic fallbacks.
 
@@ -99,22 +108,27 @@ def run_decision_game(
     llm_calls = 0
     reconnect_events = 0
     decision_fallbacks = 0
-    conv_map: dict[str, AgentConversation] = dict(conversations or {})
+    conv_map, decision_conversations = _normalize_conversations(conversations or {})
     turn_counters: dict[str, int] = dict.fromkeys(conv_map, 0)
     logged_segment3_warning_turns: set[tuple[str, int]] = set()
     # Bootstrap the first Agent's turn: the engine never emits ``turn_started``
     # for its initial player, so ``start_turn`` must be called explicitly here.
     initial_player_id = engine.state.current_player_id
-    if initial_player_id in conv_map:
-        turn_counters[initial_player_id] += 1
-        conv_map[initial_player_id].start_turn(turn_counters[initial_player_id])
-        _record_segment3_warning(
-            conv_map[initial_player_id],
-            initial_player_id,
-            turn_counters[initial_player_id],
-            logged_segment3_warning_turns,
-            artifacts,
-        )
+    if initial_player_id in conv_map or any(
+        key.startswith(f"{initial_player_id}.") for key in conv_map
+    ):
+        for agent_id, conversation in conv_map.items():
+            if agent_id != initial_player_id and not agent_id.startswith(f"{initial_player_id}."):
+                continue
+            turn_counters[agent_id] += 1
+            conversation.start_turn(turn_counters[agent_id])
+            _record_segment3_warning(
+                conversation,
+                agent_id,
+                turn_counters[agent_id],
+                logged_segment3_warning_turns,
+                artifacts,
+            )
     while not engine.state.finished:
         automatic_command = _automatic_command(engine)
         if automatic_command is not None:
@@ -130,7 +144,7 @@ def run_decision_game(
             events.extend(command_events)
             continue
         request = build_decision_request(engine, sequence)
-        current_conv = conv_map.get(request.player_id)
+        current_conv = decision_conversations.get(request.player_id)
         uses_llm = _uses_llm(controller, request)
         (
             raw_response,
@@ -182,6 +196,9 @@ def run_decision_game(
                 question_summary=render_decision_question(request),
                 assistant_reply=persisted_reply,
             )
+        final_recorder = getattr(controller, "record_final_decision_for", None)
+        if callable(final_recorder):
+            final_recorder(request, persisted_reply)
         command = command_from_option(request, validation.option, validation.target)
         command_events = _execute_and_audit(engine, command, artifacts)
         _dispatch_events(
@@ -225,6 +242,25 @@ def run_decision_game(
         )
         artifacts.write_result(result)
     return ScriptedRunResult(tuple(events), "completed")
+
+
+def _normalize_conversations(
+    conversations: Mapping[str, ConversationBinding],
+) -> tuple[dict[str, AgentConversation], dict[str, AgentConversation]]:
+    """Flatten role conversations while selecting one external decision conversation."""
+    event_conversations: dict[str, AgentConversation] = {}
+    decision_conversations: dict[str, AgentConversation] = {}
+    for player_id, binding in conversations.items():
+        if isinstance(binding, AgentConversation):
+            event_conversations[player_id] = binding
+            decision_conversations[player_id] = binding
+            continue
+        if not binding:
+            continue
+        for role, conversation in binding.items():
+            event_conversations[f"{player_id}.{role}"] = conversation
+        decision_conversations[player_id] = binding.get("emperor", next(iter(binding.values())))
+    return event_conversations, decision_conversations
 
 
 def _uses_llm(controller: RawDecisionController, request: DecisionRequest) -> bool:
@@ -276,7 +312,7 @@ def _dispatch_events(
         if event.event_type == "turn_started":
             player_id = str(event.payload["player_id"])
             for agent_id, conversation in conversations.items():
-                if agent_id == player_id:
+                if agent_id == player_id or agent_id.startswith(f"{player_id}."):
                     turn_counters[agent_id] += 1
                     conversation.start_turn(turn_counters[agent_id])
                     _record_segment3_warning(

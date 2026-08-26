@@ -43,13 +43,13 @@ _OUTPUT_GUIDE = (
 )
 
 
-def render_role(request: DecisionRequest) -> str:
-    """Segment 1: role and goal introduction (system prompt)."""
-    visible: dict[str, Any] = request.visible_state
-    return PLAYER_INSTRUCTION.format(
+def render_role(request: DecisionRequest, role_instruction: str | None = None) -> str:
+    """Segment 1: player identity, goal, and an optional court-role instruction."""
+    role = PLAYER_INSTRUCTION.format(
         player_id=request.player_id,
-        seat=visible["your_state"]["seat"],
+        seat=cast(dict[str, Any], request.visible_state)["your_state"]["seat"],
     )
+    return role if role_instruction is None else role + "\n\n" + role_instruction
 
 
 def render_rules() -> str:
@@ -62,13 +62,19 @@ def render_rules() -> str:
     return load_game_rules().strip()
 
 
-def render_system_prompt(request: DecisionRequest) -> str:
-    """Segments 1+2 plus the stable output contract in one system message."""
+def render_system_prompt(
+    request: DecisionRequest,
+    *,
+    role_instruction: str | None = None,
+    output_guide: str | None = None,
+) -> str:
+    """Render segments 1-3, with optional role-specific segment-1 and segment-3 text."""
+    output_section = output_guide or ("## 输出要求\n" + _OUTPUT_GUIDE)
     return "\n\n".join(
         (
-            render_role(request),
+            render_role(request, role_instruction),
             render_rules(),
-            "## 输出要求\n" + _OUTPUT_GUIDE,
+            output_section,
         )
     )
 

@@ -1,0 +1,7 @@
+## 输出要求
+只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。
+- `assessments` 必须是包含两项的 JSON 数组，分别评价丞相和太尉的意见。
+- 每项评价必须包含 `officer_id`、`judgement` 和 `reason`。
+- `officer_id` 只能填写 `"chancellor"` 或 `"grand_marshal"`，每个官员必须出现且只能出现一次。
+- `judgement` 只能填写 `"agree"`、`"disagree"` 或 `"neutral"`。
+- `reason` 填写对该官员意见的具体评价理由。
