@@ -8,11 +8,14 @@ import random
 from pathlib import Path
 
 from monopoly_agent_battle.agents.baseline import BaselineAgent
+from monopoly_agent_battle.agents.qin import QinCourtAgent
 from monopoly_agent_battle.agents.random_baseline import RandomBaselineController
 from monopoly_agent_battle.agents.shang import ShangCourtAgent
 from monopoly_agent_battle.config.loader import config_hash, load_game_config
+from monopoly_agent_battle.config.models import QinCourtRoleProfiles, ShangCourtRoleProfiles
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.runner import (
+    ConversationBinding,
     DispatchController,
     RawDecisionController,
     run_decision_game,
@@ -63,7 +66,7 @@ def run_play(config_path: Path) -> Path:
     config = load_game_config(config_path)
     artifacts = RunArtifacts.create(config)
     controllers: dict[str, RawDecisionController] = {}
-    conversations: dict[str, AgentConversation] = {}
+    conversations: dict[str, ConversationBinding] = {}
     needs_mock_client = any(
         _is_llm_player(player.controller_type, player.model_profile) for player in config.players
     )
@@ -76,7 +79,7 @@ def run_play(config_path: Path) -> Path:
             )
             continue
         if player.controller_type == "shang_court":
-            assert player.court_role_profiles is not None
+            assert isinstance(player.court_role_profiles, ShangCourtRoleProfiles)
             priest_profile = config.model_profiles[player.court_role_profiles.great_priest]
             emperor_profile = config.model_profiles[player.court_role_profiles.emperor]
             priest_client = RecordingLLMClient(create_client(priest_profile), artifacts)
@@ -92,6 +95,37 @@ def run_play(config_path: Path) -> Path:
                 emperor_client=emperor_client,
                 emperor_profile=emperor_profile,
                 emperor_conversation=conversation,
+            )
+            continue
+        if player.controller_type == "qin_court":
+            assert isinstance(player.court_role_profiles, QinCourtRoleProfiles)
+            roles = {
+                role: config.model_profiles[getattr(player.court_role_profiles, role)]
+                for role in ("chancellor", "grand_marshal", "imperial_counsellor", "emperor")
+            }
+            role_clients = {
+                role: RecordingLLMClient(create_client(profile), artifacts)
+                for role, profile in roles.items()
+            }
+            role_conversations = {
+                role: AgentConversation(
+                    agent_id=f"{player.player_id}.{role}", window_turns=config.window_turns
+                )
+                for role in roles
+            }
+            conversations[player.player_id] = role_conversations
+            controllers[player.player_id] = QinCourtAgent(
+                player_id=player.player_id,
+                chancellor_client=role_clients["chancellor"],
+                chancellor_profile=roles["chancellor"],
+                grand_marshal_client=role_clients["grand_marshal"],
+                grand_marshal_profile=roles["grand_marshal"],
+                imperial_counsellor_client=role_clients["imperial_counsellor"],
+                imperial_counsellor_profile=roles["imperial_counsellor"],
+                emperor_client=role_clients["emperor"],
+                emperor_profile=roles["emperor"],
+                conversations=role_conversations,
+                validation_retries=config.validation_retries,
             )
             continue
         if player.model_profile is None:
@@ -120,7 +154,9 @@ def run_play(config_path: Path) -> Path:
 
 def _is_llm_player(controller_type: str | None, model_profile: str | None) -> bool:
     """Return whether a configured player requires LLM client infrastructure."""
-    return controller_type == "shang_court" or _is_llm_baseline(controller_type, model_profile)
+    return controller_type in {"shang_court", "qin_court"} or _is_llm_baseline(
+        controller_type, model_profile
+    )
 
 
 def _is_llm_baseline(controller_type: str | None, model_profile: str | None) -> bool:

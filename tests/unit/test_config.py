@@ -4,7 +4,11 @@ import pytest
 from pydantic import ValidationError
 
 from monopoly_agent_battle.config.loader import canonical_config_json, config_hash, load_game_config
-from monopoly_agent_battle.config.models import GameConfig
+from monopoly_agent_battle.config.models import (
+    GameConfig,
+    QinCourtRoleProfiles,
+    ShangCourtRoleProfiles,
+)
 
 
 def config_data() -> dict[str, object]:
@@ -171,9 +175,10 @@ def test_config_accepts_shang_court_with_independent_role_profiles() -> None:
     config = GameConfig.model_validate(data)
 
     assert config.players[0].model_profile is None
-    assert config.players[0].court_role_profiles is not None
-    assert config.players[0].court_role_profiles.great_priest == "priest"
-    assert config.players[0].court_role_profiles.emperor == "emperor"
+    profiles = config.players[0].court_role_profiles
+    assert isinstance(profiles, ShangCourtRoleProfiles)
+    assert profiles.great_priest == "priest"
+    assert profiles.emperor == "emperor"
 
 
 def test_config_rejects_shang_court_without_role_profiles() -> None:
@@ -219,6 +224,77 @@ def test_config_rejects_undefined_shang_role_profile() -> None:
     ]
 
     with pytest.raises(ValidationError, match="model_profile not defined"):
+        GameConfig.model_validate(data)
+
+
+def _qin_model_profiles() -> dict[str, object]:
+    return {
+        role: {"provider": "mock", "model": f"mock-{role}-v1"}
+        for role in ("chancellor", "grand_marshal", "imperial_counsellor", "emperor")
+    }
+
+
+def _qin_role_profiles() -> dict[str, str]:
+    return {
+        "chancellor": "chancellor",
+        "grand_marshal": "grand_marshal",
+        "imperial_counsellor": "imperial_counsellor",
+        "emperor": "emperor",
+    }
+
+
+def test_config_accepts_qin_court_with_four_role_profiles() -> None:
+    data = config_data()
+    data["model_profiles"] = _qin_model_profiles()
+    data["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "qin_court",
+            "court_role_profiles": _qin_role_profiles(),
+        },
+        {"player_id": "b", "seat": 2},
+    ]
+
+    config = GameConfig.model_validate(data)
+
+    assert config.players[0].model_profile is None
+    profiles = config.players[0].court_role_profiles
+    assert isinstance(profiles, QinCourtRoleProfiles)
+    assert profiles.chancellor == "chancellor"
+    assert profiles.grand_marshal == "grand_marshal"
+    assert profiles.imperial_counsellor == "imperial_counsellor"
+    assert profiles.emperor == "emperor"
+
+
+def test_config_rejects_qin_court_without_role_profiles() -> None:
+    data = config_data()
+    data["players"] = [
+        {"player_id": "a", "seat": 1, "controller_type": "qin_court"},
+        {"player_id": "b", "seat": 2},
+    ]
+
+    with pytest.raises(ValidationError, match="requires court_role_profiles"):
+        GameConfig.model_validate(data)
+
+
+def test_config_rejects_qin_court_with_shang_role_profiles() -> None:
+    data = config_data()
+    data["model_profiles"] = {
+        "priest": {"provider": "mock", "model": "mock-priest-v1"},
+        "emperor": {"provider": "mock", "model": "mock-emperor-v1"},
+    }
+    data["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "qin_court",
+            "court_role_profiles": {"great_priest": "priest", "emperor": "emperor"},
+        },
+        {"player_id": "b", "seat": 2},
+    ]
+
+    with pytest.raises(ValidationError):
         GameConfig.model_validate(data)
 
 
