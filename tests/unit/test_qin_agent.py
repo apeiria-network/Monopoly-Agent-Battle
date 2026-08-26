@@ -135,7 +135,6 @@ def test_qin_counsellor_receives_performance_at_segment_boundary(tmp_path: Path)
         return "## 官员绩效\n最近1个回合中，丞相、太尉的决策较差。"
 
     agent = _agent(request, clients, performance)
-
     agent(request)
 
     counsellor_text = "\n".join(
@@ -147,6 +146,8 @@ def test_qin_counsellor_receives_performance_at_segment_boundary(tmp_path: Path)
     assert performance_pos < question_pos < options_pos
     assert "最近1个回合中，丞相、太尉的决策较差。" in counsellor_text
 
+
+def test_qin_counsellor_falls_back_after_validation_retries(tmp_path: Path) -> None:
     request = _request(tmp_path)
     clients = {
         "chancellor": StubClient([_choice(request)]),
@@ -167,6 +168,45 @@ def test_qin_counsellor_receives_performance_at_segment_boundary(tmp_path: Path)
     )
     emperor_text = "\n".join(message.content for message in clients["emperor"].requests[0].messages)
     assert "御史大夫多次重试失败，无法回复" in emperor_text
+
+
+def test_qin_adviser_retry_replays_validation_feedback(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    clients = {
+        "chancellor": StubClient(["{}", _choice(request, "重试成功")]),
+        "grand_marshal": StubClient([_choice(request)]),
+        "imperial_counsellor": StubClient([_comment()]),
+        "emperor": StubClient([_choice(request)]),
+    }
+    agent = _agent(request, clients)
+
+    agent(request)
+
+    retry_text = "\n".join(
+        message.content for message in clients["chancellor"].requests[1].messages
+    )
+    assert "{}" in retry_text
+    assert "Error:" in retry_text
+    assert "## 当前决策" in retry_text
+
+
+def test_qin_counsellor_retry_replays_validation_feedback(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    clients = {
+        "chancellor": StubClient([_choice(request)]),
+        "grand_marshal": StubClient([_choice(request)]),
+        "imperial_counsellor": StubClient(["{}", _comment()]),
+        "emperor": StubClient([_choice(request)]),
+    }
+    agent = _agent(request, clients)
+
+    agent(request)
+
+    retry_text = "\n".join(
+        message.content for message in clients["imperial_counsellor"].requests[1].messages
+    )
+    assert "{}" in retry_text
+    assert "御史大夫评价结构非法" in retry_text
 
 
 def test_qin_adviser_retries_before_defaulting(tmp_path: Path) -> None:

@@ -17,6 +17,7 @@ from monopoly_agent_battle.config.models import ModelProfile
 from monopoly_agent_battle.context.composer import compose_prompt
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.context.token_guard import ContextWarning
+from monopoly_agent_battle.context.validation_feedback import build_feedback
 from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.prompts import render_decision_question
 from monopoly_agent_battle.decision.protocol import default_option_json, parse_and_validate
@@ -176,12 +177,24 @@ class QinCourtAgent:
         validation = parse_and_validate(raw, request)
         attempts = 0
         while not validation.valid and attempts < self._validation_retries:
-            self._record_validation(role, request, raw, validation.error or "回复非法")
+            self._record_validation(
+                role,
+                request,
+                raw,
+                validation.error or "回复非法",
+                build_feedback(validation, request),
+            )
             raw = self._call(role, request, self._messages(role, request))
             validation = parse_and_validate(raw, request)
             attempts += 1
         if not validation.valid:
-            self._record_validation(role, request, raw, validation.error or "回复非法")
+            self._record_validation(
+                role,
+                request,
+                raw,
+                validation.error or "回复非法",
+                build_feedback(validation, request),
+            )
             default = next(option for option in request.options if option.is_default)
             normalized = json.dumps(
                 {"selected_option": default_option_json(default), "reason": _truncate(raw)},
@@ -208,12 +221,24 @@ class QinCourtAgent:
         parsed = _parse_counsellor(raw)
         attempts = 0
         while parsed is None and attempts < self._validation_retries:
-            self._record_validation(_COUNSELLOR, request, raw, "御史大夫评价结构非法")
+            self._record_validation(
+                _COUNSELLOR,
+                request,
+                raw,
+                "御史大夫评价结构非法",
+                "Error: 御史大夫评价结构非法，请按要求输出包含两项 assessments 的 JSON 对象。",
+            )
             raw = self._call(_COUNSELLOR, request, self._messages(_COUNSELLOR, request))
             parsed = _parse_counsellor(raw)
             attempts += 1
         if parsed is None:
-            self._record_validation(_COUNSELLOR, request, raw, "御史大夫评价结构非法")
+            self._record_validation(
+                _COUNSELLOR,
+                request,
+                raw,
+                "御史大夫评价结构非法",
+                "Error: 御史大夫评价结构非法，请按要求输出包含两项 assessments 的 JSON 对象。",
+            )
             parsed = _fallback_comment()
         self._responses[_COUNSELLOR] = parsed
         self._append_own_decision(_COUNSELLOR, request, parsed)
@@ -224,7 +249,13 @@ class QinCourtAgent:
         raw = self._call(_EMPEROR, request, messages)
         validation = parse_and_validate(raw, request)
         if not validation.valid:
-            self._record_validation(_EMPEROR, request, raw, validation.error or "回复非法")
+            self._record_validation(
+                _EMPEROR,
+                request,
+                raw,
+                validation.error or "回复非法",
+                build_feedback(validation, request),
+            )
             return raw
         assert validation.option is not None
         normalized = json.dumps(
@@ -311,7 +342,14 @@ class QinCourtAgent:
                 raw_content=raw,
             )
 
-    def _record_validation(self, role: str, request: DecisionRequest, raw: str, error: str) -> None:
+    def _record_validation(
+        self,
+        role: str,
+        request: DecisionRequest,
+        raw: str,
+        error: str,
+        feedback: str,
+    ) -> None:
         self._trace.append(
             QinCallTrace(
                 request.decision_id,
@@ -321,6 +359,12 @@ class QinCourtAgent:
                 raw,
                 error=error,
             )
+        )
+        self._conversations[role].append_error(
+            decision_id=request.decision_id,
+            question_summary=render_decision_question(request),
+            bad_reply=raw,
+            feedback_text=feedback,
         )
 
 
