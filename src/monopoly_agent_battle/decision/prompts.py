@@ -68,12 +68,13 @@ def render_system_prompt(
     role_instruction: str | None = None,
     output_guide: str | None = None,
 ) -> str:
-    """Render segments 1-3, with optional role-specific segment-1 text."""
+    """Render segments 1-3, with optional role-specific segment-1 and segment-3 text."""
+    output_section = output_guide or ("## 输出要求\n" + _OUTPUT_GUIDE)
     return "\n\n".join(
         (
             render_role(request, role_instruction),
             render_rules(),
-            "## 输出要求\n" + (output_guide or _OUTPUT_GUIDE),
+            output_section,
         )
     )
 

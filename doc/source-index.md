@@ -60,6 +60,17 @@
 | `performance/random_generator.py` | 独立生成当前阶段使用的官员绩效文本，按完整回合门槛向秦代御史大夫提供最近回合及最近多个回合的随机差评；不参与游戏引擎随机状态。 | 由 `QinCourtAgent` 注入御史大夫上下文。 |
 | `agents/random_baseline.py` | 可复现的完全随机非 LLM 控制器：从请求的合法候选及对应合法目标元组中选择，并生成标准决策 JSON；不依赖 Prompt、会话、LLM 客户端、模型配置或凭据。 | `play` 为每个 `random_baseline` 玩家注入独立稳定派生 RNG 后组装使用。 |
 
+### Agent 提示词文档（`src/monopoly_agent_battle/agents/agent_prompt_list/`）
+
+| 路径 | 用途 | 使用方式 |
+|---|---|---|
+| `normal_output_requirement.txt` | 秦代普通角色的段 3 通用 JSON 输出要求。 | 由 `agents/qin.py` 为丞相、太尉和皇帝加载；秦代手动渲染脚本同步加载。 |
+| `Qin/Qin_chancellor.txt` | 秦代丞相的段 1 角色身份与职责提示词。 | 由 `agents/qin.py` 和秦代手动渲染脚本加载。 |
+| `Qin/Qin_grand_marshal.txt` | 秦代太尉的段 1 角色身份与职责提示词。 | 由 `agents/qin.py` 和秦代手动渲染脚本加载。 |
+| `Qin/Qin_imperial_counsellor.txt` | 秦代御史大夫的段 1 角色身份与职责提示词。 | 由 `agents/qin.py` 和秦代手动渲染脚本加载。 |
+| `Qin/Qin_emperor.txt` | 秦代皇帝的段 1 角色身份与职责提示词。 | 由 `agents/qin.py` 和秦代手动渲染脚本加载。 |
+| `Qin/Qin_cousellor_output_requirement.txt` | 秦代御史大夫的专属段 3 JSON 评价输出要求。 | 由 `agents/qin.py` 和秦代手动渲染脚本为御史大夫加载。 |
+
 ## 历史上下文系统（`src/monopoly_agent_battle/context/`）
 
 | 路径 | 用途 | 使用方式 |

@@ -599,9 +599,11 @@ SCENARIO C: 秦代 imperial_counsellor
 
 ## 输出要求
 只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。
-- `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的待指定目标。
-- 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 `{"swap_in_position": 1, "swap_out_position": 3}`。
-- 不需要目标的选项若模型填了 `target`，按忽略处理。
+- `assessments` 必须是包含两项的 JSON 数组，分别评价丞相和太尉的意见。
+- 每项评价必须包含 `officer_id`、`judgement` 和 `reason`。
+- `officer_id` 只能填写 `"chancellor"` 或 `"grand_marshal"`，每个官员必须出现且只能出现一次。
+- `judgement` 只能填写 `"agree"`、`"disagree"` 或 `"neutral"`。
+- `reason` 填写对该官员意见的具体评价理由。
 
 --- Message 2 [user] ---
 ## 决策
@@ -682,6 +684,7 @@ SCENARIO C: 秦代 imperial_counsellor
 ]
 
 ## 御史大夫特殊候选项
+上述合法候选项为当前朝廷可选的候选项，并非你的候选项。请你以下列格式对其他官员的意见做出评价。
 {
   "assessments": [
     {
@@ -1557,9 +1560,11 @@ SCENARIO G: 秦代 imperial_counsellor
 
 ## 输出要求
 只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。
-- `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的待指定目标。
-- 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 `{"swap_in_position": 1, "swap_out_position": 3}`。
-- 不需要目标的选项若模型填了 `target`，按忽略处理。
+- `assessments` 必须是包含两项的 JSON 数组，分别评价丞相和太尉的意见。
+- 每项评价必须包含 `officer_id`、`judgement` 和 `reason`。
+- `officer_id` 只能填写 `"chancellor"` 或 `"grand_marshal"`，每个官员必须出现且只能出现一次。
+- `judgement` 只能填写 `"agree"`、`"disagree"` 或 `"neutral"`。
+- `reason` 填写对该官员意见的具体评价理由。
 
 --- Message 2 [user] ---
 ## 决策
@@ -1656,6 +1661,7 @@ SCENARIO G: 秦代 imperial_counsellor
 ]
 
 ## 御史大夫特殊候选项
+上述合法候选项为当前朝廷可选的候选项，并非你的候选项。请你以下列格式对其他官员的意见做出评价。
 {
   "assessments": [
     {

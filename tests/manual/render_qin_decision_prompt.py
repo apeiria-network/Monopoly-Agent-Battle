@@ -27,12 +27,27 @@ from monopoly_agent_battle.performance.random_generator import random_officer_pe
 _DIVIDER = "=" * 60
 _REPORT_PATH = Path("tests/manual/render_qin_decision_prompt_report.txt")
 _ROLES = ("chancellor", "grand_marshal", "imperial_counsellor", "emperor")
+_PROMPT_ROOT = (
+    Path(__file__).resolve().parents[2]
+    / "src"
+    / "monopoly_agent_battle"
+    / "agents"
+    / "agent_prompt_list"
+)
+
+
+def _load_prompt(relative_path: str) -> str:
+    return (_PROMPT_ROOT / relative_path).read_text(encoding="utf-8").strip()
+
+
 _ROLE_INSTRUCTIONS = {
-    "chancellor": "## 秦代角色\n你是秦代朝廷的丞相，独立提出对当前游戏决策的建议。",
-    "grand_marshal": "## 秦代角色\n你是秦代朝廷的太尉，独立提出对当前游戏决策的建议。",
-    "imperial_counsellor": "## 秦代角色\n你是秦代朝廷的御史大夫，分别评价丞相和太尉本次建议。",
-    "emperor": "## 秦代角色\n你是秦代朝廷的皇帝，综合朝廷意见并作出最终游戏决策。",
+    "chancellor": _load_prompt("Qin/Qin_chancellor.txt"),
+    "grand_marshal": _load_prompt("Qin/Qin_grand_marshal.txt"),
+    "imperial_counsellor": _load_prompt("Qin/Qin_imperial_counsellor.txt"),
+    "emperor": _load_prompt("Qin/Qin_emperor.txt"),
 }
+_NORMAL_OUTPUT_REQUIREMENT = _load_prompt("normal_output_requirement.txt")
+_COUNSELLOR_OUTPUT_REQUIREMENT = _load_prompt("Qin/Qin_cousellor_output_requirement.txt")
 _COUNSELLOR_SPECIAL_CONTEXT = """## 御史大夫特殊候选项
 上述合法候选项为当前朝廷可选的候选项，并非你的候选项。请你以下列格式对其他官员的意见做出评价。
 {
@@ -203,6 +218,11 @@ def _render(
         request,
         pre_decision_context=performance,
         role_instruction=_ROLE_INSTRUCTIONS[role],
+        segment3_prompt=(
+            _COUNSELLOR_OUTPUT_REQUIREMENT
+            if role == "imperial_counsellor"
+            else _NORMAL_OUTPUT_REQUIREMENT
+        ),
         post_decision_context=(
             _COUNSELLOR_SPECIAL_CONTEXT if role == "imperial_counsellor" else None
         ),
