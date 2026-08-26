@@ -48,6 +48,8 @@ def compose_prompt(
     request: DecisionRequest,
     *,
     pre_decision_context: str | None = None,
+    role_instruction: str | None = None,
+    post_decision_context: str | None = None,
 ) -> tuple[tuple[LLMMessage, ...], ContextWarning | None]:
     """Assemble the 10-segment prompt into a message list.
 
@@ -57,7 +59,12 @@ def compose_prompt(
     """
     messages: list[LLMMessage] = []
 
-    messages.append(LLMMessage(role="system", content=render_system_prompt(request)))
+    messages.append(
+        LLMMessage(
+            role="system",
+            content=render_system_prompt(request, role_instruction=role_instruction),
+        )
+    )
 
     buffer: list[str] = []
 
@@ -108,6 +115,8 @@ def compose_prompt(
             buffer.append(pre_decision_context)
 
     buffer.append(render_current_user_message(request))
+    if post_decision_context:
+        buffer.append(post_decision_context)
     messages.append(LLMMessage(role="user", content=_join(buffer)))
 
     return tuple(messages), conversation.segment3_warning

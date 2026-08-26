@@ -37,12 +37,27 @@ _FINAL = "final_decision"
 _MAX_REASON_CHARS = 400
 
 _ROLE_INSTRUCTIONS = {
-    _CHANCELLOR: "你是秦代朝廷的丞相，独立提出对当前游戏决策的建议。",
-    _GRAND_MARSHAL: "你是秦代朝廷的太尉，独立提出对当前游戏决策的建议。",
-    _COUNSELLOR: "你是秦代朝廷的御史大夫，分别评价丞相和太尉本次建议。",
-    _EMPEROR: "你是秦代朝廷的皇帝，综合朝廷意见并作出最终游戏决策。",
+    _CHANCELLOR: "## 秦代角色\n你是秦代朝廷的丞相，独立提出对当前游戏决策的建议。",
+    _GRAND_MARSHAL: "## 秦代角色\n你是秦代朝廷的太尉，独立提出对当前游戏决策的建议。",
+    _COUNSELLOR: "## 秦代角色\n你是秦代朝廷的御史大夫，分别评价丞相和太尉本次建议。",
+    _EMPEROR: "## 秦代角色\n你是秦代朝廷的皇帝，综合朝廷意见并作出最终游戏决策。",
 }
-_OUTPUT = "只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。"
+_COUNSELLOR_SPECIAL_CONTEXT = """## 御史大夫特殊候选项
+上述合法候选项为当前朝廷可选的候选项，并非你的候选项。请你以下列格式对其他官员的意见做出评价。
+{
+  "assessments": [
+    {
+      "officer_id": "chancellor",
+      "judgement": "agree | disagree | neutral",
+      "reason": "对丞相建议的具体评价理由。"
+    },
+    {
+      "officer_id": "grand_marshal",
+      "judgement": "agree | disagree | neutral",
+      "reason": "对太尉建议的具体评价理由。"
+    }
+  ]
+}"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,12 +330,11 @@ class QinCourtAgent:
             self._conversations[role],
             request,
             pre_decision_context=pre_decision_context,
+            role_instruction=_ROLE_INSTRUCTIONS[role],
+            post_decision_context=(_COUNSELLOR_SPECIAL_CONTEXT if role == _COUNSELLOR else None),
         )
         self._last_warning = warning
-        system = (
-            messages[0].content + "\n\n## 秦代角色\n" + _ROLE_INSTRUCTIONS[role] + "\n" + _OUTPUT
-        )
-        return (LLMMessage(role="system", content=system), *messages[1:])
+        return messages
 
     def _append_own_decision(self, role: str, request: DecisionRequest, raw: str) -> None:
         self._conversations[role].append_decision(
