@@ -21,6 +21,10 @@ from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.prompts import render_decision_question
 from monopoly_agent_battle.decision.protocol import default_option_json, parse_and_validate
 from monopoly_agent_battle.llm.protocol import LLMClient, LLMMessage, LLMRequest
+from monopoly_agent_battle.performance.random_generator import (
+    PerformanceGenerator,
+    random_officer_performance,
+)
 
 _CHANCELLOR = "chancellor"
 _GRAND_MARSHAL = "grand_marshal"
@@ -71,6 +75,7 @@ class QinCourtAgent:
         emperor_profile: ModelProfile,
         conversations: dict[str, AgentConversation],
         validation_retries: int = 2,
+        performance_generator: PerformanceGenerator = random_officer_performance,
     ) -> None:
         self._player_id = player_id
         self._clients = {
@@ -87,6 +92,7 @@ class QinCourtAgent:
         }
         self._conversations = conversations
         self._validation_retries = validation_retries
+        self._performance_generator = performance_generator
         self._decision_id: str | None = None
         self._responses: dict[str, str] = {}
         self._trace: list[QinCallTrace] = []
@@ -273,7 +279,12 @@ class QinCourtAgent:
         return response.content
 
     def _messages(self, role: str, request: DecisionRequest) -> tuple[LLMMessage, ...]:
-        messages, warning = compose_prompt(self._conversations[role], request)
+        pre_decision_context = self._performance_generator(request) if role == _COUNSELLOR else None
+        messages, warning = compose_prompt(
+            self._conversations[role],
+            request,
+            pre_decision_context=pre_decision_context,
+        )
         self._last_warning = warning
         system = (
             messages[0].content + "\n\n## 秦代角色\n" + _ROLE_INSTRUCTIONS[role] + "\n" + _OUTPUT

@@ -56,7 +56,8 @@
 | `llm/registry.py` | 按供应商别名注册/创建客户端（可插拔适配器）。 | `register_client_factory`/`create_client`；4A 仅注册 `"mock"`。 |
 | `agents/baseline.py` | BaselineAgent（Stage 4D）：每次决策由 `compose_prompt()` 构造完整消息列表；段 3 告警仅作私有运行时记录，不进入 LLM 消息；标记为 LLM 控制器供运行器计量。 | 由 `play`/实验组装为 `DispatchController` 输入。 |
 | `agents/shang.py` | 商代双角色 CourtAgent：大祭司仅根据当前问题生成神谕，皇帝结合既有上下文和神谕作出最终协议回复；支持分阶段重试与私有审计。提示词为暂定版本，待人工重写审核。 | `play` 为 `shang_court` 玩家组装使用。 |
-| `agents/qin.py` | 秦代四角色 CourtAgent：丞相与太尉并行独立进言，御史大夫用 `judgement` 综合评价两者本次建议，皇帝最后裁决并产出唯一引擎决策；朝廷内部消息按第 5 段可见性投递，角色非法输出按角色分别重试并安全回退，最终决策由运行器统一广播。提示词为暂定版本，待人工重写审核。 | `play` 为 `qin_court` 玩家组装使用。 |
+| `agents/qin.py` | 秦代四角色 CourtAgent：丞相与太尉并行独立进言，御史大夫读取官员绩效并用 `judgement` 综合评价两者本次建议，皇帝最后裁决并产出唯一引擎决策；朝廷内部消息按第 5 段可见性投递，绩效位于第 5 段末尾、段 6 当前决策信息之前；角色非法输出按角色分别重试并安全回退，最终决策由运行器统一广播。提示词为暂定版本，待人工重写审核。 | `play` 为 `qin_court` 玩家组装使用。 |
+| `performance/random_generator.py` | 独立生成当前阶段使用的官员绩效文本，按完整回合门槛向秦代御史大夫提供最近回合及最近多个回合的随机差评；不参与游戏引擎随机状态。 | 由 `QinCourtAgent` 注入御史大夫上下文。 |
 | `agents/random_baseline.py` | 可复现的完全随机非 LLM 控制器：从请求的合法候选及对应合法目标元组中选择，并生成标准决策 JSON；不依赖 Prompt、会话、LLM 客户端、模型配置或凭据。 | `play` 为每个 `random_baseline` 玩家注入独立稳定派生 RNG 后组装使用。 |
 
 ## 历史上下文系统（`src/monopoly_agent_battle/context/`）

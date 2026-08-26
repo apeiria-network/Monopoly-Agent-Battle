@@ -12,6 +12,7 @@ from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.protocol import LLMRequest, LLMResponse, UsageMetrics
+from monopoly_agent_battle.performance.random_generator import random_officer_performance
 
 
 class StubClient:
@@ -67,7 +68,11 @@ def _comment() -> str:
     )
 
 
-def _agent(request: DecisionRequest, clients: dict[str, StubClient]) -> QinCourtAgent:
+def _agent(
+    request: DecisionRequest,
+    clients: dict[str, StubClient],
+    performance_generator: Any = random_officer_performance,
+) -> QinCourtAgent:
     profiles = {
         role: ModelProfile(provider="mock", model=f"{role}-model")
         for role in ("chancellor", "grand_marshal", "imperial_counsellor", "emperor")
@@ -86,6 +91,7 @@ def _agent(request: DecisionRequest, clients: dict[str, StubClient]) -> QinCourt
         emperor_client=clients["emperor"],
         emperor_profile=profiles["emperor"],
         conversations=conversations,
+        performance_generator=performance_generator,
     )
 
 
@@ -116,7 +122,31 @@ def test_qin_call_order_and_segment_five_visibility(tmp_path: Path) -> None:
     assert "judgement" in emperor_text
 
 
-def test_qin_counsellor_falls_back_after_validation_retries(tmp_path: Path) -> None:
+def test_qin_counsellor_receives_performance_at_segment_boundary(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    clients = {
+        "chancellor": StubClient([_choice(request, "丞相意见")]),
+        "grand_marshal": StubClient([_choice(request, "太尉意见")]),
+        "imperial_counsellor": StubClient([_comment()]),
+        "emperor": StubClient([_choice(request, "皇帝裁决")]),
+    }
+
+    def performance(_: DecisionRequest) -> str:
+        return "## 官员绩效\n最近1个回合中，丞相、太尉的决策较差。"
+
+    agent = _agent(request, clients, performance)
+
+    agent(request)
+
+    counsellor_text = "\n".join(
+        message.content for message in clients["imperial_counsellor"].requests[0].messages
+    )
+    performance_pos = counsellor_text.index("## 官员绩效")
+    question_pos = counsellor_text.index("## 当前决策")
+    options_pos = counsellor_text.index("## 合法候选操作")
+    assert performance_pos < question_pos < options_pos
+    assert "最近1个回合中，丞相、太尉的决策较差。" in counsellor_text
+
     request = _request(tmp_path)
     clients = {
         "chancellor": StubClient([_choice(request)]),
