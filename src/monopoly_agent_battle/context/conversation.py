@@ -157,14 +157,25 @@ class AgentConversation:
         self.current_turn.entries.append(EventEntry(event=event, complete_round=complete_round))
 
     def append_decision(
-        self, *, decision_id: str, question_summary: str, assistant_reply: str
+        self,
+        *,
+        decision_id: str,
+        question_summary: str,
+        assistant_reply: str,
+        allow_duplicate_decision_id: bool = False,
     ) -> None:
-        """Record a completed decision (question summary + assistant reply)."""
+        """Record a completed decision reply.
+
+        External decisions remain idempotent by default. A court workflow may
+        explicitly append several replies under the same external decision ID
+        when one role speaks in multiple rounds; keeping the shared ID lets the
+        composer render the historical question only once.
+        """
         if self.current_turn is None:
             raise RuntimeError(
                 "append_decision called before start_turn; conversation has no active turn"
             )
-        if any(
+        if not allow_duplicate_decision_id and any(
             isinstance(entry, DecisionEntry) and entry.decision_id == decision_id
             for turn in (*self.completed_turns, self.current_turn)
             for entry in turn.entries

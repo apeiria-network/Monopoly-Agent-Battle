@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from monopoly_agent_battle.agents.tang import TangCourtAgent
 from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
 from monopoly_agent_battle.context.conversation import AgentConversation
-from monopoly_agent_battle.decision.prompts import options_from_prompt, render_decision_question
+from monopoly_agent_battle.decision.prompts import options_from_prompt
 from monopoly_agent_battle.decision.protocol import command_from_option, parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import TurnPhase
@@ -130,14 +130,7 @@ def _capture_same_turn_second(
     agent, clients = _make_agent(first_reviews, conversations)
     first_request = build_decision_request(engine, sequence=1)
     first_reply = agent(first_request)
-
-    conversations["emperor"].append_decision(
-        decision_id=first_request.decision_id,
-        question_summary=render_decision_question(first_request),
-        assistant_reply=first_reply,
-    )
     agent.record_final_decision(first_request, first_reply)
-
     validation = parse_and_validate(first_reply, first_request)
     if not validation.valid or validation.option is None:
         raise AssertionError("first Tang decision must be a valid engine decision")

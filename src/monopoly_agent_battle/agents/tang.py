@@ -169,6 +169,11 @@ class TangCourtAgent:
                     content_type=content_type,
                     raw_content=raw,
                 )
+        self._conversations[_EMPEROR].append_decision(
+            decision_id=request.decision_id,
+            question_summary=render_decision_question(request),
+            assistant_reply=reply,
+        )
         self._deliver(request, _EMPEROR, _FINAL, reply, {_ZHONGSHU, _MENXIA})
 
     def __call__(self, request: DecisionRequest, feedback: str | None = None) -> str:
@@ -400,6 +405,7 @@ class TangCourtAgent:
             decision_id=request.decision_id,
             question_summary=render_decision_question(request),
             assistant_reply=raw,
+            allow_duplicate_decision_id=True,
         )
 
     def _deliver(

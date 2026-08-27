@@ -1598,6 +1598,10 @@ SCENARIO 8: 同一行动回合第二次决策：中书省回看两轮抵押决�
 --- Message 4 [user] ---
 {"reason":"第1轮审核意见","selected_option":{"option":"disagree"},"decision_maker":"menxia","content_type":"review"}
 
+--- Message 5 [assistant] ---
+{"selected_option": {"option": "mortgage", "position": 1}, "reason": "zhongshu第2次意见"}
+
+--- Message 6 [user] ---
 {"reason":"第2轮审核意见","selected_option":{"option":"agree"},"decision_maker":"menxia","content_type":"review"}
 
 {"reason":"emperor第1次意见","selected_option":{"option":"mortgage","target":1},"decision_maker":"emperor","content_type":"final_decision"}
@@ -1820,6 +1824,10 @@ SCENARIO 9: 同一行动回合第二次决策：门下省审核抵押后的资�
 --- Message 4 [user] ---
 {"selected_option":{"option":"mortgage","position":1},"reason":"zhongshu第2次意见","decision_maker":"zhongshu","content_type":"draft"}
 
+--- Message 5 [assistant] ---
+{"reason": "第2轮审核意见", "selected_option": {"option": "agree"}}
+
+--- Message 6 [user] ---
 {"reason":"emperor第1次意见","selected_option":{"option":"mortgage","target":1},"decision_maker":"emperor","content_type":"final_decision"}
 
 [第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。

@@ -23,7 +23,7 @@ class Stub:
         return LLMResponse(self.responses.pop(0), UsageMetrics(1, 1), request.model)
 
 
-def request(tmp_path: Path) -> DecisionRequest:
+def request(tmp_path: Path, sequence: int = 1) -> DecisionRequest:
     config = GameConfig(
         game_id="tang-unit",
         experiment_id="tang-unit",
@@ -36,7 +36,7 @@ def request(tmp_path: Path) -> DecisionRequest:
     )
     engine = GameEngine(config)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
-    return build_decision_request(engine, sequence=1)
+    return build_decision_request(engine, sequence=sequence)
 
 
 def choice(req: DecisionRequest, reason: str = "意见") -> str:
@@ -92,8 +92,6 @@ def test_tang_three_disagree_has_no_fourth_round(tmp_path: Path) -> None:
     emperor_prompt = "\n".join(
         message.content for message in clients["emperor"].requests[0].messages
     )
-    assert '"decision_maker": "zhongshu"' in emperor_prompt
-    assert '"content_type": "draft"' in emperor_prompt
     assert emperor_prompt.count('"decision_maker": "zhongshu"') == 3
     assert emperor_prompt.count('"content_type": "draft"') == 3
     assert "第3轮中书省草案" not in emperor_prompt
@@ -102,12 +100,54 @@ def test_tang_three_disagree_has_no_fourth_round(tmp_path: Path) -> None:
 
 def test_tang_menxia_non_object_json_retries_and_falls_back(tmp_path: Path) -> None:
     req = request(tmp_path)
-    invalid = ["[]", '"invalid"', "123", "null"]
-    for raw in invalid:
+    for raw in ["[]", '"invalid"', "123", "null"]:
         agent, clients = make(req, tmp_path, [raw] * 9)
-        result = json.loads(agent(req))
-        assert result["reason"] == "终裁"
+        assert json.loads(agent(req))["reason"] == "终裁"
         assert len(clients["menxia"].requests) == 9
+
+
+def test_tang_previous_decision_second_round_replays_as_assistant(tmp_path: Path) -> None:
+    first = request(tmp_path, sequence=1)
+    second = request(tmp_path, sequence=2)
+    clients = {
+        "zhongshu": Stub(
+            [choice(first, "草案1"), choice(first, "草案2"), choice(second, "新草案")]
+        ),
+        "menxia": Stub([review("disagree"), review("agree"), review("agree")]),
+        "emperor": Stub([choice(first, "终裁1"), choice(second, "终裁2")]),
+    }
+    profiles = {role: ModelProfile(provider="mock", model=f"{role}-model") for role in clients}
+    conversations = {
+        role: AgentConversation(agent_id=f"a.{role}", window_turns=1) for role in clients
+    }
+    agent = TangCourtAgent(
+        player_id="a",
+        zhongshu_client=clients["zhongshu"],
+        zhongshu_profile=profiles["zhongshu"],
+        menxia_client=clients["menxia"],
+        menxia_profile=profiles["menxia"],
+        emperor_client=clients["emperor"],
+        emperor_profile=profiles["emperor"],
+        conversations=conversations,
+    )
+    first_emperor_reply = agent(first)
+    agent.record_final_decision(first, first_emperor_reply)
+    agent(second)
+    zhongshu_assistants = [
+        m.content for m in clients["zhongshu"].requests[-1].messages if m.role == "assistant"
+    ]
+    menxia_assistants = [
+        m.content for m in clients["menxia"].requests[-1].messages if m.role == "assistant"
+    ]
+    assert any("草案2" in content for content in zhongshu_assistants)
+    assert any("审核意见" in content and "agree" in content for content in menxia_assistants)
+
+    zhongshu_history = "\n".join(m.content for m in clients["zhongshu"].requests[-1].messages)
+    menxia_history = "\n".join(m.content for m in clients["menxia"].requests[-1].messages)
+    assert '"decision_maker":"emperor"' in zhongshu_history
+    assert '"content_type":"final_decision"' in zhongshu_history
+    assert '"decision_maker":"emperor"' in menxia_history
+    assert '"content_type":"final_decision"' in menxia_history
 
 
 def test_tang_record_final_decision_is_idempotent(tmp_path: Path) -> None:

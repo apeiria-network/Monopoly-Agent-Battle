@@ -109,7 +109,37 @@ def test_adjacent_events_share_one_event_block_with_single_newlines(tmp_path: Pa
     assert "合法候选操作" in trailing_user.content
 
 
-def test_error_entry_appended_as_assistant_and_user(tmp_path: Path) -> None:
+def test_same_decision_id_folds_question_but_keeps_multiple_assistants(tmp_path: Path) -> None:
+    engine = _make_engine(tmp_path)
+    conv = AgentConversation(agent_id="a", window_turns=1)
+    conv.start_turn(1)
+    question = "## 当前决策\n同一决策问题"
+    conv.append_decision(
+        decision_id="d1",
+        question_summary=question,
+        assistant_reply="draft-1",
+        allow_duplicate_decision_id=True,
+    )
+    conv.append_decision(
+        decision_id="d1",
+        question_summary=question,
+        assistant_reply="draft-2",
+        allow_duplicate_decision_id=True,
+    )
+    request = build_decision_request(engine, sequence=2)
+    messages, _warning = compose_prompt(conv, request)
+    assert [message.role for message in messages] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert messages[1].content.count("## 决策") == 1
+    assert messages[2].content == "draft-1"
+    assert messages[4].content == "draft-2"
+
     engine = _make_engine(tmp_path)
     conv = AgentConversation(agent_id="a", window_turns=1)
     conv.start_turn(1)

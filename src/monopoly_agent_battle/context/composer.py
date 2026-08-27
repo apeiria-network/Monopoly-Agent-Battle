@@ -85,6 +85,12 @@ def compose_prompt(
                 buffer.append("\n".join(event_lines))
                 event_lines.clear()
 
+        def ensure_history_question(decision_id: str, question_summary: str) -> None:
+            nonlocal last_flushed_decision_id
+            if decision_id != last_flushed_decision_id:
+                buffer.append(_render_replay_question(question_summary))
+                last_flushed_decision_id = decision_id
+
         for entry in conversation.current_turn.entries:
             if isinstance(entry, EventEntry):
                 sentence = render_event(entry.event, conversation.agent_id)
@@ -92,25 +98,19 @@ def compose_prompt(
                     event_lines.append(f"[第{entry.complete_round}轮] {sentence}")
             elif isinstance(entry, ErrorEntry):
                 flush_event_block()
-                if entry.decision_id != last_flushed_decision_id:
-                    buffer.append(_render_replay_question(entry.question_summary))
-                    last_flushed_decision_id = entry.decision_id
+                ensure_history_question(entry.decision_id, entry.question_summary)
                 messages.append(LLMMessage(role="user", content=_join(buffer)))
                 buffer.clear()
                 messages.append(LLMMessage(role="assistant", content=entry.bad_reply))
                 buffer.append(entry.feedback_text)
             elif isinstance(entry, InternalDecisionEntry):
                 flush_event_block()
-                if entry.decision_id != last_flushed_decision_id:
-                    buffer.append(_render_replay_question(entry.question_summary))
-                    last_flushed_decision_id = entry.decision_id
+                ensure_history_question(entry.decision_id, entry.question_summary)
                 buffer.append(_render_internal_decision(entry))
             else:
                 assert isinstance(entry, DecisionEntry)
                 flush_event_block()
-                if entry.decision_id != last_flushed_decision_id:
-                    buffer.append(_render_replay_question(entry.question_summary))
-                    last_flushed_decision_id = entry.decision_id
+                ensure_history_question(entry.decision_id, entry.question_summary)
                 messages.append(LLMMessage(role="user", content=_join(buffer)))
                 buffer.clear()
                 messages.append(LLMMessage(role="assistant", content=entry.assistant_reply))
