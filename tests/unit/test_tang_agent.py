@@ -92,7 +92,11 @@ def test_tang_three_disagree_has_no_fourth_round(tmp_path: Path) -> None:
     emperor_prompt = "\n".join(
         message.content for message in clients["emperor"].requests[0].messages
     )
-    assert "第3轮中书省草案" in emperor_prompt
+    assert '"decision_maker": "zhongshu"' in emperor_prompt
+    assert '"content_type": "draft"' in emperor_prompt
+    assert emperor_prompt.count('"decision_maker": "zhongshu"') == 3
+    assert emperor_prompt.count('"content_type": "draft"') == 3
+    assert "第3轮中书省草案" not in emperor_prompt
     assert "第4轮" not in emperor_prompt
 
 

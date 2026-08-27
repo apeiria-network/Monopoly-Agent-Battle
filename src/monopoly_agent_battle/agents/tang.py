@@ -43,7 +43,17 @@ _MENXIA_OPTIONS = """## 门下省特殊候选项
 门下省只审核中书省草案，不选择游戏操作。请在以下候选中选择一个：
 - agree：认可草案，提交皇帝裁决
 - disagree：否决草案，退回中书省重拟
-返回 selected_option.option，且不得填写 target。"""
+返回 selected_option.option，且不得填写 target，不得添加其他字段。
+
+示例：
+{
+  "reason": "审核该草案的理由。",
+  "selected_option": {
+    "option": "agree"
+  }
+}
+
+将 selected_option.option 改为 disagree 即表示否决。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -373,11 +383,7 @@ class TangCourtAgent:
                 and all(x.verdict == "disagree" for x in self._rounds)
                 else self._rounds[-1:]
             )
-            pre = _trusted_round_context(
-                rounds, 1 if len(rounds) == _MAX_ROUNDS else len(self._rounds)
-            )
-        elif role == _MENXIA and self._current_draft is not None:
-            pre = "## 当前中书省草案\n" + self._current_draft
+            pre = _trusted_round_context(rounds)
         messages, warning = compose_prompt(
             self._conversations[role],
             request,
@@ -445,7 +451,7 @@ def _truncate(value: str) -> str:
 
 def _trusted_round_context(rounds: list[_Round], start_round: int = 1) -> str:
     chunks: list[str] = []
-    for i, item in enumerate(rounds, start_round):
+    for item in rounds:
         for role, content_type, raw in (
             (_ZHONGSHU, _DRAFT, item.draft),
             (_MENXIA, _REVIEW, item.review),
@@ -464,8 +470,7 @@ def _trusted_round_context(rounds: list[_Round], start_round: int = 1) -> str:
                     "decision_maker": role,
                     "content_type": content_type,
                 }
-            heading = "中书省草案" if content_type == _DRAFT else "门下省审核"
-            chunks.append(f"## 第{i}轮{heading}\n" + json.dumps(rendered, ensure_ascii=False))
+            chunks.append(json.dumps(rendered, ensure_ascii=False))
     return "\n\n".join(chunks)
 
 
