@@ -9,6 +9,7 @@
 | `configs/games/phase0_demo.yaml` | 四玩家 Level 0 示例对局配置。 | 作为 `demo --config` 的输入。 |
 | `configs/games/phase4_mock_demo.yaml` | 四玩家 Mock LLM baseline 对局配置（`provider: mock`，无凭据）。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/shang_court_mock_demo.yaml` | 商代双角色朝廷的无凭据短局配置：一名 `shang_court` 玩家分别绑定 `mock-priest` 与 `mock-emperor`，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
+| `configs/games/tang_court_mock_demo.yaml` | 唐代三角色朝廷的无凭据短局配置：一名 `tang_court` 玩家分别绑定中书省、门下省与皇帝的 Mock 模型，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/random_baseline_demo.yaml` | 四玩家完全随机、非 LLM 的 Level 0 示例配置；显式使用 `controller_type: random_baseline`，不含 `model_profiles`。 | 作为 `monopoly-agent-battle play --config` 的输入；不产生 LLM 调用产物。 |
 | `src/monopoly_agent_battle/config/models.py` | 定义并校验单局配置、控制器类型及模型绑定；朝廷各个官员 profile，均参与配置哈希与校验。 | 由配置加载器和对局入口调用。 |
 | `src/monopoly_agent_battle/config/loader.py` | 加载 YAML 配置，生成规范 JSON 及 SHA-256 `config_hash`。 | 由 CLI 或实验编排调用。 |
@@ -57,6 +58,7 @@
 | `agents/baseline.py` | BaselineAgent（Stage 4D）：每次决策由 `compose_prompt()` 构造完整消息列表；段 3 告警仅作私有运行时记录，不进入 LLM 消息；标记为 LLM 控制器供运行器计量。 | 由 `play`/实验组装为 `DispatchController` 输入。 |
 | `agents/shang.py` | 商代双角色 CourtAgent：大祭司仅根据当前问题生成神谕，皇帝结合既有上下文和神谕作出最终协议回复；支持分阶段重试与私有审计。提示词为暂定版本，待人工重写审核。 | `play` 为 `shang_court` 玩家组装使用。 |
 | `agents/qin.py` | 秦代四角色 CourtAgent：丞相与太尉并行独立进言，御史大夫读取官员绩效并用 `judgement` 综合评价两者本次建议，皇帝最后裁决并产出唯一引擎决策；朝廷内部消息按第 5 段可见性投递，绩效位于第 5 段末尾、段 6 当前决策信息之前；角色非法输出按角色分别重试并安全回退，最终决策由运行器统一广播。提示词为暂定版本，待人工重写审核。 | `play` 为 `qin_court` 玩家组装使用。 |
+| `agents/tang.py` | 唐代三角色 CourtAgent：中书省起草、门下省审核、皇帝终裁；最多三轮，皇帝按否决次数读取最后一轮或完整三轮内部记录。内部消息使用可信角色元数据，门下省严格限制为 `agree` / `disagree` 审核 JSON，非法输出按角色重试并安全回退。 | `play` 为 `tang_court` 玩家组装使用。 |
 | `performance/random_generator.py` | 独立生成当前阶段使用的官员绩效文本，按完整回合门槛向秦代御史大夫提供最近回合及最近多个回合的随机差评；不参与游戏引擎随机状态。 | 由 `QinCourtAgent` 注入御史大夫上下文。 |
 | `agents/random_baseline.py` | 可复现的完全随机非 LLM 控制器：从请求的合法候选及对应合法目标元组中选择，并生成标准决策 JSON；不依赖 Prompt、会话、LLM 客户端、模型配置或凭据。 | `play` 为每个 `random_baseline` 玩家注入独立稳定派生 RNG 后组装使用。 |
 
@@ -70,6 +72,8 @@
 | `Qin/Qin_imperial_counsellor.txt` | 秦代御史大夫的段 1 角色身份与职责提示词。 | 由 `agents/qin.py` 和秦代手动渲染脚本加载。 |
 | `Qin/Qin_emperor.txt` | 秦代皇帝的段 1 角色身份与职责提示词。 | 由 `agents/qin.py` 和秦代手动渲染脚本加载。 |
 | `Qin/Qin_cousellor_output_requirement.txt` | 秦代御史大夫的专属段 3 JSON 评价输出要求。 | 由 `agents/qin.py` 和秦代手动渲染脚本为御史大夫加载。 |
+| `Tang/Tang_zhongshu.txt` / `Tang/Tang_menxia.txt` / `Tang/Tang_emperor.txt` | 唐代中书省、门下省和皇帝的角色身份提示词。 | 由 `agents/tang.py` 加载。 |
+| `Tang/Tang_menxia_output_requirement.txt` | 唐代门下省专属审核 JSON 输出要求，仅允许 `agree` 或 `disagree`，不含 `target`。 | 由 `agents/tang.py` 为门下省加载。 |
 
 ## 历史上下文系统（`src/monopoly_agent_battle/context/`）
 
@@ -97,6 +101,8 @@
 | `tests/unit/test_decision_protocol.py` | 决策可见性隔离、`current_space.rent` 仅未付金额、实际决策阶段候选项、普通流程拒绝创建请求、响应 schema 拒绝、Prompt 审计字段隔离、监狱多选项、付款上下文不暴露内部操作 ID、抢夺选卡期间的临时目标手牌可见性及选后恢复隔离、候选 `response_format` 渲染、随机 baseline 复用的合法多字段目标 JSON 编码，以及 Prompt 自然语言渲染（角色目标、你的状态、其他玩家状态、棋盘状态表、同盟与剩余监狱回合数）。 | `python -m pytest tests/unit/test_decision_protocol.py` |
 | `tests/unit/test_shang_agent.py` / `tests/integration/test_shang_runner.py` | 商代角色边界、分阶段重试、私有 trace、LLM 计量、隐私隔离与回放验证。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_shang_agent.py tests/integration/test_shang_runner.py` |
 | `tests/unit/test_qin_agent.py` | 秦代四角色调用顺序与第 5 段内部消息可见性、御史大夫结构校验重试与 neutral 安全回退、丞相/太尉角色级重试与默认回退、当前决策隐藏皇帝最终裁决、最终决策幂等广播。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_qin_agent.py` |
+| `tests/unit/test_tang_agent.py` | 唐代三角色串行调用、三轮上限、门下省非对象/非法 JSON 安全重试与回退，以及最终决策幂等广播。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_tang_agent.py` |
+| `tests/integration/test_tang_runner.py` | 唐代运行器集成、连接失败、审计产物、court trace 和 `verify_run()` 回放验证。 | `.venv/Scripts/python.exe -m pytest tests/integration/test_tang_runner.py` |
 | `tests/unit/test_random_baseline.py` | 完全随机非 LLM 控制器的确定性响应序列、协议合法性、合法多字段目标编码和非 LLM 计量标识。 | `python -m pytest tests/unit/test_random_baseline.py` |
 | `tests/integration/test_random_baseline_runner.py` | 纯随机和随机/Mock-LLM 混合完整对局：审计、回放、跨运行复现、无 LLM 产物、LLM 计量隔离及连接失败阈值。 | `python -m pytest tests/integration/test_random_baseline_runner.py` |
 | `tests/integration/test_decision_runner.py` | 决策驱动完整对局、自动普通掷骰事件审计/回放、监狱掷骰 Prompt 选择、监狱等待的自动推进、连接重试、回退及原始校验错误保留。 | `python -m pytest tests/integration/test_decision_runner.py` |

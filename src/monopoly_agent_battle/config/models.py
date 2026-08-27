@@ -40,6 +40,16 @@ class QinCourtRoleProfiles(BaseModel):
     emperor: str = Field(min_length=1)
 
 
+class TangCourtRoleProfiles(BaseModel):
+    """Independent model-profile bindings for the three Tang court roles."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    zhongshu: str = Field(min_length=1)
+    menxia: str = Field(min_length=1)
+    emperor: str = Field(min_length=1)
+
+
 class PlayerConfig(BaseModel):
     """A player assigned to one distinct seat."""
 
@@ -51,9 +61,11 @@ class PlayerConfig(BaseModel):
         default=None, description="key into GameConfig.model_profiles; None means no LLM"
     )
     controller_type: (
-        Literal["llm_baseline", "random_baseline", "shang_court", "qin_court"] | None
+        Literal["llm_baseline", "random_baseline", "shang_court", "qin_court", "tang_court"] | None
     ) = None
-    court_role_profiles: ShangCourtRoleProfiles | QinCourtRoleProfiles | None = None
+    court_role_profiles: (
+        ShangCourtRoleProfiles | QinCourtRoleProfiles | TangCourtRoleProfiles | None
+    ) = None
 
 
 class GameConfig(BaseModel):
@@ -149,6 +161,16 @@ class GameConfig(BaseModel):
                     msg = (
                         f"Qin court player {player.player_id} "
                         "requires court_role_profiles of Qin roles"
+                    )
+                    raise ValueError(msg)
+            elif player.controller_type == "tang_court":
+                if player.model_profile is not None:
+                    msg = f"Tang court player {player.player_id} must not set model_profile"
+                    raise ValueError(msg)
+                if not isinstance(player.court_role_profiles, TangCourtRoleProfiles):
+                    msg = (
+                        f"Tang court player {player.player_id} "
+                        "requires court_role_profiles of Tang roles"
                     )
                     raise ValueError(msg)
             elif player.court_role_profiles is not None:
