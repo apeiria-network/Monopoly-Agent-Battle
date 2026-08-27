@@ -744,7 +744,7 @@ def test_prompt_static_board_reference_lists_all_40_spaces(tmp_path: Path) -> No
     rules_text = render_rules()
 
     ref_block = block(rules_text, "棋盘布局参考", ("## ",))
-    positions = sorted(int(p) for p in re.findall(r"^\| (\d+) \|", ref_block, flags=re.M))
+    positions = sorted(int(p) for p in re.findall(r"^\|\s*(\d+)\s*\|", ref_block, flags=re.M))
     # All 40 spaces (0-39) are listed: 22 streets + 4 railroads + 2 utilities
     # + 12 non-property spaces (GO/Chance×3/Community Chest×3/Tax×2/Jail/
     # Free Parking/Go To Jail).

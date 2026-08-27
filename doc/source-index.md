@@ -9,6 +9,7 @@
 | `configs/games/phase0_demo.yaml` | 四玩家 Level 0 示例对局配置。 | 作为 `demo --config` 的输入。 |
 | `configs/games/phase4_mock_demo.yaml` | 四玩家 Mock LLM baseline 对局配置（`provider: mock`，无凭据）。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/shang_court_mock_demo.yaml` | 商代双角色朝廷的无凭据短局配置：一名 `shang_court` 玩家分别绑定 `mock-priest` 与 `mock-emperor`，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
+| `configs/games/tang_court_mock_demo.yaml` | 唐代三角色朝廷的无凭据短局配置：一名 `tang_court` 玩家分别绑定中书省、门下省与皇帝的 Mock 模型，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/random_baseline_demo.yaml` | 四玩家完全随机、非 LLM 的 Level 0 示例配置；显式使用 `controller_type: random_baseline`，不含 `model_profiles`。 | 作为 `monopoly-agent-battle play --config` 的输入；不产生 LLM 调用产物。 |
 | `src/monopoly_agent_battle/config/models.py` | 定义并校验单局配置、控制器类型及模型绑定；朝廷各个官员 profile，均参与配置哈希与校验。 | 由配置加载器和对局入口调用。 |
 | `src/monopoly_agent_battle/config/loader.py` | 加载 YAML 配置，生成规范 JSON 及 SHA-256 `config_hash`。 | 由 CLI 或实验编排调用。 |
@@ -57,6 +58,7 @@
 | `agents/baseline.py` | BaselineAgent（Stage 4D）：每次决策由 `compose_prompt()` 构造完整消息列表；段 3 告警仅作私有运行时记录，不进入 LLM 消息；标记为 LLM 控制器供运行器计量。 | 由 `play`/实验组装为 `DispatchController` 输入。 |
 | `agents/shang.py` | 商代双角色 CourtAgent：大祭司仅根据当前问题生成神谕，皇帝结合既有上下文和神谕作出最终协议回复；支持分阶段重试与私有审计。提示词为暂定版本，待人工重写审核。 | `play` 为 `shang_court` 玩家组装使用。 |
 | `agents/qin.py` | 秦代四角色 CourtAgent：丞相与太尉并行独立进言，御史大夫读取官员绩效并用 `judgement` 综合评价两者本次建议，皇帝最后裁决并产出唯一引擎决策；朝廷内部消息按第 5 段可见性投递，绩效位于第 5 段末尾、段 6 当前决策信息之前；角色非法输出按角色分别重试并安全回退，最终决策由运行器统一广播。提示词为暂定版本，待人工重写审核。 | `play` 为 `qin_court` 玩家组装使用。 |
+| `agents/tang.py` | 唐代三角色 CourtAgent：中书省起草、门下省审核、皇帝终裁；最多三轮，皇帝按否决次数读取最后一轮或完整三轮内部记录。内部消息使用可信角色元数据，门下省严格限制为 `agree` / `disagree` 审核 JSON，非法输出按角色重试并安全回退。 | `play` 为 `tang_court` 玩家组装使用。 |
 | `performance/random_generator.py` | 独立生成当前阶段使用的官员绩效文本，按完整回合门槛向秦代御史大夫提供最近回合及最近多个回合的随机差评；不参与游戏引擎随机状态。 | 由 `QinCourtAgent` 注入御史大夫上下文。 |
 | `agents/random_baseline.py` | 可复现的完全随机非 LLM 控制器：从请求的合法候选及对应合法目标元组中选择，并生成标准决策 JSON；不依赖 Prompt、会话、LLM 客户端、模型配置或凭据。 | `play` 为每个 `random_baseline` 玩家注入独立稳定派生 RNG 后组装使用。 |
 
@@ -70,6 +72,12 @@
 | `Qin/Qin_imperial_counsellor.txt` | 秦代御史大夫的段 1 角色身份与职责提示词。 | 由 `agents/qin.py` 和秦代手动渲染脚本加载。 |
 | `Qin/Qin_emperor.txt` | 秦代皇帝的段 1 角色身份与职责提示词。 | 由 `agents/qin.py` 和秦代手动渲染脚本加载。 |
 | `Qin/Qin_cousellor_output_requirement.txt` | 秦代御史大夫的专属段 3 JSON 评价输出要求。 | 由 `agents/qin.py` 和秦代手动渲染脚本为御史大夫加载。 |
+| `Qin/Qin_cousellor_candidates.txt` | 秦代御史大夫的第 11 段特殊候选项及评价 JSON 格式。 | 由 `agents/qin.py` 和秦代手动渲染脚本为御史大夫加载。 |
+| `Tang/Tang_zhongshu.txt` | 唐代中书省的角色身份提示词。 | 由 `agents/tang.py` 加载。 |
+| `Tang/Tang_menxia.txt` | 唐代门下省的角色身份提示词。 | 由 `agents/tang.py` 加载。 |
+| `Tang/Tang_emperor.txt` | 唐代皇帝的角色身份提示词。 | 由 `agents/tang.py` 加载。 |
+| `Tang/Tang_menxia_output_requirement.txt` | 唐代门下省专属审核 JSON 输出要求，仅允许 `agree` 或 `disagree`，不含 `target`。 | 由 `agents/tang.py` 为门下省加载。 |
+| `Tang/Tang_menxia_candidates.txt` | 唐代门下省的第 11 段特殊候选项及审核 JSON 格式。 | 由 `agents/tang.py` 和唐代手动渲染脚本为门下省加载。 |
 
 ## 历史上下文系统（`src/monopoly_agent_battle/context/`）
 
@@ -79,7 +87,7 @@
 | `context/rules.py` | Stage 4C 段 2 游戏规则文本加载器。运行时读 `doc/monopoly_rules_basic.md`，模块级缓存。`GAME_RULES_VERSION="v1"`；测试用 `reset_cache()` 清缓存。 | `load_game_rules() -> str`。 |
 | `context/conversation.py` | 每 Agent 独立会话，按行动回合保存事件、决策和校验错误；回合开始重建段 3 历史缓存，独立严格限制为 500 token，并保持至该行动回合结束。 | 创建 `AgentConversation(agent_id, window_turns=1)`；runner 在行动回合开始调用 `start_turn()`，composer 读取其历史和当回合记录。 |
 | `context/token_guard.py` | 估算文本 token 并裁剪段 3 历史：计入事件间换行，从最旧完整事件开始删除，确保保留内容严格满足预算；发生裁剪时返回运行时警告。 | `estimate_tokens(text)` 用于检查估算长度；`truncate_events_to_budget(rendered, budget)` 返回保留事件及可选 `ContextWarning`。 |
-| `context/composer.py` | 将私有会话与当前决策组合为角色分离的 LLM messages：system 放固定指令，user 放历史、回放和当前请求；连续可见事件用单换行，语义块之间保留空行；重试按 assistant 回复后接 user 反馈回放。 | BaselineAgent 每次请求调用 `compose_prompt(conversation, request)`，取得 messages 及段 3 的可选运行时警告。 |
+| `context/composer.py` | 将私有会话与当前决策组合为角色分离的 LLM messages：system 放固定指令，user 放历史、回放和当前请求；连续可见事件用单换行，语义块之间保留空行；重试按 assistant 回复后接 user 反馈回放；同一决策 ID 的历史问题只渲染一次，同时保留各条 assistant 回复、可信内部消息、错误反馈和事件顺序。 | BaselineAgent 每次请求调用 `compose_prompt(conversation, request)`，取得 messages 及段 3 的可选运行时警告。 |
 | `context/validation_feedback.py` | Stage 4C 校验失败用户可见反馈模板；依据 `DecisionValidation.error_category` 选择模板。 | `build_feedback(validation, request) -> str`。 |
 | `MonopolyAgentBattle_developer_docs/history_context_supplement.md` | Stage 4 历史上下文规范及 4C-remake 确认设计：system/user 消息归属、段 3 独立严格 500-token 裁剪、事件换行、运行时告警隔离和校验反馈生命周期。 | 作为 4C-remake 的实现与人工审核依据；4D 开发前应先查阅。 |
 
@@ -97,15 +105,18 @@
 | `tests/unit/test_decision_protocol.py` | 决策可见性隔离、`current_space.rent` 仅未付金额、实际决策阶段候选项、普通流程拒绝创建请求、响应 schema 拒绝、Prompt 审计字段隔离、监狱多选项、付款上下文不暴露内部操作 ID、抢夺选卡期间的临时目标手牌可见性及选后恢复隔离、候选 `response_format` 渲染、随机 baseline 复用的合法多字段目标 JSON 编码，以及 Prompt 自然语言渲染（角色目标、你的状态、其他玩家状态、棋盘状态表、同盟与剩余监狱回合数）。 | `python -m pytest tests/unit/test_decision_protocol.py` |
 | `tests/unit/test_shang_agent.py` / `tests/integration/test_shang_runner.py` | 商代角色边界、分阶段重试、私有 trace、LLM 计量、隐私隔离与回放验证。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_shang_agent.py tests/integration/test_shang_runner.py` |
 | `tests/unit/test_qin_agent.py` | 秦代四角色调用顺序与第 5 段内部消息可见性、御史大夫结构校验重试与 neutral 安全回退、丞相/太尉角色级重试与默认回退、当前决策隐藏皇帝最终裁决、最终决策幂等广播。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_qin_agent.py` |
+| `tests/unit/test_tang_agent.py` | 唐代三角色串行调用、三轮上限、门下省非对象/非法 JSON 安全重试与回退，以及最终决策幂等广播、多轮自身回复保留、皇帝最终决策历史持久化及可信投递。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_tang_agent.py` |
+| `tests/integration/test_tang_runner.py` | 唐代运行器集成、连接失败、审计产物、court trace 和 `verify_run()` 回放验证。 | `.venv/Scripts/python.exe -m pytest tests/integration/test_tang_runner.py` |
 | `tests/unit/test_random_baseline.py` | 完全随机非 LLM 控制器的确定性响应序列、协议合法性、合法多字段目标编码和非 LLM 计量标识。 | `python -m pytest tests/unit/test_random_baseline.py` |
 | `tests/integration/test_random_baseline_runner.py` | 纯随机和随机/Mock-LLM 混合完整对局：审计、回放、跨运行复现、无 LLM 产物、LLM 计量隔离及连接失败阈值。 | `python -m pytest tests/integration/test_random_baseline_runner.py` |
 | `tests/integration/test_decision_runner.py` | 决策驱动完整对局、自动普通掷骰事件审计/回放、监狱掷骰 Prompt 选择、监狱等待的自动推进、连接重试、回退及原始校验错误保留。 | `python -m pytest tests/integration/test_decision_runner.py` |
 | `tests/unit/test_llm_protocol.py` | LLM 协议与 Mock/录制客户端行为。 | `python -m pytest tests/unit/test_llm_protocol.py` |
 | `tests/unit/test_baseline_agent.py` / `tests/integration/test_llm_runner.py` / `tests/integration/test_decision_runner.py` | 覆盖真实 LLM 请求的 system/user 边界、候选格式、运行时信息隔离、完整 Mock 对局，以及段 3 溢出警告的私有且按行动回合去重记录。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_baseline_agent.py tests/integration/test_llm_runner.py tests/integration/test_decision_runner.py` |
 | `tests/unit/context/test_broadcast.py` | 上下文播报器单元测试（Stage 4B）：豁免事件返回 None、全引擎事件类型穷举（白名单+豁免覆盖全部 49 个事件）、未注册事件抛异常、确定性渲染、涉己/旁观差异（card_drawn、card_discarded、chance_card_stolen）、payment_made 银行/玩家、player_jailed 原因映射、棋盘名称回退。 | `python -m pytest tests/unit/context/test_broadcast.py` |
-| `tests/unit/context/test_rules.py` / `test_token_guard.py` / `test_conversation.py` / `test_composer.py` / `test_validation_feedback.py` | 覆盖规则加载、段 3 严格 500-token 裁剪及同回合缓存稳定性、system/user 消息归属、相邻事件换行、重试消息顺序和校验反馈。 | `.venv/Scripts/python.exe -m pytest tests/unit/context/` |
+| `tests/unit/context/test_rules.py` / `test_token_guard.py` / `test_conversation.py` / `test_composer.py` / `test_validation_feedback.py` | 覆盖规则加载、段 3 严格 500-token 裁剪及同回合缓存稳定性、system/user 消息归属、相邻事件换行、重试消息顺序、校验反馈、同一决策 ID 的问题折叠及多条 assistant 回复保留。 | `.venv/Scripts/python.exe -m pytest tests/unit/context/` |
 | `tests/manual/render_decision_prompt.py` | Stage 4D 人工审阅脚本：生成 Baseline 上下文确认清单及 A–G 实际 messages；覆盖角色边界、历史裁剪、校验重试与运行时隔离。`ContextWarning` 仅作为报告中的私有审计证据展示。 | 运行 `.venv/Scripts/python.exe tests/manual/render_decision_prompt.py` 后审阅生成的 `tests/manual/render_decision_prompt_report.txt`。 |
 | `tests/manual/render_history_broadcast.py` | 手动验收脚本（Stage 4B）：使用直接状态注入（从 `test_chance_cards.py` 习得的模式）创建 20 个独立场景，通过控制玩家位置、直接注入机会卡、设置产权归属和控制骰子序列，覆盖全部 33 个白名单事件（每个事件≥2次出现）。生成 `tests/manual/history_broadcast_report.txt` 完整事件日志供项目负责人人工审核中文句式质量。2026-08-19 运行通过，exit status 0，33/33 事件达标。 | `.venv/Scripts/python.exe tests/manual/render_history_broadcast.py` |
+| `tests/manual/render_tang_decision_prompt.py` | 唐代十个朝廷上下文场景手动渲染，复用生产 `TangCourtAgent`、`compose_prompt()`、引擎决策请求和角色提示词，输出完整 `LLMMessage` 供人工审核。 | `.venv/Scripts/python.exe tests/manual/render_tang_decision_prompt.py`；报告为 `tests/manual/render_tang_decision_prompt_report.txt`。 |
 | `tests/unit/game/test_board.py` | 40 格棋盘数据完整性与产权数值。 | `python -m pytest tests/unit/game/test_board.py` |
 | `tests/unit/game/test_engine.py` | 移动、租金、抵押、建造和双骰入狱等核心规则。 | `python -m pytest tests/unit/game/test_engine.py` |
 | `tests/unit/game/test_turn_flow.py` | 双骰、阶段转换、付款处置以及无可用清算操作时自动破产的回合状态机。 | `python -m pytest tests/unit/game/test_turn_flow.py` |

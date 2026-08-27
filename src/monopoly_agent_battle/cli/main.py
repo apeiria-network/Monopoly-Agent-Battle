@@ -11,8 +11,13 @@ from monopoly_agent_battle.agents.baseline import BaselineAgent
 from monopoly_agent_battle.agents.qin import QinCourtAgent
 from monopoly_agent_battle.agents.random_baseline import RandomBaselineController
 from monopoly_agent_battle.agents.shang import ShangCourtAgent
+from monopoly_agent_battle.agents.tang import TangCourtAgent
 from monopoly_agent_battle.config.loader import config_hash, load_game_config
-from monopoly_agent_battle.config.models import QinCourtRoleProfiles, ShangCourtRoleProfiles
+from monopoly_agent_battle.config.models import (
+    QinCourtRoleProfiles,
+    ShangCourtRoleProfiles,
+    TangCourtRoleProfiles,
+)
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.runner import (
     ConversationBinding,
@@ -128,6 +133,35 @@ def run_play(config_path: Path) -> Path:
                 validation_retries=config.validation_retries,
             )
             continue
+        if player.controller_type == "tang_court":
+            assert isinstance(player.court_role_profiles, TangCourtRoleProfiles)
+            roles = {
+                role: config.model_profiles[getattr(player.court_role_profiles, role)]
+                for role in ("zhongshu", "menxia", "emperor")
+            }
+            role_clients = {
+                role: RecordingLLMClient(create_client(profile), artifacts)
+                for role, profile in roles.items()
+            }
+            role_conversations = {
+                role: AgentConversation(
+                    agent_id=f"{player.player_id}.{role}", window_turns=config.window_turns
+                )
+                for role in roles
+            }
+            conversations[player.player_id] = role_conversations
+            controllers[player.player_id] = TangCourtAgent(
+                player_id=player.player_id,
+                zhongshu_client=role_clients["zhongshu"],
+                zhongshu_profile=roles["zhongshu"],
+                menxia_client=role_clients["menxia"],
+                menxia_profile=roles["menxia"],
+                emperor_client=role_clients["emperor"],
+                emperor_profile=roles["emperor"],
+                conversations=role_conversations,
+                validation_retries=config.validation_retries,
+            )
+            continue
         if player.model_profile is None:
             msg = f"player {player.player_id} has no model_profile"
             raise SystemExit(msg)
@@ -154,7 +188,7 @@ def run_play(config_path: Path) -> Path:
 
 def _is_llm_player(controller_type: str | None, model_profile: str | None) -> bool:
     """Return whether a configured player requires LLM client infrastructure."""
-    return controller_type in {"shang_court", "qin_court"} or _is_llm_baseline(
+    return controller_type in {"shang_court", "qin_court", "tang_court"} or _is_llm_baseline(
         controller_type, model_profile
     )
 

@@ -1,0 +1,41 @@
+game_id: tang-court-demo
+experiment_id: tang-court-demo
+seed: 0
+players:
+  - player_id: tang
+    seat: 1
+    controller_type: tang_court
+    court_role_profiles:
+      zhongshu: mock-zhongshu
+      menxia: mock-menxia
+      emperor: mock-emperor
+  - player_id: random-b
+    seat: 2
+    controller_type: random_baseline
+  - player_id: random-c
+    seat: 3
+    controller_type: random_baseline
+  - player_id: random-d
+    seat: 4
+    controller_type: random_baseline
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+max_complete_rounds: 2
+model_profiles:
+  mock-zhongshu:
+    provider: mock
+    model: mock-tang-zhongshu-v1
+    temperature: 0.2
+    max_tokens: 320
+  mock-menxia:
+    provider: mock
+    model: mock-tang-menxia-v1
+    temperature: 0.2
+    max_tokens: 180
+  mock-emperor:
+    provider: mock
+    model: mock-tang-emperor-v1
+    temperature: 0.2
+    max_tokens: 320

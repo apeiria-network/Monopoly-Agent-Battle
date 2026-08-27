@@ -157,13 +157,30 @@ class AgentConversation:
         self.current_turn.entries.append(EventEntry(event=event, complete_round=complete_round))
 
     def append_decision(
-        self, *, decision_id: str, question_summary: str, assistant_reply: str
+        self,
+        *,
+        decision_id: str,
+        question_summary: str,
+        assistant_reply: str,
+        allow_duplicate_decision_id: bool = False,
     ) -> None:
-        """Record a completed decision (question summary + assistant reply)."""
+        """Record a completed decision reply.
+
+        External decisions remain idempotent by default. A court workflow may
+        explicitly append several replies under the same external decision ID
+        when one role speaks in multiple rounds; keeping the shared ID lets the
+        composer render the historical question only once.
+        """
         if self.current_turn is None:
             raise RuntimeError(
                 "append_decision called before start_turn; conversation has no active turn"
             )
+        if not allow_duplicate_decision_id and any(
+            isinstance(entry, DecisionEntry) and entry.decision_id == decision_id
+            for turn in (*self.completed_turns, self.current_turn)
+            for entry in turn.entries
+        ):
+            return
         self.current_turn.entries.append(
             DecisionEntry(
                 decision_id=decision_id,
@@ -207,6 +224,57 @@ class AgentConversation:
                 content_type=content_type,
                 raw_content=raw_content,
             )
+        )
+        return True
+
+    def insert_internal_decision_before_decision(
+        self,
+        *,
+        internal_decision_id: str,
+        decision_id: str,
+        question_summary: str,
+        decision_maker: str,
+        content_type: str,
+        raw_content: str,
+    ) -> bool:
+        """Insert trusted court context immediately before this role's decision.
+
+        Court workflows use this when the external runner has already persisted
+        the role's final ``DecisionEntry`` but filtered upstream discussion must
+        precede that assistant reply during later same-turn replay.
+        """
+        if self.current_turn is None:
+            return False
+        if any(
+            isinstance(entry, InternalDecisionEntry)
+            and entry.internal_decision_id == internal_decision_id
+            for turn in (*self.completed_turns, self.current_turn)
+            for entry in turn.entries
+        ):
+            return False
+        insertion_index = next(
+            (
+                index
+                for index, entry in enumerate(self.current_turn.entries)
+                if isinstance(entry, DecisionEntry) and entry.decision_id == decision_id
+            ),
+            len(self.current_turn.entries),
+        )
+        while insertion_index < len(self.current_turn.entries):
+            entry = self.current_turn.entries[insertion_index]
+            if not isinstance(entry, InternalDecisionEntry) or entry.decision_id != decision_id:
+                break
+            insertion_index += 1
+        self.current_turn.entries.insert(
+            insertion_index,
+            InternalDecisionEntry(
+                internal_decision_id=internal_decision_id,
+                decision_id=decision_id,
+                question_summary=question_summary,
+                decision_maker=decision_maker,
+                content_type=content_type,
+                raw_content=raw_content,
+            ),
         )
         return True
 
