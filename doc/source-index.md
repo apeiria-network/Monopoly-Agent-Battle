@@ -72,8 +72,12 @@
 | `Qin/Qin_imperial_counsellor.txt` | 秦代御史大夫的段 1 角色身份与职责提示词。 | 由 `agents/qin.py` 和秦代手动渲染脚本加载。 |
 | `Qin/Qin_emperor.txt` | 秦代皇帝的段 1 角色身份与职责提示词。 | 由 `agents/qin.py` 和秦代手动渲染脚本加载。 |
 | `Qin/Qin_cousellor_output_requirement.txt` | 秦代御史大夫的专属段 3 JSON 评价输出要求。 | 由 `agents/qin.py` 和秦代手动渲染脚本为御史大夫加载。 |
-| `Tang/Tang_zhongshu.txt` / `Tang/Tang_menxia.txt` / `Tang/Tang_emperor.txt` | 唐代中书省、门下省和皇帝的角色身份提示词。 | 由 `agents/tang.py` 加载。 |
+| `Qin/Qin_cousellor_candidates.txt` | 秦代御史大夫的第 11 段特殊候选项及评价 JSON 格式。 | 由 `agents/qin.py` 和秦代手动渲染脚本为御史大夫加载。 |
+| `Tang/Tang_zhongshu.txt` | 唐代中书省的角色身份提示词。 | 由 `agents/tang.py` 加载。 |
+| `Tang/Tang_menxia.txt` | 唐代门下省的角色身份提示词。 | 由 `agents/tang.py` 加载。 |
+| `Tang/Tang_emperor.txt` | 唐代皇帝的角色身份提示词。 | 由 `agents/tang.py` 加载。 |
 | `Tang/Tang_menxia_output_requirement.txt` | 唐代门下省专属审核 JSON 输出要求，仅允许 `agree` 或 `disagree`，不含 `target`。 | 由 `agents/tang.py` 为门下省加载。 |
+| `Tang/Tang_menxia_candidates.txt` | 唐代门下省的第 11 段特殊候选项及审核 JSON 格式。 | 由 `agents/tang.py` 和唐代手动渲染脚本为门下省加载。 |
 
 ## 历史上下文系统（`src/monopoly_agent_battle/context/`）
 

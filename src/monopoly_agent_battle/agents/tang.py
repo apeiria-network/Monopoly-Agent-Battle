@@ -39,21 +39,7 @@ _ROLE_INSTRUCTIONS = {
 }
 _NORMAL_OUTPUT = _load_prompt("normal_output_requirement.txt")
 _MENXIA_OUTPUT = _load_prompt("Tang/Tang_menxia_output_requirement.txt")
-_MENXIA_OPTIONS = """## 门下省特殊候选项
-门下省只审核中书省草案，不选择游戏操作。请在以下候选中选择一个：
-- agree：认可草案，提交皇帝裁决
-- disagree：否决草案，退回中书省重拟
-返回 selected_option.option，且不得填写 target，不得添加其他字段。
-
-示例：
-{
-  "reason": "审核该草案的理由。",
-  "selected_option": {
-    "option": "agree"
-  }
-}
-
-将 selected_option.option 改为 disagree 即表示否决。"""
+_MENXIA_OPTIONS = _load_prompt("Tang/Tang_menxia_candidates.txt")
 
 
 @dataclass(frozen=True, slots=True)

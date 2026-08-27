@@ -48,22 +48,7 @@ _ROLE_INSTRUCTIONS = {
 }
 _NORMAL_OUTPUT_REQUIREMENT = _load_prompt("normal_output_requirement.txt")
 _COUNSELLOR_OUTPUT_REQUIREMENT = _load_prompt("Qin/Qin_cousellor_output_requirement.txt")
-_COUNSELLOR_SPECIAL_CONTEXT = """## 御史大夫特殊候选项
-上述合法候选项为当前朝廷可选的候选项，并非你的候选项。请你以下列格式对其他官员的意见做出评价。
-{
-  "assessments": [
-    {
-      "officer_id": "chancellor",
-      "judgement": "agree | disagree | neutral",
-      "reason": "对丞相建议的具体评价理由。"
-    },
-    {
-      "officer_id": "grand_marshal",
-      "judgement": "agree | disagree | neutral",
-      "reason": "对太尉建议的具体评价理由。"
-    }
-  ]
-}"""
+_COUNSELLOR_SPECIAL_CONTEXT = _load_prompt("Qin/Qin_cousellor_candidates.txt")
 
 
 def _make_engine(directory: str) -> GameEngine:

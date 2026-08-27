@@ -1,0 +1,20 @@
+## 御史大夫特殊候选项
+上述合法候选项为当前朝廷可选的候选项，并非你的候选项。请你以下列格式对其他官员的意见做出评价，并给出理由。
+{
+  "assessments": [
+    {
+      "officer_id": "chancellor",
+      "judgement": "agree | disagree | neutral",
+      "reason": "对丞相建议的具体评价理由。"
+    },
+    {
+      "officer_id": "grand_marshal",
+      "judgement": "agree | disagree | neutral",
+      "reason": "对太尉建议的具体评价理由。"
+    }
+  ]
+}
+
+- agree: 认可这位官员的意见。
+- neutral: 对这位官员的意见持中立态度，不反对也不支持。
+- disagree: 不认可这位官员的意见。

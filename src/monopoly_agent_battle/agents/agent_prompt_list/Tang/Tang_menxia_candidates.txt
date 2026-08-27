@@ -1,0 +1,16 @@
+上述合法候选项为当前朝廷可选的候选项，并非你的候选项。
+你只审核当前中书省的草案，不输出实际候选项，返回以下内容：
+
+```json
+{
+  "reason": "认可/不认可该草案的理由。",
+  "selected_option": {
+    "option": "agree | disagree"
+  }
+}
+```
+
+约束：
+必须填写`selection_option.option`字段，只能填写"agree"或"disagree"
+- `agree`：认可当前草案，交由皇帝作出最终外部决策；
+- `disagree`：不认可当前草案，携带审核理由退回中书省重新起草。
