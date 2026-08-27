@@ -112,10 +112,12 @@ class TangCourtAgent:
         return self._conversations[_EMPEROR]
 
     @property
+    def last_llm_call_count(self) -> int:
+        return self._last_llm_call_count
+
+    @property
     def role_conversations(self) -> dict[str, AgentConversation]:
         return self._conversations
-
-        return self._last_llm_call_count
 
     @property
     def last_context_warning(self) -> ContextWarning | None:
