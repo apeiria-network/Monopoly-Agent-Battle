@@ -13,7 +13,7 @@ from monopoly_agent_battle.context.composer import compose_prompt
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.context.token_guard import ContextWarning
 from monopoly_agent_battle.context.validation_feedback import build_feedback
-from monopoly_agent_battle.decision.models import DecisionRequest
+from monopoly_agent_battle.decision.models import DecisionRequest, DecisionValidation
 from monopoly_agent_battle.decision.prompts import render_decision_question
 from monopoly_agent_battle.decision.protocol import default_option_json, parse_and_validate
 from monopoly_agent_battle.llm.protocol import LLMClient, LLMRequest
@@ -135,12 +135,26 @@ class MingCourtAgent:
         if self._final_recorded:
             return
         self._final_recorded = True
+        if self._vote is not None:
+            self._record_vote_history(request, self._vote)
         self._conversations[_EMPEROR].append_decision(
             decision_id=request.decision_id,
             question_summary=render_decision_question(request),
             assistant_reply=reply,
         )
         self._deliver(request, _EMPEROR, _FINAL, reply, set(_MEMBERS))
+
+    def _record_vote_history(self, request: DecisionRequest, vote: dict[str, object]) -> None:
+        raw = json.dumps(vote, ensure_ascii=False, separators=(",", ":"))
+        for role in _MEMBERS:
+            self._conversations[role].append_internal_decision(
+                internal_decision_id=f"{request.decision_id}:vote_result:history",
+                decision_id=request.decision_id,
+                question_summary=render_decision_question(request),
+                decision_maker="system",
+                content_type=_VOTE,
+                raw_content=raw,
+            )
 
     def __call__(self, request: DecisionRequest, feedback: str | None = None) -> str:
         self._prepare(request)
@@ -161,12 +175,12 @@ class MingCourtAgent:
             _weighted_vote(self._final_drafts) if not _all_same(self._final_drafts) else None
         )
         self._advice = self._call_advice(request)
-        self._deliver(request, _CHIEF, _ADVICE, self._advice, {_EMPEROR})
+        self._deliver(
+            request, _CHIEF, _ADVICE, self._advice, {_SECRETARY_1, _SECRETARY_2, _EMPEROR}
+        )
         if self._final_raw is not None and feedback is None:
             return self._final_raw
         self._final_raw = self._validated_call(_EMPEROR, request, "final")
-        if self._vote is not None:
-            self._record_vote_history(request, self._vote)
         return self._final_raw
 
     def _prepare(self, request: DecisionRequest) -> None:
@@ -208,6 +222,14 @@ class MingCourtAgent:
             }
             for role in _MEMBERS:
                 self._first[role] = futures[role].result()
+        for role in _MEMBERS:
+            self._deliver(
+                request,
+                role,
+                _DRAFT,
+                self._first[role],
+                {str(member) for member in _MEMBERS if member != role},
+            )
 
     def _draft(self, role: str, request: DecisionRequest, phase: str) -> str:
         raw = self._validated_call(role, request, phase)
@@ -222,11 +244,53 @@ class MingCourtAgent:
 
     def _call_advice(self, request: DecisionRequest) -> str:
         material = _render_drafts(self._final_drafts)
+        expected = _expected_result(self._final_drafts, self._vote)
         if self._vote is not None:
             material += "\n## 当前决策投票结果\n" + json.dumps(self._vote, ensure_ascii=False)
-        raw = self._validated_call(_CHIEF, request, "advice", material)
-        self._append_own(_CHIEF, request, raw)
-        return raw
+        raw = self._call(_CHIEF, request, "advice", material)
+        validation = parse_and_validate(raw, request)
+        attempts = 0
+        while attempts < self._validation_retries:
+            mismatch = validation.valid and _validation_signature(
+                validation
+            ) != _expected_signature(expected)
+            if validation.valid and not mismatch:
+                break
+            error = (
+                "首辅汇总未采用内阁确定结果。"
+                if mismatch
+                else validation.error or "首辅汇总回复非法"
+            )
+            feedback = (
+                "请严格采用内阁确定的 selected_option。"
+                if mismatch
+                else build_feedback(validation, request)
+            )
+            self._record_error(_CHIEF, request, raw, error, feedback, "advice")
+            raw = self._call(_CHIEF, request, "advice", material)
+            validation = parse_and_validate(raw, request)
+            attempts += 1
+        if validation.valid and _validation_signature(validation) == _expected_signature(expected):
+            reason = _response_reason(validation)
+        else:
+            reason = (
+                "系统采用内阁一致结果。" if self._vote is None else "系统采用内阁加权投票结果。"
+            )
+        normalized = json.dumps({"selected_option": expected, "reason": reason}, ensure_ascii=False)
+        self._trace.append(
+            MingCallTrace(
+                request.decision_id,
+                _CHIEF,
+                f"{self._player_id}.{_CHIEF}",
+                "advice_normalized",
+                normalized,
+                phase="advice",
+                decision_maker=_CHIEF,
+                content_type=_ADVICE,
+            )
+        )
+        self._append_advice_own(request, normalized)
+        return normalized
 
     def _validated_call(
         self,
@@ -320,7 +384,12 @@ class MingCourtAgent:
             )
             raise
         self._last_llm_call_count += 1
-        content_type = _DRAFT if role in _MEMBERS else _FINAL
+        content_type = {
+            "first": _DRAFT,
+            "redraft": _DRAFT,
+            "advice": _ADVICE,
+            "final": _FINAL,
+        }.get(phase, _DRAFT)
         self._trace.append(
             MingCallTrace(
                 request.decision_id,
@@ -334,6 +403,14 @@ class MingCourtAgent:
             )
         )
         return response.content
+
+    def _append_advice_own(self, request: DecisionRequest, raw: str) -> None:
+        self._conversations[_CHIEF].append_decision(
+            decision_id=request.decision_id,
+            question_summary=render_decision_question(request),
+            assistant_reply=raw,
+            allow_duplicate_decision_id=True,
+        )
 
     def _append_own(self, role: str, request: DecisionRequest, raw: str) -> None:
         self._conversations[role].append_decision(
@@ -353,18 +430,6 @@ class MingCourtAgent:
                 question_summary=render_decision_question(request),
                 decision_maker=role,
                 content_type=content_type,
-                raw_content=raw,
-            )
-
-    def _record_vote_history(self, request: DecisionRequest, vote: dict[str, object]) -> None:
-        raw = json.dumps(vote, ensure_ascii=False, separators=(",", ":"))
-        for role in _MEMBERS:
-            self._conversations[role].append_internal_decision(
-                internal_decision_id=f"{request.decision_id}:vote_result:history",
-                decision_id=request.decision_id,
-                question_summary=render_decision_question(request),
-                decision_maker="system",
-                content_type=_VOTE,
                 raw_content=raw,
             )
 
@@ -398,6 +463,35 @@ class MingCourtAgent:
 
 def _truncate(value: str) -> str:
     return value[:_MAX_REASON_CHARS]
+
+
+def _response_reason(validation: object) -> str:
+    response = getattr(validation, "response", None)
+    reason = getattr(response, "reason", "")
+    return _truncate(str(reason))
+
+
+def _expected_result(drafts: dict[str, str], vote: dict[str, object] | None) -> dict[str, object]:
+    if vote is not None:
+        selected = vote["selected_option"]
+        assert isinstance(selected, dict)
+        return dict(cast(dict[str, object], selected))
+    option, target = _signature(next(iter(drafts.values())))
+    return {"option": option, **json.loads(target)}
+
+
+def _expected_signature(expected: dict[str, object]) -> tuple[str, str]:
+    option = expected.get("option")
+    target = {key: value for key, value in expected.items() if key != "option"}
+    return str(option), json.dumps(target, ensure_ascii=False, sort_keys=True)
+
+
+def _validation_signature(validation: DecisionValidation) -> tuple[str, str]:
+    assert validation.response is not None
+    target = validation.target or {}
+    return validation.response.selected_option, json.dumps(
+        target, ensure_ascii=False, sort_keys=True
+    )
 
 
 def _signature(raw: str) -> tuple[str, str]:
