@@ -572,7 +572,9 @@ SCENARIO 3: chief_grand_secretary — 第二次决策：首辅首次草拟
 
 {"reason":"grand_secretary_2第一次重新草拟","selected_option":{"option":"redeem_mortgage"},"decision_maker":"grand_secretary_2","content_type":"draft"}
 
-{"content":"内阁最终表决结果：\n{selected_option:{option: end_turn}} 共计1.5票\n{selected_option:{option: mortgage, position: 3}} 共计2.0票","decision_maker":"system","content_type":"vote_result"}
+内阁最终表决结果：
+{selected_option:{option: end_turn}} 共计1.5票
+{selected_option:{option: mortgage, position: 3}} 共计2.0票
 
 请你汇总3位官员的草拟决策，并为决策{"option":"mortgage"}撰写对应决策理由
 
@@ -802,7 +804,9 @@ SCENARIO 4: grand_secretary_1 — 第二次决策：大学士一首次草拟
 
 {"reason":"grand_secretary_2第一次重新草拟","selected_option":{"option":"redeem_mortgage"},"decision_maker":"grand_secretary_2","content_type":"draft"}
 
-{"content":"内阁最终表决结果：\n{selected_option:{option: end_turn}} 共计1.5票\n{selected_option:{option: mortgage, position: 3}} 共计2.0票","decision_maker":"system","content_type":"vote_result"}
+内阁最终表决结果：
+{selected_option:{option: end_turn}} 共计1.5票
+{selected_option:{option: mortgage, position: 3}} 共计2.0票
 
 {"reason":"首辅第一次advice","selected_option":{"option":"mortgage"},"decision_maker":"chief_grand_secretary","content_type":"advice"}
 
@@ -1028,7 +1032,9 @@ SCENARIO 5: chief_grand_secretary — 第二次决策：两轮草拟达成一致
 
 {"reason":"grand_secretary_2第一次重新草拟","selected_option":{"option":"redeem_mortgage"},"decision_maker":"grand_secretary_2","content_type":"draft"}
 
-{"content":"内阁最终表决结果：\n{selected_option:{option: end_turn}} 共计1.5票\n{selected_option:{option: mortgage, position: 3}} 共计2.0票","decision_maker":"system","content_type":"vote_result"}
+内阁最终表决结果：
+{selected_option:{option: end_turn}} 共计1.5票
+{selected_option:{option: mortgage, position: 3}} 共计2.0票
 
 请你汇总3位官员的草拟决策，并为决策{"option":"mortgage"}撰写对应决策理由
 
@@ -1044,22 +1050,24 @@ SCENARIO 5: chief_grand_secretary — 第二次决策：两轮草拟达成一致
 现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
 
 --- Message 9 [assistant] ---
-{"reason": "首辅第二次首次草案", "selected_option": {"option": "end_turn"}}
+{"reason": "chief_grand_secretary第二次首次草案", "selected_option": {"option": "end_turn"}}
 
 --- Message 10 [user] ---
 {"reason":"grand_secretary_1第二次首次草案","selected_option":{"option":"mortgage"},"decision_maker":"grand_secretary_1","content_type":"draft"}
 
 {"reason":"grand_secretary_2第二次首次草案","selected_option":{"option":"redeem_mortgage"},"decision_maker":"grand_secretary_2","content_type":"draft"}
 
+内阁意见不一致，请重新草拟决策，你可以参考其他官员的意见，也可以提出你的个人观点。
+
 --- Message 11 [assistant] ---
 {"reason": "首辅第二次重新草案", "selected_option": {"option": "end_turn"}}
 
 --- Message 12 [user] ---
-{"reason":"grand_secretary_1第二次重新草拟","selected_option":{"option":"mortgage"},"decision_maker":"grand_secretary_1","content_type":"draft"}
+{"reason":"grand_secretary_1第二次重新草案","selected_option":{"option":"end_turn"},"decision_maker":"grand_secretary_1","content_type":"draft"}
 
-{"reason":"grand_secretary_2第二次重新草拟","selected_option":{"option":"redeem_mortgage"},"decision_maker":"grand_secretary_2","content_type":"draft"}
+{"reason":"grand_secretary_2第二次重新草案","selected_option":{"option":"end_turn"},"decision_maker":"grand_secretary_2","content_type":"draft"}
 
-请你汇总3位官员的草拟决策，并为决策{"option":"mortgage"}撰写对应决策理由
+请你汇总3位官员的草拟决策，并为决策{"option":"end_turn"}撰写对应决策理由
 
 ## 当前局面
 当前为第 0 回合，处于玩家「a」的行动回合。
@@ -1492,7 +1500,9 @@ SCENARIO 7: chief_grand_secretary — 第二次决策：首次分歧后首辅重
 
 {"reason":"grand_secretary_2第一次重新草拟","selected_option":{"option":"redeem_mortgage"},"decision_maker":"grand_secretary_2","content_type":"draft"}
 
-{"content":"内阁最终表决结果：\n{selected_option:{option: end_turn}} 共计1.5票\n{selected_option:{option: mortgage, position: 3}} 共计2.0票","decision_maker":"system","content_type":"vote_result"}
+内阁最终表决结果：
+{selected_option:{option: end_turn}} 共计1.5票
+{selected_option:{option: mortgage, position: 3}} 共计2.0票
 
 请你汇总3位官员的草拟决策，并为决策{"option":"mortgage"}撰写对应决策理由
 
@@ -1511,9 +1521,11 @@ SCENARIO 7: chief_grand_secretary — 第二次决策：首次分歧后首辅重
 {"reason": "chief_grand_secretary第二次首次草案", "selected_option": {"option": "end_turn"}}
 
 --- Message 10 [user] ---
-{"reason":"grand_secretary_1第二次首次草案","selected_option":{"option":"end_turn"},"decision_maker":"grand_secretary_1","content_type":"draft"}
+{"reason":"grand_secretary_1第二次首次草案","selected_option":{"option":"mortgage"},"decision_maker":"grand_secretary_1","content_type":"draft"}
 
-{"reason":"grand_secretary_2第二次首次草案","selected_option":{"option":"end_turn"},"decision_maker":"grand_secretary_2","content_type":"draft"}
+{"reason":"grand_secretary_2第二次首次草案","selected_option":{"option":"redeem_mortgage"},"decision_maker":"grand_secretary_2","content_type":"draft"}
+
+内阁意见不一致，请重新草拟决策，你可以参考其他官员的意见，也可以提出你的个人观点。
 
 ## 当前局面
 当前为第 0 回合，处于玩家「a」的行动回合。
@@ -1733,7 +1745,9 @@ SCENARIO 8: chief_grand_secretary — 第二次决策：两轮草拟仍不一致
 
 {"reason":"grand_secretary_2第一次重新草拟","selected_option":{"option":"redeem_mortgage"},"decision_maker":"grand_secretary_2","content_type":"draft"}
 
-{"content":"内阁最终表决结果：\n{selected_option:{option: end_turn}} 共计1.5票\n{selected_option:{option: mortgage, position: 3}} 共计2.0票","decision_maker":"system","content_type":"vote_result"}
+内阁最终表决结果：
+{selected_option:{option: end_turn}} 共计1.5票
+{selected_option:{option: mortgage, position: 3}} 共计2.0票
 
 请你汇总3位官员的草拟决策，并为决策{"option":"mortgage"}撰写对应决策理由
 
@@ -1749,24 +1763,28 @@ SCENARIO 8: chief_grand_secretary — 第二次决策：两轮草拟仍不一致
 现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
 
 --- Message 9 [assistant] ---
-{"reason": "首辅第二次首次草案", "selected_option": {"option": "end_turn"}}
+{"reason": "chief_grand_secretary第二次首次草案", "selected_option": {"option": "end_turn"}}
 
 --- Message 10 [user] ---
 {"reason":"grand_secretary_1第二次首次草案","selected_option":{"option":"mortgage"},"decision_maker":"grand_secretary_1","content_type":"draft"}
 
 {"reason":"grand_secretary_2第二次首次草案","selected_option":{"option":"redeem_mortgage"},"decision_maker":"grand_secretary_2","content_type":"draft"}
 
+内阁意见不一致，请重新草拟决策，你可以参考其他官员的意见，也可以提出你的个人观点。
+
 --- Message 11 [assistant] ---
 {"reason": "首辅第二次重新草案", "selected_option": {"option": "end_turn"}}
 
 --- Message 12 [user] ---
-{"reason":"grand_secretary_1第二次重新草拟","selected_option":{"option":"mortgage"},"decision_maker":"grand_secretary_1","content_type":"draft"}
+{"reason":"grand_secretary_1第二次重新草案","selected_option":{"option":"mortgage"},"decision_maker":"grand_secretary_1","content_type":"draft"}
 
-{"reason":"grand_secretary_2第二次重新草拟","selected_option":{"option":"redeem_mortgage"},"decision_maker":"grand_secretary_2","content_type":"draft"}
+{"reason":"grand_secretary_2第二次重新草案","selected_option":{"option":"redeem_mortgage"},"decision_maker":"grand_secretary_2","content_type":"draft"}
 
-{"content":"内阁最终表决结果：\n{selected_option:{option: end_turn}} 共计1.5票\n{selected_option:{option: mortgage, position: 3}} 共计2.0票","decision_maker":"system","content_type":"vote_result"}
+内阁最终表决结果：
+{selected_option:{option: end_turn}} 共计1.5票
+{selected_option:{option: mortgage, position: 3}} 共计2.0票
 
-请你汇总3位官员的草拟决策，并为决策{"option":"mortgage"}撰写对应决策理由
+{"reason":"首辅第二次advice","selected_option":{"option":"mortgage"},"decision_maker":"chief_grand_secretary","content_type":"advice"}
 
 ## 当前局面
 当前为第 0 回合，处于玩家「a」的行动回合。

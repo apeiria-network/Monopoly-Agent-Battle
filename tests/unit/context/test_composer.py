@@ -132,13 +132,13 @@ def test_same_decision_id_folds_question_but_keeps_multiple_assistants(tmp_path:
         "system",
         "user",
         "assistant",
-        "user",
         "assistant",
         "user",
     ]
     assert messages[1].content.count("## 决策") == 1
     assert messages[2].content == "draft-1"
-    assert messages[4].content == "draft-2"
+    assert messages[3].content == "draft-2"
+    assert messages[4].content.startswith("## 当前局面")
 
     engine = _make_engine(tmp_path)
     conv = AgentConversation(agent_id="a", window_turns=1)

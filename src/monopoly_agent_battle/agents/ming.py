@@ -221,8 +221,6 @@ class MingCourtAgent:
 
     def _parallel_redrafts(self, request: DecisionRequest) -> None:
         first = dict(self._first)
-        for role in _MEMBERS:
-            self._conversations[role].append_context(_REDRAFT_INSTRUCTION)
         with ThreadPoolExecutor(max_workers=3) as executor:
             futures = {
                 role: executor.submit(self._redraft, role, request, first) for role in _MEMBERS
@@ -538,7 +536,7 @@ def _render_vote_result(vote: dict[str, object]) -> str:
     selected = vote.get("selected_option")
     totals = vote.get("totals")
     if not isinstance(selected, dict) or not isinstance(totals, dict):
-        return "内阁最终表决结果：\n" + json.dumps(vote, ensure_ascii=False)
+        return "内阁最终表决结果：\n{selected_option:{option: unknown}} 共计0票"
     lines = ["内阁最终表决结果："]
     for key, count in totals.items():
         try:
@@ -548,8 +546,11 @@ def _render_vote_result(vote: dict[str, object]) -> str:
             rendered = {"option": option, **target}
         except (json.JSONDecodeError, IndexError, TypeError):
             rendered = {"option": key}
-        rendered_json = json.dumps(rendered, ensure_ascii=False, separators=(",", ":"))
-        lines.append(f"{rendered_json} 共计{count}票")
+        rendered = "{selected_option:{" + f"option: {option}"
+        for field, value in target.items():
+            rendered += f", {field}: {value}"
+        rendered += "}}"
+        lines.append(f"{rendered} 共计{count}票")
     return "\n".join(lines)
 
 
