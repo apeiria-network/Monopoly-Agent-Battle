@@ -29,6 +29,7 @@ from typing import Any, cast
 from monopoly_agent_battle.context.broadcast import render_event
 from monopoly_agent_battle.context.conversation import (
     AgentConversation,
+    ContextEntry,
     DecisionEntry,
     ErrorEntry,
     EventEntry,
@@ -103,6 +104,9 @@ def compose_prompt(
                 buffer.clear()
                 messages.append(LLMMessage(role="assistant", content=entry.bad_reply))
                 buffer.append(entry.feedback_text)
+            elif isinstance(entry, ContextEntry):
+                flush_event_block()
+                buffer.append(entry.content)
             elif isinstance(entry, InternalDecisionEntry):
                 flush_event_block()
                 ensure_history_question(entry.decision_id, entry.question_summary)

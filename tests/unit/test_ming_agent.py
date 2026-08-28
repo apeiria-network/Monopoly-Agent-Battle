@@ -231,7 +231,9 @@ def test_ming_advice_is_system_forced_and_history_is_complete(tmp_path: Path) ->
     chief_turn = conversations["chief_grand_secretary"].current_turn
     assert chief_turn is not None
     assert any(
-        getattr(entry, "assistant_reply", None) == cast(str, advice_call["content"])
+        getattr(entry, "content_type", None) == "advice"
+        and getattr(entry, "decision_maker", None) == "chief_grand_secretary"
+        and getattr(entry, "raw_content", None) == cast(str, advice_call["content"])
         for entry in chief_turn.entries
     )
     for role in ("grand_secretary_1", "grand_secretary_2"):

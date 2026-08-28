@@ -27,6 +27,10 @@ _DRAFT = "draft"
 _ADVICE = "advice"
 _FINAL = "final_decision"
 _VOTE = "vote_result"
+_REDRAFT_INSTRUCTION = (
+    "内阁意见不一致，请重新草拟决策，你可以参考其他官员的意见，也可以提出你的个人观点。"
+)
+_ADVICE_INSTRUCTION = "请你汇总3位官员的草拟决策，并为决策{selected_option}撰写对应决策理由"
 _MAX_REASON_CHARS = 400
 
 _PROMPT_ROOT = Path(__file__).resolve().parent / "agent_prompt_list"
@@ -145,7 +149,7 @@ class MingCourtAgent:
         self._deliver(request, _EMPEROR, _FINAL, reply, set(_MEMBERS))
 
     def _record_vote_history(self, request: DecisionRequest, vote: dict[str, object]) -> None:
-        raw = json.dumps(vote, ensure_ascii=False, separators=(",", ":"))
+        raw = _render_vote_result(vote)
         for role in _MEMBERS:
             self._conversations[role].append_internal_decision(
                 internal_decision_id=f"{request.decision_id}:vote_result:history",
@@ -175,6 +179,7 @@ class MingCourtAgent:
             _weighted_vote(self._final_drafts) if not _all_same(self._final_drafts) else None
         )
         self._advice = self._call_advice(request)
+        self._append_advice_own(request, self._advice)
         self._deliver(
             request, _CHIEF, _ADVICE, self._advice, {_SECRETARY_1, _SECRETARY_2, _EMPEROR}
         )
@@ -216,6 +221,8 @@ class MingCourtAgent:
 
     def _parallel_redrafts(self, request: DecisionRequest) -> None:
         first = dict(self._first)
+        for role in _MEMBERS:
+            self._conversations[role].append_context(_REDRAFT_INSTRUCTION)
         with ThreadPoolExecutor(max_workers=3) as executor:
             futures = {
                 role: executor.submit(self._redraft, role, request, first) for role in _MEMBERS
@@ -238,7 +245,8 @@ class MingCourtAgent:
 
     def _redraft(self, role: str, request: DecisionRequest, first: dict[str, str]) -> str:
         visible = {key: value for key, value in first.items() if key != role}
-        raw = self._validated_call(role, request, "redraft", _render_drafts(visible))
+        material = _render_drafts(visible) + "\n\n" + _REDRAFT_INSTRUCTION
+        raw = self._validated_call(role, request, "redraft", material)
         self._append_own(role, request, raw)
         return raw
 
@@ -246,7 +254,10 @@ class MingCourtAgent:
         material = _render_drafts(self._final_drafts)
         expected = _expected_result(self._final_drafts, self._vote)
         if self._vote is not None:
-            material += "\n## 当前决策投票结果\n" + json.dumps(self._vote, ensure_ascii=False)
+            material += "\n## 当前决策投票结果\n" + _render_vote_result(self._vote)
+        material += "\n\n" + _ADVICE_INSTRUCTION.format(
+            selected_option=json.dumps(expected, ensure_ascii=False, separators=(",", ":"))
+        )
         raw = self._call(_CHIEF, request, "advice", material)
         validation = parse_and_validate(raw, request)
         attempts = 0
@@ -405,11 +416,13 @@ class MingCourtAgent:
         return response.content
 
     def _append_advice_own(self, request: DecisionRequest, raw: str) -> None:
-        self._conversations[_CHIEF].append_decision(
+        self._conversations[_CHIEF].append_internal_decision(
+            internal_decision_id=f"{request.decision_id}:{_CHIEF}:{_ADVICE}:own",
             decision_id=request.decision_id,
             question_summary=render_decision_question(request),
-            assistant_reply=raw,
-            allow_duplicate_decision_id=True,
+            decision_maker=_CHIEF,
+            content_type=_ADVICE,
+            raw_content=raw,
         )
 
     def _append_own(self, role: str, request: DecisionRequest, raw: str) -> None:
@@ -519,6 +532,25 @@ def _weighted_vote(values: dict[str, str]) -> dict[str, object]:
         "totals": totals,
         "selected_option": {"option": option, **json.loads(target)},
     }
+
+
+def _render_vote_result(vote: dict[str, object]) -> str:
+    selected = vote.get("selected_option")
+    totals = vote.get("totals")
+    if not isinstance(selected, dict) or not isinstance(totals, dict):
+        return "内阁最终表决结果：\n" + json.dumps(vote, ensure_ascii=False)
+    lines = ["内阁最终表决结果："]
+    for key, count in totals.items():
+        try:
+            option_data = json.loads(str(key))
+            option = option_data[0]
+            target = json.loads(option_data[1])
+            rendered = {"option": option, **target}
+        except (json.JSONDecodeError, IndexError, TypeError):
+            rendered = {"option": key}
+        rendered_json = json.dumps(rendered, ensure_ascii=False, separators=(",", ":"))
+        lines.append(f"{rendered_json} 共计{count}票")
+    return "\n".join(lines)
 
 
 def _render_drafts(drafts: dict[str, str]) -> str:

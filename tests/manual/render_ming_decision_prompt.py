@@ -34,6 +34,10 @@ _ROLE_FILES = {
 }
 _ROLES = ("chief_grand_secretary", "grand_secretary_1", "grand_secretary_2")
 _DRAFT, _VOTE, _ADVICE, _FINAL = "draft", "vote_result", "advice", "final_decision"
+_REDRAFT_INSTRUCTION = (
+    "内阁意见不一致，请重新草拟决策，你可以参考其他官员的意见，也可以提出你的个人观点。"
+)
+_ADVICE_INSTRUCTION = "请你汇总3位官员的草拟决策，并为决策{selected_option}撰写对应决策理由"
 _TITLES = {
     "1": "第一次决策：三人一致，首辅汇总 advice",
     "2": "第一次决策：首辅 advice 后皇帝终裁",
@@ -95,6 +99,18 @@ def _event() -> GameEvent:
     return GameEvent("property_mortgaged", {"player_id": "a", "position": 1, "amount": 60})
 
 
+def _vote_text(number: int) -> str:
+    return (
+        "内阁最终表决结果：\n{"
+        + "selected_option:{option: end_turn}"
+        + "} 共计1.5票\n{"
+        + "selected_option:{option: mortgage, position: 3}"
+        + "} 共计2.0票"
+    )
+
+    return GameEvent("property_mortgaged", {"player_id": "a", "position": 1, "amount": 60})
+
+
 def _conversation(role: str) -> AgentConversation:
     conversation = AgentConversation(agent_id=f"a.{role}", window_turns=1)
     conversation.start_turn(1)
@@ -120,6 +136,10 @@ def _internal(
     )
 
 
+def _context(conversation: AgentConversation, content: str) -> None:
+    conversation.append_context(content)
+
+
 def _own(
     conversation: AgentConversation, decision_id: str, request: DecisionRequest, raw: str
 ) -> None:
@@ -133,7 +153,12 @@ def _own(
 
 def _first_history(conversation: AgentConversation, role: str, request: DecisionRequest) -> None:
     decision_id = "ming-prompt-1"
-    _own(conversation, decision_id, request, _raw(f"{role}第一次草案"))
+    choices = {
+        "chief_grand_secretary": "end_turn",
+        "grand_secretary_1": "mortgage",
+        "grand_secretary_2": "redeem_mortgage",
+    }
+    _own(conversation, decision_id, request, _raw(f"{role}第一次草案", choices[role]))
     for other in _ROLES:
         if other != role:
             _internal(
@@ -142,10 +167,11 @@ def _first_history(conversation: AgentConversation, role: str, request: Decision
                 request,
                 other,
                 _DRAFT,
-                _raw(f"{other}第一次草案"),
+                _raw(f"{other}第一次草案", choices[other]),
                 "first",
             )
-    _own(conversation, decision_id, request, _raw(f"{role}第一次重新草案"))
+    _context(conversation, _REDRAFT_INSTRUCTION)
+    _own(conversation, decision_id, request, _raw(f"{role}第一次重新草案", choices[role]))
     for other in _ROLES:
         if other != role:
             _internal(
@@ -154,19 +180,34 @@ def _first_history(conversation: AgentConversation, role: str, request: Decision
                 request,
                 other,
                 _DRAFT,
-                _raw(f"{other}第一次重新草拟"),
+                _raw(f"{other}第一次重新草拟", choices[other]),
                 "redraft",
             )
-    _internal(conversation, decision_id, request, "system", _VOTE, _vote(1), "history")
     _internal(
         conversation,
         decision_id,
         request,
-        "chief_grand_secretary",
-        _ADVICE,
-        _raw("首辅第一次advice", "mortgage"),
-        "advice",
+        "system",
+        _VOTE,
+        _vote_text(1),
+        "history",
     )
+    if role == "chief_grand_secretary":
+        _context(
+            conversation,
+            _ADVICE_INSTRUCTION.format(selected_option='{"option":"mortgage"}'),
+        )
+        _own(conversation, decision_id, request, _raw("首辅第一次advice", "mortgage"))
+    else:
+        _internal(
+            conversation,
+            decision_id,
+            request,
+            "chief_grand_secretary",
+            _ADVICE,
+            _raw("首辅第一次advice", "mortgage"),
+            "advice",
+        )
     _internal(
         conversation,
         decision_id,
@@ -225,12 +266,17 @@ def _second_redraft_round(
     conversation: AgentConversation, request: DecisionRequest, include_vote: bool
 ) -> None:
     decision_id = "ming-prompt-2"
-    _own(conversation, decision_id, request, _raw("首辅第二次首次草案"))
-    for role in ("grand_secretary_1", "grand_secretary_2"):
-        _internal(
-            conversation, decision_id, request, role, _DRAFT, _raw(f"{role}第二次首次草案"), "first"
-        )
-    _own(conversation, decision_id, request, _raw("首辅第二次重新草案"))
+    current_choices = {
+        "chief_grand_secretary": "end_turn",
+        "grand_secretary_1": "mortgage",
+        "grand_secretary_2": "redeem_mortgage",
+    }
+    _own(
+        conversation,
+        decision_id,
+        request,
+        _raw("首辅第二次首次草案", current_choices["chief_grand_secretary"]),
+    )
     for role in ("grand_secretary_1", "grand_secretary_2"):
         _internal(
             conversation,
@@ -238,11 +284,25 @@ def _second_redraft_round(
             request,
             role,
             _DRAFT,
-            _raw(f"{role}第二次重新草拟"),
+            _raw(f"{role}第二次首次草案", current_choices[role]),
+            "first",
+        )
+    _own(conversation, decision_id, request, _raw("首辅第二次重新草案", "end_turn"))
+    for role in ("grand_secretary_1", "grand_secretary_2"):
+        _internal(
+            conversation,
+            decision_id,
+            request,
+            role,
+            _DRAFT,
+            _raw(
+                f"{role}第二次重新草拟",
+                "mortgage" if role == "grand_secretary_1" else "redeem_mortgage",
+            ),
             "redraft",
         )
     if include_vote:
-        _internal(conversation, decision_id, request, "system", _VOTE, _vote(2), "current")
+        _internal(conversation, decision_id, request, "system", _VOTE, _vote_text(2), "current")
 
 
 def _second_advice(conversation: AgentConversation, request: DecisionRequest) -> None:
@@ -317,6 +377,10 @@ def main() -> None:
         conversation = _conversation("chief_grand_secretary")
         _first_history(conversation, "chief_grand_secretary", first_request)
         _second_redraft_round(conversation, second_request, include_vote=False)
+        _context(
+            conversation,
+            _ADVICE_INSTRUCTION.format(selected_option='{"option":"mortgage"}'),
+        )
         scenarios.append(("5", "chief_grand_secretary", second_request, conversation))
         conversation = _conversation("emperor")
         _emperor_history(conversation, first_request)
@@ -329,6 +393,10 @@ def main() -> None:
         conversation = _conversation("chief_grand_secretary")
         _first_history(conversation, "chief_grand_secretary", first_request)
         _second_redraft_round(conversation, second_request, include_vote=True)
+        _context(
+            conversation,
+            _ADVICE_INSTRUCTION.format(selected_option='{"option":"mortgage"}'),
+        )
         scenarios.append(("8", "chief_grand_secretary", second_request, conversation))
         conversation = _conversation("emperor")
         _emperor_history(conversation, first_request)

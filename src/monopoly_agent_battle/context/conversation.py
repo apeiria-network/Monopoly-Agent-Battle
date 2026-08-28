@@ -84,6 +84,13 @@ class InternalDecisionEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class ContextEntry:
+    """One plain user-context instruction or broadcast within the current turn."""
+
+    content: str
+
+
+@dataclass(frozen=True, slots=True)
 class ErrorEntry:
     """A validation-failed AI reply within the current action turn.
 
@@ -100,7 +107,7 @@ class ErrorEntry:
     feedback_text: str
 
 
-TurnEntry = EventEntry | DecisionEntry | InternalDecisionEntry | ErrorEntry
+TurnEntry = EventEntry | DecisionEntry | InternalDecisionEntry | ContextEntry | ErrorEntry
 
 _SEGMENT3_TOKEN_CAP = 500
 
@@ -277,6 +284,12 @@ class AgentConversation:
             ),
         )
         return True
+
+    def append_context(self, content: str) -> None:
+        """Append plain user context at the current point in segment-five history."""
+        if self.current_turn is None:
+            return
+        self.current_turn.entries.append(ContextEntry(content=content))
 
     def append_error(
         self,
