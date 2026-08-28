@@ -377,7 +377,10 @@ def main() -> None:
         _first_history(conversation, "chief_grand_secretary", first_request)
         _second_first_round(conversation, second_request, "chief_grand_secretary")
         _second_redraft_round(conversation, second_request, include_vote=True)
-        _second_advice(conversation, second_request, option="mortgage")
+        _context(
+            conversation,
+            _ADVICE_INSTRUCTION.format(selected_option='{"option":"mortgage"}'),
+        )
         scenarios.append(("8", "chief_grand_secretary", second_request, conversation))
         conversation = _conversation("emperor")
         _emperor_history(conversation, first_request)

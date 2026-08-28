@@ -1784,7 +1784,7 @@ SCENARIO 8: chief_grand_secretary — 第二次决策：两轮草拟仍不一致
 {selected_option:{option: end_turn}} 共计1.5票
 {selected_option:{option: mortgage, position: 3}} 共计2.0票
 
-{"reason":"首辅第二次advice","selected_option":{"option":"mortgage"},"decision_maker":"chief_grand_secretary","content_type":"advice"}
+请你汇总3位官员的草拟决策，并为决策{"option":"mortgage"}撰写对应决策理由
 
 ## 当前局面
 当前为第 0 回合，处于玩家「a」的行动回合。
