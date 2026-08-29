@@ -49,8 +49,6 @@ def _make_engine(directory: str) -> GameEngine:
     engine.state.players["a"].properties.add(1)
     engine.state.properties[3].owner_id = "b"
     engine.state.players["b"].properties.add(3)
-    engine.state.properties[6].owner_id = "a"
-    engine.state.players["a"].properties.add(6)
     return engine
 
 
@@ -67,39 +65,65 @@ def _selected_option(request: DecisionRequest, option_id: str) -> dict[str, obje
 
 
 class _CaptureClient:
-    def __init__(self, role: str, mode: str) -> None:
+    def __init__(self, role: str, first_mode: str, second_mode: str) -> None:
         self.role = role
-        self.mode = mode
+        self.modes = (first_mode, second_mode)
         self.request_data: DecisionRequest | None = None
+        self._request_identity: int | None = None
+        self._decision_number = 0
+        self._call_number = 0
         self.requests: list[LLMRequest] = []
+        self.phases: list[tuple[int, str]] = []
 
     def complete(self, request: LLMRequest) -> LLMResponse:
         self.requests.append(request)
         request_data = self.request_data
         if request_data is None:
             raise RuntimeError("capture client request_data was not prepared")
-        call_number = len(self.requests)
-        role_choices = {
-            "chief_grand_secretary": "mortgage",
-            "grand_secretary_1": "end_turn",
-            "grand_secretary_2": "mortgage",
-        }
-        if self.role == "emperor" or self.mode == "unanimous":
-            option = "mortgage"
-        elif self.mode == "vote" or call_number == 1:
-            option = role_choices[self.role]
-        else:
-            option = "mortgage"
-        selected = _selected_option(request_data, option)
+        if self._request_identity != id(request_data):
+            self._request_identity = id(request_data)
+            self._decision_number += 1
+            self._call_number = 0
+        self._call_number += 1
+        mode = self.modes[self._decision_number - 1]
+        phase = self._phase(mode)
+        self.phases.append((self._decision_number, phase))
+        option = self._option(request_data, mode, phase)
         content = json.dumps(
-            {"reason": f"{self.role}第{call_number}次固定意见", "selected_option": selected},
+            {
+                "reason": f"{self.role}-{self._decision_number}-{phase}",
+                "selected_option": _selected_option(request_data, option),
+            },
             ensure_ascii=False,
         )
         return LLMResponse(content, UsageMetrics(1, 1), request.model)
 
+    def _phase(self, mode: str) -> str:
+        if self.role == "emperor":
+            return "final"
+        if self.role == "chief_grand_secretary":
+            advice_call = 2 if mode == "unanimous" else 3
+            if self._call_number == advice_call:
+                return "advice"
+        return "first" if self._call_number == 1 else "redraft"
 
-def _make_agent(mode: str) -> tuple[MingCourtAgent, dict[str, _CaptureClient]]:
-    clients = {role: _CaptureClient(role, mode) for role in _ROLES}
+    def _option(self, request: DecisionRequest, mode: str, phase: str) -> str:
+        option_ids = [item.option_id for item in request.options]
+        first = option_ids[0]
+        alternate = option_ids[1] if len(option_ids) > 1 else first
+        if phase == "redraft" and mode == "consensus":
+            return first
+        if mode == "unanimous":
+            return first
+        return alternate if self.role == "grand_secretary_1" else first
+
+
+def _make_agent(
+    first_mode: str, second_mode: str = "unanimous"
+) -> tuple[MingCourtAgent, dict[str, _CaptureClient]]:
+    clients = {
+        role: _CaptureClient(role, first_mode, second_mode) for role in _ROLES
+    }
     profiles = {role: ModelProfile(provider="mock", model=f"ming-{role}") for role in _ROLES}
     conversations = {
         role: AgentConversation(agent_id=f"a.{role}", window_turns=1) for role in _ROLES
@@ -140,8 +164,11 @@ def _complete_first_decision(
     reply = _run_agent(agent, clients, request)
     agent.record_final_decision(request, reply)
     option = next(item for item in request.options if item.option_id == "mortgage")
+    values = option.target.legal_values[0] if option.target is not None else None
     target: dict[str, object] | None = (
-        {option.target.command_fields[0]: 1} if option.target is not None else None
+        {option.target.command_fields[0]: values[0]}
+        if option.target is not None and values is not None
+        else None
     )
     events = engine.execute(command_from_option(request, option, target))
     for event in events:
@@ -151,11 +178,16 @@ def _complete_first_decision(
 
 
 def _capture(
-    label: str, role: str, mode: str, second: bool, request_index: int
+    label: str,
+    role: str,
+    first_mode: str,
+    second_mode: str | None,
+    second: bool,
+    phase: str,
 ) -> tuple[tuple[LLMMessage, ...], object]:
     with TemporaryDirectory() as directory:
         engine = _make_engine(directory)
-        agent, clients = _make_agent(mode)
+        agent, clients = _make_agent(first_mode, second_mode or "unanimous")
         first = build_decision_request(engine, sequence=1)
         if second:
             _complete_first_decision(engine, agent, clients, first)
@@ -164,7 +196,13 @@ def _capture(
         else:
             request = first
             _run_agent(agent, clients, request)
-        selected = clients[role].requests[request_index]
+        selected = next(
+            request_item
+            for request_item, request_phase in zip(
+                clients[role].requests, clients[role].phases, strict=True
+            )
+            if request_phase == ((2 if second else 1), phase)
+        )
         _assert_shape(selected.messages, role, label)
         return selected.messages, agent.last_context_warning
 
@@ -186,13 +224,27 @@ def _assert_shape(messages: tuple[LLMMessage, ...], role: str, label: str) -> No
         < lines.index("## 当前决策")
         < lines.index("## 合法候选操作")
     )
-    if role == "emperor":
-        assert "当前可见内阁草案" not in dynamic
-        assert "当前决策投票结果" not in dynamic
-    if label == "7":
-        assert "当前可见内阁草案" in dynamic
+    assert "## 当前决策投票结果" not in dynamic
+    if label in {"3", "4", "5", "7", "8"}:
+        assert '"content_type":"draft"' in dynamic
+        assert "内阁最终表决结果：" in dynamic
+        assert '"content_type":"final_decision"' in dynamic
+        expected_redrafts = 2 if label in {"5", "7", "8"} else 1
+        assert dynamic.count("内阁意见不一致，请重新草拟") >= expected_redrafts
+        minimum_summaries = 2 if label in {"5", "8"} else 1
+        assert dynamic.count("请你汇总3位官员的草拟决策") >= minimum_summaries
+    if label in {"5", "8"}:
+        assert dynamic.count("三人最终草案汇总") == 0
     if label == "8":
-        assert "当前决策投票结果" in dynamic
+        assert dynamic.count("请你汇总3位官员的草拟决策") == 2
+    if label == "7":
+        assert "## 当前可见内阁草案" not in dynamic
+    if role == "emperor":
+        assert '"content_type":"draft"' not in dynamic
+        assert "内阁最终表决结果：" not in dynamic
+        assert "内阁意见不一致，请重新草拟" not in dynamic
+    if label == "4":
+        assert '"content_type":"advice"' in dynamic
 
 
 def _write(
@@ -214,18 +266,20 @@ def _write(
 def _render_once() -> str:
     buffer = StringIO()
     scenarios = (
-        ("1", "chief_grand_secretary", "unanimous", False, -1),
-        ("2", "emperor", "unanimous", False, -1),
-        ("3", "chief_grand_secretary", "unanimous", True, 2),
-        ("4", "grand_secretary_1", "unanimous", True, 1),
-        ("5", "chief_grand_secretary", "divergent", True, -1),
-        ("6", "emperor", "divergent", True, -1),
-        ("7", "chief_grand_secretary", "divergent", True, 4),
-        ("8", "chief_grand_secretary", "vote", True, -1),
-        ("9", "emperor", "vote", True, -1),
+        ("1", "chief_grand_secretary", "unanimous", None, False, "advice"),
+        ("2", "emperor", "unanimous", None, False, "final"),
+        ("3", "chief_grand_secretary", "vote", "unanimous", True, "first"),
+        ("4", "grand_secretary_1", "vote", "unanimous", True, "first"),
+        ("5", "chief_grand_secretary", "vote", "consensus", True, "advice"),
+        ("6", "emperor", "vote", "consensus", True, "final"),
+        ("7", "chief_grand_secretary", "vote", "vote", True, "redraft"),
+        ("8", "chief_grand_secretary", "vote", "vote", True, "advice"),
+        ("9", "emperor", "vote", "vote", True, "final"),
     )
-    for label, role, mode, second, request_index in scenarios:
-        messages, warning = _capture(label, role, mode, second, request_index)
+    for label, role, first_mode, second_mode, second, phase in scenarios:
+        messages, warning = _capture(
+            label, role, first_mode, second_mode, second, phase
+        )
         _write(buffer, label, role, messages, warning)
     return buffer.getvalue()
 

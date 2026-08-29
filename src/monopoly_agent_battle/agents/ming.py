@@ -139,8 +139,6 @@ class MingCourtAgent:
         if self._final_recorded:
             return
         self._final_recorded = True
-        if self._vote is not None:
-            self._record_vote_history(request, self._vote)
         self._conversations[_EMPEROR].append_decision(
             decision_id=request.decision_id,
             question_summary=render_decision_question(request),
@@ -178,8 +176,19 @@ class MingCourtAgent:
         self._vote = (
             _weighted_vote(self._final_drafts) if not _all_same(self._final_drafts) else None
         )
+        if self._vote is not None:
+            self._record_vote_history(request, self._vote)
+        for role in _MEMBERS:
+            self._conversations[role].append_context(
+                _ADVICE_INSTRUCTION.format(
+                    selected_option=json.dumps(
+                        _expected_result(self._final_drafts, self._vote),
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                )
+            )
         self._advice = self._call_advice(request)
-        self._append_advice_own(request, self._advice)
         self._deliver(
             request, _CHIEF, _ADVICE, self._advice, {_SECRETARY_1, _SECRETARY_2, _EMPEROR}
         )
@@ -221,10 +230,20 @@ class MingCourtAgent:
             )
 
     def _parallel_redrafts(self, request: DecisionRequest) -> None:
-        first = dict(self._first)
+        for role in _MEMBERS:
+            self._deliver(
+                request,
+                role,
+                _DRAFT,
+                self._first[role],
+                {str(member) for member in _MEMBERS if member != role},
+                delivery_key="first",
+            )
+        for role in _MEMBERS:
+            self._conversations[role].append_context(_REDRAFT_INSTRUCTION)
         with ThreadPoolExecutor(max_workers=3) as executor:
             futures = {
-                role: executor.submit(self._redraft, role, request, first) for role in _MEMBERS
+                role: executor.submit(self._redraft, role, request) for role in _MEMBERS
             }
             for role in _MEMBERS:
                 self._first[role] = futures[role].result()
@@ -243,21 +262,14 @@ class MingCourtAgent:
         self._append_own(role, request, raw)
         return raw
 
-    def _redraft(self, role: str, request: DecisionRequest, first: dict[str, str]) -> str:
-        visible = {key: value for key, value in first.items() if key != role}
-        material = _render_drafts(visible) + "\n\n" + _REDRAFT_INSTRUCTION
-        raw = self._validated_call(role, request, "redraft", material)
+    def _redraft(self, role: str, request: DecisionRequest) -> str:
+        raw = self._validated_call(role, request, "redraft")
         self._append_own(role, request, raw)
         return raw
 
     def _call_advice(self, request: DecisionRequest) -> str:
-        material = _render_drafts(self._final_drafts)
         expected = _expected_result(self._final_drafts, self._vote)
-        if self._vote is not None:
-            material += "\n## 当前决策投票结果\n" + _render_vote_result(self._vote)
-        material += "\n\n" + _ADVICE_INSTRUCTION.format(
-            selected_option=json.dumps(expected, ensure_ascii=False, separators=(",", ":"))
-        )
+        material = ""
         raw = self._call(_CHIEF, request, "advice", material)
         validation = parse_and_validate(raw, request)
         attempts = 0
@@ -416,13 +428,11 @@ class MingCourtAgent:
         return response.content
 
     def _append_advice_own(self, request: DecisionRequest, raw: str) -> None:
-        self._conversations[_CHIEF].append_internal_decision(
-            internal_decision_id=f"{request.decision_id}:{_CHIEF}:{_ADVICE}:own",
+        self._conversations[_CHIEF].append_decision(
             decision_id=request.decision_id,
             question_summary=render_decision_question(request),
-            decision_maker=_CHIEF,
-            content_type=_ADVICE,
-            raw_content=raw,
+            assistant_reply=raw,
+            allow_duplicate_decision_id=True,
         )
 
     def _append_own(self, role: str, request: DecisionRequest, raw: str) -> None:
@@ -567,7 +577,3 @@ def _render_vote_result(vote: dict[str, object]) -> str:
         rendered += "}}"
         lines.append(f"{rendered} 共计{count}票")
     return "\n".join(lines)
-
-
-def _render_drafts(drafts: dict[str, str]) -> str:
-    return "## 当前可见内阁草案\n" + json.dumps(drafts, ensure_ascii=False)

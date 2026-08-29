@@ -285,6 +285,49 @@ class AgentConversation:
         )
         return True
 
+    def insert_internal_decision_before_last_decision(
+        self,
+        *,
+        internal_decision_id: str,
+        decision_id: str,
+        question_summary: str,
+        decision_maker: str,
+        content_type: str,
+        raw_content: str,
+    ) -> bool:
+        """Insert trusted context immediately before the last matching decision."""
+        if self.current_turn is None:
+            return False
+        if any(
+            isinstance(entry, InternalDecisionEntry)
+            and entry.internal_decision_id == internal_decision_id
+            for turn in (*self.completed_turns, self.current_turn)
+            for entry in turn.entries
+        ):
+            return False
+        insertion_index = next(
+            (
+                index
+                for index, entry in reversed(
+                    tuple(enumerate(self.current_turn.entries))
+                )
+                if isinstance(entry, DecisionEntry) and entry.decision_id == decision_id
+            ),
+            len(self.current_turn.entries),
+        )
+        self.current_turn.entries.insert(
+            insertion_index,
+            InternalDecisionEntry(
+                internal_decision_id=internal_decision_id,
+                decision_id=decision_id,
+                question_summary=question_summary,
+                decision_maker=decision_maker,
+                content_type=content_type,
+                raw_content=raw_content,
+            ),
+        )
+        return True
+
     def append_context(self, content: str) -> None:
         """Append plain user context at the current point in segment-five history."""
         if self.current_turn is None:
