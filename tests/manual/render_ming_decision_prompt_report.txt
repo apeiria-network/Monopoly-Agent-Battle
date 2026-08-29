@@ -790,7 +790,7 @@ SCENARIO 4: grand_secretary_1 — 第二次决策：大学士一首次草拟
 
 --- Message 3 [assistant] ---
 {"selected_option": {"option": "mortgage", "target": 1}, "reason": "grand_secretary_1-1-first"}
-请你汇总3位官员的草拟决策，并为决策
+
 --- Message 4 [user] ---
 {"selected_option":{"option":"end_turn"},"reason":"chief_grand_secretary-1-first","decision_maker":"chief_grand_secretary","content_type":"draft"}
 
@@ -809,8 +809,6 @@ SCENARIO 4: grand_secretary_1 — 第二次决策：大学士一首次草拟
 内阁最终表决结果：
 {selected_option:{option: end_turn}} 共计2.5票
 {selected_option:{option: mortgage, target: 1}} 共计1.0票
-
-请你汇总3位官员的草拟决策，并为决策{"option":"end_turn"}撰写对应决策理由
 
 {"selected_option":{"option":"end_turn"},"reason":"chief_grand_secretary-1-advice","decision_maker":"chief_grand_secretary","content_type":"advice"}
 

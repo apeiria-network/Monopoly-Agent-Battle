@@ -178,16 +178,15 @@ class MingCourtAgent:
         )
         if self._vote is not None:
             self._record_vote_history(request, self._vote)
-        for role in _MEMBERS:
-            self._conversations[role].append_context(
-                _ADVICE_INSTRUCTION.format(
-                    selected_option=json.dumps(
-                        _expected_result(self._final_drafts, self._vote),
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    )
+        self._conversations[_CHIEF].append_context(
+            _ADVICE_INSTRUCTION.format(
+                selected_option=json.dumps(
+                    _expected_result(self._final_drafts, self._vote),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
                 )
             )
+        )
         self._advice = self._call_advice(request)
         self._deliver(
             request, _CHIEF, _ADVICE, self._advice, {_SECRETARY_1, _SECRETARY_2, _EMPEROR}

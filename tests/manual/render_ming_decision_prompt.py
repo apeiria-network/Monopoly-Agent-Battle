@@ -231,8 +231,11 @@ def _assert_shape(messages: tuple[LLMMessage, ...], role: str, label: str) -> No
         assert '"content_type":"final_decision"' in dynamic
         expected_redrafts = 2 if label in {"5", "7", "8"} else 1
         assert dynamic.count("内阁意见不一致，请重新草拟") >= expected_redrafts
+    if label in {"3", "5", "7", "8"}:
         minimum_summaries = 2 if label in {"5", "8"} else 1
         assert dynamic.count("请你汇总3位官员的草拟决策") >= minimum_summaries
+    if label == "4":
+        assert "请你汇总3位官员的草拟决策" not in dynamic
     if label in {"5", "8"}:
         assert dynamic.count("三人最终草案汇总") == 0
     if label == "8":
