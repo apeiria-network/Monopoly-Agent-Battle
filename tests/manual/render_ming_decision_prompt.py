@@ -11,7 +11,7 @@ from monopoly_agent_battle.agents.ming import MingCourtAgent
 from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.models import DecisionRequest
-from monopoly_agent_battle.decision.protocol import command_from_option
+from monopoly_agent_battle.decision.protocol import command_from_option, parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
@@ -111,6 +111,8 @@ class _CaptureClient:
         option_ids = [item.option_id for item in request.options]
         first = option_ids[0]
         alternate = option_ids[1] if len(option_ids) > 1 else first
+        if self.role == "emperor" and self._decision_number == 1 and mode == "vote":
+            return alternate
         if phase == "redraft" and mode == "consensus":
             return first
         if mode == "unanimous":
@@ -163,14 +165,14 @@ def _complete_first_decision(
 ) -> None:
     reply = _run_agent(agent, clients, request)
     agent.record_final_decision(request, reply)
-    option = next(item for item in request.options if item.option_id == "mortgage")
-    values = option.target.legal_values[0] if option.target is not None else None
-    target: dict[str, object] | None = (
-        {option.target.command_fields[0]: values[0]}
-        if option.target is not None and values is not None
-        else None
+    validation = parse_and_validate(reply, request)
+    if not validation.valid or validation.option is None:
+        raise AssertionError(f"invalid deterministic emperor reply: {validation.error}")
+    if validation.option.option_id != "mortgage":
+        raise AssertionError("deterministic emperor reply must select mortgage")
+    events = engine.execute(
+        command_from_option(request, validation.option, validation.target)
     )
-    events = engine.execute(command_from_option(request, option, target))
     for event in events:
         for conversation in agent.role_conversations.values():
             conversation.append_event(event, engine.state.complete_rounds)

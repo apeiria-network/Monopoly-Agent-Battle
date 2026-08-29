@@ -584,7 +584,7 @@ SCENARIO 3: chief_grand_secretary — 第二次决策：首辅首次草拟
 {"selected_option": {"option": "end_turn"}, "reason": "chief_grand_secretary-1-advice"}
 
 --- Message 8 [user] ---
-{"selected_option":{"option":"end_turn"},"reason":"emperor-1-final","decision_maker":"emperor","content_type":"final_decision"}
+{"selected_option":{"option":"mortgage","target":1},"reason":"emperor-1-final","decision_maker":"emperor","content_type":"final_decision"}
 
 [第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
 
@@ -812,7 +812,7 @@ SCENARIO 4: grand_secretary_1 — 第二次决策：大学士一首次草拟
 
 {"selected_option":{"option":"end_turn"},"reason":"chief_grand_secretary-1-advice","decision_maker":"chief_grand_secretary","content_type":"advice"}
 
-{"selected_option":{"option":"end_turn"},"reason":"emperor-1-final","decision_maker":"emperor","content_type":"final_decision"}
+{"selected_option":{"option":"mortgage","target":1},"reason":"emperor-1-final","decision_maker":"emperor","content_type":"final_decision"}
 
 [第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
 
@@ -1044,7 +1044,7 @@ SCENARIO 5: chief_grand_secretary — 第二次决策：两轮草拟达成一致
 {"selected_option": {"option": "end_turn"}, "reason": "chief_grand_secretary-1-advice"}
 
 --- Message 8 [user] ---
-{"selected_option":{"option":"end_turn"},"reason":"emperor-1-final","decision_maker":"emperor","content_type":"final_decision"}
+{"selected_option":{"option":"mortgage","target":1},"reason":"emperor-1-final","decision_maker":"emperor","content_type":"final_decision"}
 
 [第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
 
@@ -1274,7 +1274,7 @@ SCENARIO 6: emperor — 第二次决策：两轮草拟达成一致，皇帝终�
 {"selected_option":{"option":"end_turn"},"reason":"chief_grand_secretary-1-advice","decision_maker":"chief_grand_secretary","content_type":"advice"}
 
 --- Message 3 [assistant] ---
-{"selected_option": {"option": "end_turn"}, "reason": "emperor-1-final"}
+{"selected_option": {"option": "mortgage", "target": 1}, "reason": "emperor-1-final"}
 
 --- Message 4 [user] ---
 [第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
@@ -1512,7 +1512,7 @@ SCENARIO 7: chief_grand_secretary — 第二次决策：首次分歧后首辅重
 {"selected_option": {"option": "end_turn"}, "reason": "chief_grand_secretary-1-advice"}
 
 --- Message 8 [user] ---
-{"selected_option":{"option":"end_turn"},"reason":"emperor-1-final","decision_maker":"emperor","content_type":"final_decision"}
+{"selected_option":{"option":"mortgage","target":1},"reason":"emperor-1-final","decision_maker":"emperor","content_type":"final_decision"}
 
 [第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
 
@@ -1757,7 +1757,7 @@ SCENARIO 8: chief_grand_secretary — 第二次决策：两轮草拟仍不一致
 {"selected_option": {"option": "end_turn"}, "reason": "chief_grand_secretary-1-advice"}
 
 --- Message 8 [user] ---
-{"selected_option":{"option":"end_turn"},"reason":"emperor-1-final","decision_maker":"emperor","content_type":"final_decision"}
+{"selected_option":{"option":"mortgage","target":1},"reason":"emperor-1-final","decision_maker":"emperor","content_type":"final_decision"}
 
 [第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
 
@@ -1991,7 +1991,7 @@ SCENARIO 9: emperor — 第二次决策：两轮草拟仍不一致，皇帝读�
 {"selected_option":{"option":"end_turn"},"reason":"chief_grand_secretary-1-advice","decision_maker":"chief_grand_secretary","content_type":"advice"}
 
 --- Message 3 [assistant] ---
-{"selected_option": {"option": "end_turn"}, "reason": "emperor-1-final"}
+{"selected_option": {"option": "mortgage", "target": 1}, "reason": "emperor-1-final"}
 
 --- Message 4 [user] ---
 [第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
