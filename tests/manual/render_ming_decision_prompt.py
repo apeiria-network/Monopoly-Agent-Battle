@@ -1,4 +1,4 @@
-"""Render nine confirmed Ming court prompt scenarios for human review."""
+"""Render nine Ming court prompt scenarios through the real court workflow."""
 
 from __future__ import annotations
 
@@ -7,37 +7,19 @@ from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
-from monopoly_agent_battle.context.composer import compose_prompt
+from monopoly_agent_battle.agents.ming import MingCourtAgent
+from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.models import DecisionRequest
-from monopoly_agent_battle.decision.prompts import render_decision_question
+from monopoly_agent_battle.decision.protocol import command_from_option
 from monopoly_agent_battle.decision.requests import build_decision_request
-from monopoly_agent_battle.domain.models import GameEvent, TurnPhase
+from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
-from monopoly_agent_battle.llm.protocol import LLMMessage
+from monopoly_agent_battle.llm.protocol import LLMMessage, LLMRequest, LLMResponse, UsageMetrics
 
 _DIVIDER = "=" * 72
 _REPORT_PATH = Path("tests/manual/render_ming_decision_prompt_report.txt")
-_ROLE_ROOT = (
-    Path(__file__).resolve().parents[2]
-    / "src"
-    / "monopoly_agent_battle"
-    / "agents"
-    / "agent_prompt_list"
-)
-_ROLE_FILES = {
-    "chief_grand_secretary": "Ming/chief_grand_secretary.txt",
-    "grand_secretary_1": "Ming/grand_secretary.txt",
-    "grand_secretary_2": "Ming/grand_secretary.txt",
-    "emperor": "Ming/emperor.txt",
-}
-_ROLES = ("chief_grand_secretary", "grand_secretary_1", "grand_secretary_2")
-_DRAFT, _VOTE, _ADVICE, _FINAL = "draft", "vote_result", "advice", "final_decision"
-_REDRAFT_INSTRUCTION = (
-    "内阁意见不一致，请重新草拟决策，你可以参考其他官员的意见，也可以提出你的个人观点。"
-)
-_ADVICE_INSTRUCTION = "请你汇总3位官员的草拟决策，并为决策{selected_option}撰写对应决策理由"
+_ROLES = ("chief_grand_secretary", "grand_secretary_1", "grand_secretary_2", "emperor")
 _TITLES = {
     "1": "第一次决策：三人一致，首辅汇总 advice",
     "2": "第一次决策：首辅 advice 后皇帝终裁",
@@ -49,11 +31,6 @@ _TITLES = {
     "8": "第二次决策：两轮草拟仍不一致，首辅查看投票并汇总",
     "9": "第二次决策：两轮草拟仍不一致，皇帝读取 advice 后终裁",
 }
-
-
-def _role_instruction(role: str) -> str:
-    return (_ROLE_ROOT / _ROLE_FILES[role]).read_text(encoding="utf-8").strip()
-
 
 def _make_engine(directory: str) -> GameEngine:
     config = GameConfig(
@@ -72,325 +49,194 @@ def _make_engine(directory: str) -> GameEngine:
     engine.state.players["a"].properties.add(1)
     engine.state.properties[3].owner_id = "b"
     engine.state.players["b"].properties.add(3)
+    engine.state.properties[6].owner_id = "a"
+    engine.state.players["a"].properties.add(6)
     return engine
 
 
-def _raw(label: str, option: str = "end_turn") -> str:
-    return json.dumps({"reason": label, "selected_option": {"option": option}}, ensure_ascii=False)
+def _selected_option(request: DecisionRequest, option_id: str) -> dict[str, object]:
+    option = next(item for item in request.options if item.option_id == option_id)
+    selected: dict[str, object] = {"option": option_id}
+    if option.target is not None:
+        values = option.target.legal_values[-1]
+        if len(option.target.fields) == 1:
+            selected["target"] = values[0]
+        else:
+            selected["target"] = dict(zip(option.target.fields, values, strict=True))
+    return selected
 
 
-def _event() -> GameEvent:
-    return GameEvent("property_mortgaged", {"player_id": "a", "position": 1, "amount": 60})
+class _CaptureClient:
+    def __init__(self, role: str, mode: str) -> None:
+        self.role = role
+        self.mode = mode
+        self.request_data: DecisionRequest | None = None
+        self.requests: list[LLMRequest] = []
+
+    def complete(self, request: LLMRequest) -> LLMResponse:
+        self.requests.append(request)
+        request_data = self.request_data
+        if request_data is None:
+            raise RuntimeError("capture client request_data was not prepared")
+        call_number = len(self.requests)
+        role_choices = {
+            "chief_grand_secretary": "mortgage",
+            "grand_secretary_1": "end_turn",
+            "grand_secretary_2": "mortgage",
+        }
+        if self.role == "emperor" or self.mode == "unanimous":
+            option = "mortgage"
+        elif self.mode == "vote" or call_number == 1:
+            option = role_choices[self.role]
+        else:
+            option = "mortgage"
+        selected = _selected_option(request_data, option)
+        content = json.dumps(
+            {"reason": f"{self.role}第{call_number}次固定意见", "selected_option": selected},
+            ensure_ascii=False,
+        )
+        return LLMResponse(content, UsageMetrics(1, 1), request.model)
 
 
-def _vote_text(number: int) -> str:
+def _make_agent(mode: str) -> tuple[MingCourtAgent, dict[str, _CaptureClient]]:
+    clients = {role: _CaptureClient(role, mode) for role in _ROLES}
+    profiles = {role: ModelProfile(provider="mock", model=f"ming-{role}") for role in _ROLES}
+    conversations = {
+        role: AgentConversation(agent_id=f"a.{role}", window_turns=1) for role in _ROLES
+    }
     return (
-        "内阁最终表决结果：\n"
-        "{selected_option:{option: end_turn}} 共计1.5票\n"
-        "{selected_option:{option: mortgage, position: 3}} 共计2.0票"
+        MingCourtAgent(
+            player_id="a",
+            chief_client=clients["chief_grand_secretary"],
+            chief_profile=profiles["chief_grand_secretary"],
+            secretary_1_client=clients["grand_secretary_1"],
+            secretary_1_profile=profiles["grand_secretary_1"],
+            secretary_2_client=clients["grand_secretary_2"],
+            secretary_2_profile=profiles["grand_secretary_2"],
+            emperor_client=clients["emperor"],
+            emperor_profile=profiles["emperor"],
+            conversations=conversations,
+        ),
+        clients,
     )
 
-    return GameEvent("property_mortgaged", {"player_id": "a", "position": 1, "amount": 60})
 
-
-def _conversation(role: str) -> AgentConversation:
-    conversation = AgentConversation(agent_id=f"a.{role}", window_turns=1)
-    conversation.start_turn(1)
-    return conversation
-
-
-def _internal(
-    conversation: AgentConversation,
-    decision_id: str,
+def _run_agent(
+    agent: MingCourtAgent,
+    clients: dict[str, _CaptureClient],
     request: DecisionRequest,
-    maker: str,
-    content_type: str,
-    raw: str,
-    suffix: str,
-) -> None:
-    conversation.append_internal_decision(
-        internal_decision_id=f"{decision_id}:{maker}:{content_type}:{suffix}",
-        decision_id=decision_id,
-        question_summary=render_decision_question(request),
-        decision_maker=maker,
-        content_type=content_type,
-        raw_content=raw,
-    )
+) -> str:
+    for client in clients.values():
+        client.request_data = request
+    return agent(request)
 
 
-def _context(conversation: AgentConversation, content: str) -> None:
-    conversation.append_context(content)
-
-
-def _own(
-    conversation: AgentConversation, decision_id: str, request: DecisionRequest, raw: str
-) -> None:
-    conversation.append_decision(
-        decision_id=decision_id,
-        question_summary=render_decision_question(request),
-        assistant_reply=raw,
-        allow_duplicate_decision_id=True,
-    )
-
-
-def _first_history(conversation: AgentConversation, role: str, request: DecisionRequest) -> None:
-    decision_id = "ming-prompt-1"
-    choices = {
-        "chief_grand_secretary": "end_turn",
-        "grand_secretary_1": "mortgage",
-        "grand_secretary_2": "redeem_mortgage",
-    }
-    _own(conversation, decision_id, request, _raw(f"{role}第一次草案", choices[role]))
-    for other in _ROLES:
-        if other != role:
-            _internal(
-                conversation,
-                decision_id,
-                request,
-                other,
-                _DRAFT,
-                _raw(f"{other}第一次草案", choices[other]),
-                "first",
-            )
-    _context(conversation, _REDRAFT_INSTRUCTION)
-    _own(conversation, decision_id, request, _raw(f"{role}第一次重新草案", choices[role]))
-    for other in _ROLES:
-        if other != role:
-            _internal(
-                conversation,
-                decision_id,
-                request,
-                other,
-                _DRAFT,
-                _raw(f"{other}第一次重新草拟", choices[other]),
-                "redraft",
-            )
-    _internal(
-        conversation,
-        decision_id,
-        request,
-        "system",
-        _VOTE,
-        _vote_text(1),
-        "history",
-    )
-    if role == "chief_grand_secretary":
-        _context(
-            conversation,
-            _ADVICE_INSTRUCTION.format(selected_option='{"option":"mortgage"}'),
-        )
-        _own(conversation, decision_id, request, _raw("首辅第一次advice", "mortgage"))
-    else:
-        _internal(
-            conversation,
-            decision_id,
-            request,
-            "chief_grand_secretary",
-            _ADVICE,
-            _raw("首辅第一次advice", "mortgage"),
-            "advice",
-        )
-    _internal(
-        conversation,
-        decision_id,
-        request,
-        "emperor",
-        _FINAL,
-        _raw("皇帝第一次final_decision", "mortgage"),
-        "final",
-    )
-    conversation.append_event(_event(), complete_round=1)
-
-
-def _emperor_history(conversation: AgentConversation, request: DecisionRequest) -> None:
-    decision_id = "ming-prompt-1"
-    _internal(
-        conversation,
-        decision_id,
-        request,
-        "chief_grand_secretary",
-        _ADVICE,
-        _raw("首辅第一次advice", "mortgage"),
-        "advice",
-    )
-    _own(conversation, decision_id, request, _raw("皇帝第一次final_decision", "mortgage"))
-    conversation.append_event(_event(), complete_round=1)
-
-
-def _unanimous_current(conversation: AgentConversation, request: DecisionRequest) -> None:
-    decision_id = "ming-prompt-1"
-    _own(conversation, decision_id, request, _raw("首辅第一次一致草案"))
-    for role in ("grand_secretary_1", "grand_secretary_2"):
-        _internal(
-            conversation, decision_id, request, role, _DRAFT, _raw(f"{role}第一次一致草案"), "first"
-        )
-
-
-def _second_first_round(
-    conversation: AgentConversation, request: DecisionRequest, role: str
-) -> None:
-    decision_id = "ming-prompt-2"
-    choices = {
-        "chief_grand_secretary": "end_turn",
-        "grand_secretary_1": "mortgage",
-        "grand_secretary_2": "redeem_mortgage",
-    }
-    _own(conversation, decision_id, request, _raw(f"{role}第二次首次草案", choices[role]))
-    for other in _ROLES:
-        if other != role:
-            _internal(
-                conversation,
-                decision_id,
-                request,
-                other,
-                _DRAFT,
-                _raw(f"{other}第二次首次草案", choices[other]),
-                "first",
-            )
-    _context(conversation, _REDRAFT_INSTRUCTION)
-
-
-def _second_redraft_round(
-    conversation: AgentConversation,
+def _complete_first_decision(
+    engine: GameEngine,
+    agent: MingCourtAgent,
+    clients: dict[str, _CaptureClient],
     request: DecisionRequest,
-    include_vote: bool,
-    agree: bool = False,
 ) -> None:
-    decision_id = "ming-prompt-2"
-    redraft_choices = {
-        "chief_grand_secretary": "end_turn",
-        "grand_secretary_1": "end_turn" if agree else "mortgage",
-        "grand_secretary_2": "end_turn" if agree else "redeem_mortgage",
-    }
-    _own(
-        conversation,
-        decision_id,
-        request,
-        _raw("首辅第二次重新草案", redraft_choices["chief_grand_secretary"]),
+    reply = _run_agent(agent, clients, request)
+    agent.record_final_decision(request, reply)
+    option = next(item for item in request.options if item.option_id == "mortgage")
+    target: dict[str, object] | None = (
+        {option.target.command_fields[0]: 1} if option.target is not None else None
     )
-    for role in ("grand_secretary_1", "grand_secretary_2"):
-        _internal(
-            conversation,
-            decision_id,
-            request,
-            role,
-            _DRAFT,
-            _raw(
-                f"{role}第二次重新草案",
-                redraft_choices[role],
-            ),
-            "redraft",
-        )
-    if include_vote:
-        _internal(conversation, decision_id, request, "system", _VOTE, _vote_text(2), "current")
+    events = engine.execute(command_from_option(request, option, target))
+    for event in events:
+        for conversation in agent.role_conversations.values():
+            conversation.append_event(event, engine.state.complete_rounds)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
 
 
-def _second_advice(
-    conversation: AgentConversation, request: DecisionRequest, option: str = "mortgage"
-) -> None:
-    _internal(
-        conversation,
-        "ming-prompt-2",
-        request,
-        "chief_grand_secretary",
-        _ADVICE,
-        _raw("首辅第二次advice", option),
-        "advice",
-    )
-
-
-def _render(
-    role: str, request: DecisionRequest, conversation: AgentConversation
+def _capture(
+    label: str, role: str, mode: str, second: bool, request_index: int
 ) -> tuple[tuple[LLMMessage, ...], object]:
-    messages, warning = compose_prompt(
-        conversation, request, role_instruction=_role_instruction(role)
-    )
-    _assert_shape(messages)
-    return messages, warning
+    with TemporaryDirectory() as directory:
+        engine = _make_engine(directory)
+        agent, clients = _make_agent(mode)
+        first = build_decision_request(engine, sequence=1)
+        if second:
+            _complete_first_decision(engine, agent, clients, first)
+            request = build_decision_request(engine, sequence=2)
+            _run_agent(agent, clients, request)
+        else:
+            request = first
+            _run_agent(agent, clients, request)
+        selected = clients[role].requests[request_index]
+        _assert_shape(selected.messages, role, label)
+        return selected.messages, agent.last_context_warning
 
 
-def _assert_shape(messages: tuple[LLMMessage, ...]) -> None:
+def _assert_shape(messages: tuple[LLMMessage, ...], role: str, label: str) -> None:
     assert messages and messages[0].role == "system"
+    assert sum(message.role == "system" for message in messages) == 1
     assert all(
         not (left.role == "user" and right.role == "user")
         for left, right in zip(messages, messages[1:], strict=False)
     )
     dynamic = "\n".join(message.content for message in messages[1:])
-    assert dynamic.count("## 当前局面") == 1
-    assert dynamic.count("## 当前决策") == 1
-    assert dynamic.count("## 合法候选操作") == 1
+    lines = dynamic.splitlines()
+    assert lines.count("## 当前局面") == 1
+    assert lines.count("## 当前决策") == 1
+    assert lines.count("## 合法候选操作") == 1
     assert (
-        dynamic.index("## 当前局面")
-        < dynamic.index("## 当前决策")
-        < dynamic.index("## 合法候选操作")
+        lines.index("## 当前局面")
+        < lines.index("## 当前决策")
+        < lines.index("## 合法候选操作")
     )
+    if role == "emperor":
+        assert "当前可见内阁草案" not in dynamic
+        assert "当前决策投票结果" not in dynamic
+    if label == "7":
+        assert "当前可见内阁草案" in dynamic
+    if label == "8":
+        assert "当前决策投票结果" in dynamic
 
 
 def _write(
-    buffer: StringIO, label: str, role: str, messages: tuple[LLMMessage, ...], warning: object
+    buffer: StringIO,
+    label: str,
+    role: str,
+    messages: tuple[LLMMessage, ...],
+    warning: object,
 ) -> None:
-    buffer.write(f"\n{_DIVIDER}\nSCENARIO {label}: {role} — {_TITLES[label]}\n{_DIVIDER}\n")
+    buffer.write(
+        f"\n{_DIVIDER}\nSCENARIO {label}: {role} — {_TITLES[label]}\n{_DIVIDER}\n"
+    )
     for index, message in enumerate(messages, 1):
         buffer.write(f"\n--- Message {index} [{message.role}] ---\n{message.content}\n")
     if warning is not None:
         buffer.write(f"\n[ContextWarning] {warning!r}\n")
 
 
-def main() -> None:
+def _render_once() -> str:
     buffer = StringIO()
-    with TemporaryDirectory() as directory:
-        engine = _make_engine(directory)
-        first_request = build_decision_request(engine, sequence=1)
-        second_request = build_decision_request(engine, sequence=2)
-        scenarios: list[tuple[str, str, DecisionRequest, AgentConversation]] = []
+    scenarios = (
+        ("1", "chief_grand_secretary", "unanimous", False, -1),
+        ("2", "emperor", "unanimous", False, -1),
+        ("3", "chief_grand_secretary", "unanimous", True, 2),
+        ("4", "grand_secretary_1", "unanimous", True, 1),
+        ("5", "chief_grand_secretary", "divergent", True, -1),
+        ("6", "emperor", "divergent", True, -1),
+        ("7", "chief_grand_secretary", "divergent", True, 4),
+        ("8", "chief_grand_secretary", "vote", True, -1),
+        ("9", "emperor", "vote", True, -1),
+    )
+    for label, role, mode, second, request_index in scenarios:
+        messages, warning = _capture(label, role, mode, second, request_index)
+        _write(buffer, label, role, messages, warning)
+    return buffer.getvalue()
 
-        conversation = _conversation("chief_grand_secretary")
-        _unanimous_current(conversation, first_request)
-        scenarios.append(("1", "chief_grand_secretary", first_request, conversation))
-        conversation = _conversation("emperor")
-        _second_advice(conversation, first_request)
-        scenarios.append(("2", "emperor", first_request, conversation))
-        conversation = _conversation("chief_grand_secretary")
-        _first_history(conversation, "chief_grand_secretary", first_request)
-        scenarios.append(("3", "chief_grand_secretary", second_request, conversation))
-        conversation = _conversation("grand_secretary_1")
-        _first_history(conversation, "grand_secretary_1", first_request)
-        scenarios.append(("4", "grand_secretary_1", second_request, conversation))
-        conversation = _conversation("chief_grand_secretary")
-        _first_history(conversation, "chief_grand_secretary", first_request)
-        _second_first_round(conversation, second_request, "chief_grand_secretary")
-        _second_redraft_round(conversation, second_request, include_vote=False, agree=True)
-        _context(
-            conversation,
-            _ADVICE_INSTRUCTION.format(selected_option='{"option":"end_turn"}'),
-        )
-        scenarios.append(("5", "chief_grand_secretary", second_request, conversation))
-        conversation = _conversation("emperor")
-        _emperor_history(conversation, first_request)
-        _second_advice(conversation, second_request)
-        scenarios.append(("6", "emperor", second_request, conversation))
-        conversation = _conversation("chief_grand_secretary")
-        _first_history(conversation, "chief_grand_secretary", first_request)
-        _second_first_round(conversation, second_request, "chief_grand_secretary")
-        scenarios.append(("7", "chief_grand_secretary", second_request, conversation))
-        conversation = _conversation("chief_grand_secretary")
-        _first_history(conversation, "chief_grand_secretary", first_request)
-        _second_first_round(conversation, second_request, "chief_grand_secretary")
-        _second_redraft_round(conversation, second_request, include_vote=True)
-        _context(
-            conversation,
-            _ADVICE_INSTRUCTION.format(selected_option='{"option":"mortgage"}'),
-        )
-        scenarios.append(("8", "chief_grand_secretary", second_request, conversation))
-        conversation = _conversation("emperor")
-        _emperor_history(conversation, first_request)
-        _second_advice(conversation, second_request)
-        scenarios.append(("9", "emperor", second_request, conversation))
-        for label, role, request, conversation in scenarios:
-            messages, warning = _render(role, request, conversation)
-            _write(buffer, label, role, messages, warning)
-    _REPORT_PATH.write_text(buffer.getvalue(), encoding="utf-8")
-    print(f"Wrote {_REPORT_PATH} ({len(buffer.getvalue())} chars)")
+
+def main() -> None:
+    first = _render_once()
+    second = _render_once()
+    if first != second:
+        raise AssertionError("Ming prompt rendering is not deterministic")
+    _REPORT_PATH.write_text(first, encoding="utf-8")
+    print(f"Wrote {_REPORT_PATH} ({len(first)} chars)")
 
 
 if __name__ == "__main__":

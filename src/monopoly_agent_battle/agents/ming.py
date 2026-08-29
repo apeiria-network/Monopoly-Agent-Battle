@@ -217,6 +217,7 @@ class MingCourtAgent:
                 _DRAFT,
                 self._first[role],
                 {str(member) for member in _MEMBERS if member != role},
+                delivery_key="first",
             )
 
     def _parallel_redrafts(self, request: DecisionRequest) -> None:
@@ -234,6 +235,7 @@ class MingCourtAgent:
                 _DRAFT,
                 self._first[role],
                 {str(member) for member in _MEMBERS if member != role},
+                delivery_key="redraft",
             )
 
     def _draft(self, role: str, request: DecisionRequest, phase: str) -> str:
@@ -341,12 +343,12 @@ class MingCourtAgent:
                 ensure_ascii=False,
             )
         assert validation.option is not None
+        selected_option: dict[str, object] = {"option": validation.option.option_id}
+        if validation.response is not None and validation.response.target is not None:
+            selected_option["target"] = validation.response.target
         return json.dumps(
             {
-                "selected_option": {
-                    "option": validation.option.option_id,
-                    **(validation.target or {}),
-                },
+                "selected_option": selected_option,
                 "reason": _truncate(validation.response.reason if validation.response else ""),
             },
             ensure_ascii=False,
@@ -432,11 +434,19 @@ class MingCourtAgent:
         )
 
     def _deliver(
-        self, request: DecisionRequest, role: str, content_type: str, raw: str, recipients: set[str]
+        self,
+        request: DecisionRequest,
+        role: str,
+        content_type: str,
+        raw: str,
+        recipients: set[str],
+        *,
+        delivery_key: str | None = None,
     ) -> None:
+        key = delivery_key or content_type
         for recipient in recipients:
             self._conversations[recipient].append_internal_decision(
-                internal_decision_id=f"{request.decision_id}:{role}:{content_type}",
+                internal_decision_id=f"{request.decision_id}:{role}:{key}",
                 decision_id=request.decision_id,
                 question_summary=render_decision_question(request),
                 decision_maker=role,
@@ -487,21 +497,22 @@ def _expected_result(drafts: dict[str, str], vote: dict[str, object] | None) -> 
         selected = vote["selected_option"]
         assert isinstance(selected, dict)
         return dict(cast(dict[str, object], selected))
-    option, target = _signature(next(iter(drafts.values())))
-    return {"option": option, **json.loads(target)}
+    raw = next(iter(drafts.values()))
+    value = cast(dict[str, Any], json.loads(raw))
+    selected = cast(dict[str, object], value["selected_option"])
+    return dict(selected)
 
 
 def _expected_signature(expected: dict[str, object]) -> tuple[str, str]:
     option = expected.get("option")
-    target = {key: value for key, value in expected.items() if key != "option"}
+    target = expected.get("target")
     return str(option), json.dumps(target, ensure_ascii=False, sort_keys=True)
 
 
 def _validation_signature(validation: DecisionValidation) -> tuple[str, str]:
     assert validation.response is not None
-    target = validation.target or {}
     return validation.response.selected_option, json.dumps(
-        target, ensure_ascii=False, sort_keys=True
+        validation.response.target, ensure_ascii=False, sort_keys=True
     )
 
 
@@ -537,15 +548,19 @@ def _render_vote_result(vote: dict[str, object]) -> str:
     totals = vote.get("totals")
     if not isinstance(selected, dict) or not isinstance(totals, dict):
         return "内阁最终表决结果：\n{selected_option:{option: unknown}} 共计0票"
+    typed_totals = cast(dict[str, float], totals)
     lines = ["内阁最终表决结果："]
-    for key, count in totals.items():
+    for key, count in typed_totals.items():
+        option = str(key)
+        target: dict[str, object] = {}
         try:
             option_data = json.loads(str(key))
-            option = option_data[0]
-            target = json.loads(option_data[1])
-            rendered = {"option": option, **target}
+            option = str(option_data[0])
+            target_data = json.loads(option_data[1])
+            if isinstance(target_data, dict):
+                target = cast(dict[str, object], target_data)
         except (json.JSONDecodeError, IndexError, TypeError):
-            rendered = {"option": key}
+            pass
         rendered = "{selected_option:{" + f"option: {option}"
         for field, value in target.items():
             rendered += f", {field}: {value}"
