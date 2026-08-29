@@ -50,6 +50,17 @@ class TangCourtRoleProfiles(BaseModel):
     emperor: str = Field(min_length=1)
 
 
+class MingCourtRoleProfiles(BaseModel):
+    """Independent model-profile bindings for the four Ming court roles."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    chief_grand_secretary: str = Field(min_length=1)
+    grand_secretary_1: str = Field(min_length=1)
+    grand_secretary_2: str = Field(min_length=1)
+    emperor: str = Field(min_length=1)
+
+
 class PlayerConfig(BaseModel):
     """A player assigned to one distinct seat."""
 
@@ -61,10 +72,22 @@ class PlayerConfig(BaseModel):
         default=None, description="key into GameConfig.model_profiles; None means no LLM"
     )
     controller_type: (
-        Literal["llm_baseline", "random_baseline", "shang_court", "qin_court", "tang_court"] | None
+        Literal[
+            "llm_baseline",
+            "random_baseline",
+            "shang_court",
+            "qin_court",
+            "tang_court",
+            "ming_court",
+        ]
+        | None
     ) = None
     court_role_profiles: (
-        ShangCourtRoleProfiles | QinCourtRoleProfiles | TangCourtRoleProfiles | None
+        ShangCourtRoleProfiles
+        | QinCourtRoleProfiles
+        | TangCourtRoleProfiles
+        | MingCourtRoleProfiles
+        | None
     ) = None
 
 
@@ -161,6 +184,16 @@ class GameConfig(BaseModel):
                     msg = (
                         f"Qin court player {player.player_id} "
                         "requires court_role_profiles of Qin roles"
+                    )
+                    raise ValueError(msg)
+            elif player.controller_type == "ming_court":
+                if player.model_profile is not None:
+                    msg = f"Ming court player {player.player_id} must not set model_profile"
+                    raise ValueError(msg)
+                if not isinstance(player.court_role_profiles, MingCourtRoleProfiles):
+                    msg = (
+                        f"Ming court player {player.player_id} "
+                        "requires court_role_profiles of Ming roles"
                     )
                     raise ValueError(msg)
             elif player.controller_type == "tang_court":

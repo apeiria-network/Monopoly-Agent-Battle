@@ -29,6 +29,7 @@ from typing import Any, cast
 from monopoly_agent_battle.context.broadcast import render_event
 from monopoly_agent_battle.context.conversation import (
     AgentConversation,
+    ContextEntry,
     DecisionEntry,
     ErrorEntry,
     EventEntry,
@@ -99,10 +100,15 @@ def compose_prompt(
             elif isinstance(entry, ErrorEntry):
                 flush_event_block()
                 ensure_history_question(entry.decision_id, entry.question_summary)
-                messages.append(LLMMessage(role="user", content=_join(buffer)))
+                history_context = _join(buffer)
+                if history_context:
+                    messages.append(LLMMessage(role="user", content=history_context))
                 buffer.clear()
                 messages.append(LLMMessage(role="assistant", content=entry.bad_reply))
                 buffer.append(entry.feedback_text)
+            elif isinstance(entry, ContextEntry):
+                flush_event_block()
+                buffer.append(entry.content)
             elif isinstance(entry, InternalDecisionEntry):
                 flush_event_block()
                 ensure_history_question(entry.decision_id, entry.question_summary)
@@ -111,7 +117,9 @@ def compose_prompt(
                 assert isinstance(entry, DecisionEntry)
                 flush_event_block()
                 ensure_history_question(entry.decision_id, entry.question_summary)
-                messages.append(LLMMessage(role="user", content=_join(buffer)))
+                history_context = _join(buffer)
+                if history_context:
+                    messages.append(LLMMessage(role="user", content=history_context))
                 buffer.clear()
                 messages.append(LLMMessage(role="assistant", content=entry.assistant_reply))
 
@@ -129,6 +137,8 @@ def compose_prompt(
 
 def _render_internal_decision(entry: InternalDecisionEntry) -> str:
     """Render a trusted private Court-AI message as a user context chunk."""
+    if entry.content_type == "vote_result":
+        return entry.raw_content
     try:
         decoded = json.loads(entry.raw_content)
     except (json.JSONDecodeError, TypeError):

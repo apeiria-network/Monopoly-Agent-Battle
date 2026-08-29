@@ -1,0 +1,42 @@
+game_id: ming-court-demo
+experiment_id: ming-court-demo
+seed: 0
+players:
+  - player_id: ming
+    seat: 1
+    controller_type: ming_court
+    court_role_profiles:
+      chief_grand_secretary: mock-chief
+      grand_secretary_1: mock-grand-secretary
+      grand_secretary_2: mock-grand-secretary
+      emperor: mock-emperor
+  - player_id: random-b
+    seat: 2
+    controller_type: random_baseline
+  - player_id: random-c
+    seat: 3
+    controller_type: random_baseline
+  - player_id: random-d
+    seat: 4
+    controller_type: random_baseline
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+max_complete_rounds: 2
+model_profiles:
+  mock-chief:
+    provider: mock
+    model: mock-ming-chief-v1
+    temperature: 0.2
+    max_tokens: 320
+  mock-grand-secretary:
+    provider: mock
+    model: mock-ming-grand-secretary-v1
+    temperature: 0.2
+    max_tokens: 320
+  mock-emperor:
+    provider: mock
+    model: mock-ming-emperor-v1
+    temperature: 0.2
+    max_tokens: 320
