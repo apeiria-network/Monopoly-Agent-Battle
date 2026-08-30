@@ -29,6 +29,9 @@ class ModelProfile(BaseModel):
     @model_validator(mode="after")
     def validate_provider_settings(self) -> ModelProfile:
         """Require endpoint and environment credential references for real clients."""
+        if self.provider not in {"mock", "fake", "openai_compatible"}:
+            msg = f"unsupported model provider: {self.provider}"
+            raise ValueError(msg)
         if self.provider == "openai_compatible":
             missing = [
                 name

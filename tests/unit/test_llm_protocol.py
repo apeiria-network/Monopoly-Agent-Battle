@@ -9,6 +9,13 @@ from typing import Any
 import pytest
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
+from monopoly_agent_battle.decision.models import (
+    DecisionKind,
+    DecisionOption,
+    DecisionRequest,
+    OptionTarget,
+)
+from monopoly_agent_battle.llm.fake_client import FakeLLMClient
 from monopoly_agent_battle.llm.mock_client import MockLLMClient, script_policy
 from monopoly_agent_battle.llm.protocol import (
     LLMCallError,
@@ -86,7 +93,62 @@ def test_mock_same_seed_reproduces_response_sequence() -> None:
     ]
 
 
-def test_script_policy_replays_in_order_then_repeats_last() -> None:
+def test_fake_selects_legal_target_and_uses_context_request() -> None:
+    option = DecisionOption(
+        option_id="sell",
+        command_type="SellBuilding",
+        parameters={},
+        title="sell",
+        preview="sell",
+        response_format={},
+        target=OptionTarget("space", ("position",), ("target_position",), ((3,), (5,))),
+    )
+    decision = DecisionRequest(
+        decision_id="d1",
+        game_id="g",
+        complete_rounds=0,
+        player_id="a",
+        phase="decision",
+        kind=DecisionKind.ASSET_MANAGEMENT,
+        question="choose",
+        visible_state={},
+        options=(option,),
+        output_constraints={},
+    )
+    request = LLMRequest(
+        messages=(LLMMessage(role="system", content="完整上下文"),),
+        model="fake-v1",
+        caller_role="a",
+        decision_request=decision,
+    )
+    response = FakeLLMClient(seed=42).complete(request)
+    assert json.loads(response.content)["selected_option"]["target"] in (3, 5)
+
+
+def test_fake_same_seed_reproduces_responses() -> None:
+    options: list[dict[str, object]] = [
+        {"option_id": f"opt-{index}", "title": "", "preview": "", "response_format": {}}
+        for index in range(4)
+    ]
+    prompt = _prompt_with_options(options)
+    first = FakeLLMClient(seed=7)
+    second = FakeLLMClient(seed=7)
+    assert [first.complete(_make_request(prompt)).content for _ in range(5)] == [
+        second.complete(_make_request(prompt)).content for _ in range(5)
+    ]
+
+
+def test_fake_special_role_formats() -> None:
+    priest = FakeLLMClient().complete(_make_request("context", "p.great_priest"))
+    counsellor = FakeLLMClient().complete(_make_request("context", "p.imperial_counsellor"))
+    menxia = FakeLLMClient().complete(_make_request("context", "p.menxia"))
+    assert "神谕" in priest.content
+    assert {item["judgement"] for item in json.loads(counsellor.content)["assessments"]} <= {
+        "agree",
+        "disagree",
+        "neutral",
+    }
+    assert json.loads(menxia.content)["selected_option"]["option"] in {"agree", "disagree"}
     client = MockLLMClient(policy=script_policy(["one", "two"]))
     assert client.complete(_make_request("ignored")).content == "one"
     assert client.complete(_make_request("ignored")).content == "two"

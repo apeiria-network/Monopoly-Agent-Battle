@@ -389,6 +389,7 @@ class MingCourtAgent:
                     temperature=profile.temperature,
                     max_tokens=profile.max_tokens,
                     timeout_seconds=profile.timeout_seconds,
+                    decision_request=request,
                 )
             )
         except ConnectionError as error:

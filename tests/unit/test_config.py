@@ -92,6 +92,13 @@ def test_config_accepts_model_profiles_and_player_binding() -> None:
     assert config.model_profiles["mock"].model == "mock-baseline-v1"
 
 
+def test_config_accepts_fake_provider() -> None:
+    data = config_data()
+    data["model_profiles"] = {"fake": {"provider": "fake", "model": "fake-random-v1"}}
+    config = GameConfig.model_validate(data)
+    assert config.model_profiles["fake"].provider == "fake"
+
+
 def test_config_accepts_independent_openai_compatible_profiles() -> None:
     data = config_data()
     data["model_profiles"] = {

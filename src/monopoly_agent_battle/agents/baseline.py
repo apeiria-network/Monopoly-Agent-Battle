@@ -67,6 +67,7 @@ class BaselineAgent:
                 temperature=self._profile.temperature,
                 max_tokens=self._profile.max_tokens,
                 timeout_seconds=self._profile.timeout_seconds,
+                decision_request=request,
             )
         )
         return response.content

@@ -215,7 +215,7 @@ api_key: sk-真实密钥
 
 | 字段 | 说明 |
 |---|---|
-| `provider` | 当前真实接口使用 `openai_compatible`；无凭据测试使用 `mock`。 |
+| `provider` | 真实接口使用 `openai_compatible`；无网络模拟测试使用 `fake`；固定策略和脚本测试使用 `mock`。 |
 | `base_url` | OpenAI 兼容 API 的基地址，程序会请求其 `/chat/completions` 路径。 |
 | `api_key_env` | API Key 环境变量名称。 |
 | `model` | 供应商使用的模型名称。 |
@@ -236,7 +236,15 @@ configs/games/example.yaml
 
 该文件包含商、秦、唐、明四名玩家，并为 13 名官员分别配置了独立的 URL、API Key 环境变量、模型和 `seed: 42`。
 
-使用真实接口前，需要将其中的示例 URL、模型名替换为实际值，并设置对应的环境变量。
+如果只想进行无网络模拟测试，可使用：
+
+```text
+configs/games/four_courts_fake_demo.yaml
+```
+
+该文件让四个朝廷的所有角色使用 `provider: fake`，不需要 API Key，也不会发送网络请求。
+
+使用真实接口前，需要将 `example.yaml` 中的示例 URL、模型名替换为实际值，并设置对应的环境变量。
 
 ## 9. 配置检查与输出
 
@@ -277,5 +285,5 @@ runs/<experiment_id>/<game_id>/
 | `requires model_profile` | 为 `llm_baseline` 玩家填写 `model_profile`。 |
 | `requires court_role_profiles` | 为朝廷玩家填写全部官员 profile。 |
 | API Key 环境变量未设置 | 设置 YAML 中 `api_key_env` 指定的环境变量。 |
-| `no client factory registered for provider` | 检查 `provider` 是否为 `openai_compatible` 或 `mock`。 |
+| `no client factory registered for provider` | 检查 `provider` 是否为 `openai_compatible`、`fake` 或 `mock`。 |
 | 输出目录已存在 | 修改 `game_id` 或 `experiment_id`。 |

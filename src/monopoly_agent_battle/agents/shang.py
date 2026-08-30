@@ -135,6 +135,7 @@ class ShangCourtAgent:
             temperature=self._great_priest_profile.temperature,
             max_tokens=self._great_priest_profile.max_tokens,
             timeout_seconds=self._great_priest_profile.timeout_seconds,
+            decision_request=request,
         )
         self._last_llm_call_count += 1
         try:
@@ -187,6 +188,7 @@ class ShangCourtAgent:
             temperature=self._emperor_profile.temperature,
             max_tokens=self._emperor_profile.max_tokens,
             timeout_seconds=self._emperor_profile.timeout_seconds,
+            decision_request=request,
         )
         self._last_llm_call_count += 1
         try:

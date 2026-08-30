@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from monopoly_agent_battle.decision.models import DecisionRequest
+
 
 @dataclass(frozen=True, slots=True)
 class LLMMessage:
@@ -35,6 +37,7 @@ class LLMRequest:
     temperature: float | None = None
     max_tokens: int | None = None
     timeout_seconds: float | None = None
+    decision_request: DecisionRequest | None = None
 
 
 @dataclass(frozen=True, slots=True)

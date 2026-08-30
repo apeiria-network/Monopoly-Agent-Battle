@@ -2,7 +2,7 @@
 
 本教程说明如何使用仓库中的 YAML 配置启动一局游戏，并查看运行结果、过程记录和回放验证信息。
 
-> 以下命令默认在仓库根目录执行，且项目依赖已经可用。当前可运行规则为 Level 0。LLM 可使用无凭据的 `mock` provider，或通过环境变量注入 API Key 的 `openai_compatible` provider。配置文件编写方法见 [game-config-tutorial.md](game-config-tutorial.md)。
+> 以下命令默认在仓库根目录执行，且项目依赖已经可用。当前可运行规则为 Level 0。LLM 可使用本地 `mock` 或 `fake` provider，也可通过环境变量注入 API Key 使用 `openai_compatible` provider。配置文件编写方法见 [game-config-tutorial.md](game-config-tutorial.md)。
 
 ## 快速开始
 
@@ -231,9 +231,10 @@ players:
 
 ### 3.2 LLM 玩家与朝廷 Agent
 
-当前支持两种 LLM provider：
+当前支持三种 LLM provider：
 
-- `mock`：无凭据、无网络调用，适合测试和回放验证；
+- `mock`：固定策略或脚本回复，无凭据、无网络调用，适合单元测试和回放验证；
+- `fake`：接收完整 Prompt 和上下文，在本地按 `seed` 随机生成协议回复，适合完整模拟对局；
 - `openai_compatible`：调用 OpenAI 兼容的 `/chat/completions` 接口，API Key 从环境变量读取。
 
 普通 LLM 玩家使用 `llm_baseline`。商、秦、唐、明朝廷玩家分别使用 `shang_court`、`qin_court`、`tang_court`、`ming_court`，并为每名官员绑定独立的 `model_profile`。
@@ -242,6 +243,12 @@ players:
 
 ```text
 configs/games/example.yaml
+```
+
+如果希望四个朝廷在不访问网络的情况下使用完整 Agent 流程，可运行：
+
+```powershell
+.venv\Scripts\monopoly-agent-battle.exe play --config configs/games/four_courts_fake_demo.yaml
 ```
 
 使用 `openai_compatible` 前，先设置 YAML 中 `api_key_env` 指定的环境变量。例如：
@@ -449,5 +456,5 @@ print("回放验证通过")
 | `random baseline player ... must not set model_profile` | 删除随机玩家的 `model_profile`。 |
 | `LLM baseline player ... requires model_profile` | 为 `llm_baseline` 玩家配置一个已定义的 profile。 |
 | `player model_profile not defined` | 在 `model_profiles` 中增加对应名称，或修正玩家引用。 |
-| `no client factory registered for provider: ...` | 检查 `provider` 是否为已支持的 `mock` 或 `openai_compatible`。 |
+| `no client factory registered for provider: ...` | 检查 `provider` 是否为已支持的 `mock`、`fake` 或 `openai_compatible`。 |
 | 没有 `llm_calls.jsonl` | 纯随机局的预期结果；检查 `decisions.jsonl`、`events.jsonl` 和 `result.json`。 |

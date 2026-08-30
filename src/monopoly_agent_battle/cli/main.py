@@ -28,6 +28,7 @@ from monopoly_agent_battle.decision.runner import (
     run_decision_game,
 )
 from monopoly_agent_battle.game.engine import GameEngine
+from monopoly_agent_battle.llm.fake_client import FakeLLMClient
 from monopoly_agent_battle.llm.mock_client import MockLLMClient
 from monopoly_agent_battle.llm.openai_compatible_client import OpenAICompatibleClient
 from monopoly_agent_battle.llm.recording_client import RecordingLLMClient
@@ -76,10 +77,12 @@ def run_play(config_path: Path) -> Path:
     controllers: dict[str, RawDecisionController] = {}
     conversations: dict[str, ConversationBinding] = {}
     needs_mock_client = any(
-        _is_llm_player(player.controller_type, player.model_profile) for player in config.players
+        profile.provider == "mock" for profile in config.model_profiles.values()
     )
     if needs_mock_client:
-        register_client_factory("mock", lambda profile: MockLLMClient(seed=config.seed))
+        register_client_factory("mock", lambda profile: MockLLMClient(seed=profile.seed))
+    if any(profile.provider == "fake" for profile in config.model_profiles.values()):
+        register_client_factory("fake", lambda profile: FakeLLMClient(seed=profile.seed))
     if any(profile.provider == "openai_compatible" for profile in config.model_profiles.values()):
         register_client_factory("openai_compatible", OpenAICompatibleClient)
     for player in config.players:
@@ -225,23 +228,6 @@ def run_play(config_path: Path) -> Path:
         conversations=conversations,
     )
     return artifacts.run_directory
-
-
-def _is_llm_player(controller_type: str | None, model_profile: str | None) -> bool:
-    """Return whether a configured player requires LLM client infrastructure."""
-    return controller_type in {
-        "shang_court",
-        "qin_court",
-        "tang_court",
-        "ming_court",
-    } or _is_llm_baseline(controller_type, model_profile)
-
-
-def _is_llm_baseline(controller_type: str | None, model_profile: str | None) -> bool:
-    """Resolve the legacy controller configuration into its LLM baseline behavior."""
-    return controller_type == "llm_baseline" or (
-        controller_type is None and model_profile is not None
-    )
 
 
 def _is_random_baseline(controller_type: str | None) -> bool:
