@@ -1,9 +1,8 @@
-"""Render Qin four-role context scenarios for human review.
+"""Render Qin four-role context scenarios through the real court workflow.
 
-The scenarios use the same engine fixture and ASSET_MANAGEMENT decision timing
-as the former Qin-oriented F/G scenarios.  A-D render the first decision for
-Chancellor, Grand Marshal, Imperial Counsellor, and Emperor; E-H render the
-second decision in the same action turn for those roles.
+The checked-in report is the human-approved context-structure baseline. This
+renderer drives a real ``QinCourtAgent`` with deterministic capture clients and
+must reproduce that report byte for byte.
 """
 
 from __future__ import annotations
@@ -13,42 +12,19 @@ from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
-from monopoly_agent_battle.context.composer import compose_prompt
+from monopoly_agent_battle.agents.qin import QinCourtAgent
+from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.models import DecisionRequest
-from monopoly_agent_battle.decision.prompts import render_decision_question
 from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
-from monopoly_agent_battle.llm.protocol import LLMMessage
+from monopoly_agent_battle.llm.protocol import LLMMessage, LLMRequest, LLMResponse, UsageMetrics
 from monopoly_agent_battle.performance.random_generator import random_officer_performance
 
 _DIVIDER = "=" * 60
 _REPORT_PATH = Path("tests/manual/render_qin_decision_prompt_report.txt")
 _ROLES = ("chancellor", "grand_marshal", "imperial_counsellor", "emperor")
-_PROMPT_ROOT = (
-    Path(__file__).resolve().parents[2]
-    / "src"
-    / "monopoly_agent_battle"
-    / "agents"
-    / "agent_prompt_list"
-)
-
-
-def _load_prompt(relative_path: str) -> str:
-    return (_PROMPT_ROOT / relative_path).read_text(encoding="utf-8").strip()
-
-
-_ROLE_INSTRUCTIONS = {
-    "chancellor": _load_prompt("Qin/Qin_chancellor.txt"),
-    "grand_marshal": _load_prompt("Qin/Qin_grand_marshal.txt"),
-    "imperial_counsellor": _load_prompt("Qin/Qin_imperial_counsellor.txt"),
-    "emperor": _load_prompt("Qin/Qin_emperor.txt"),
-}
-_NORMAL_OUTPUT_REQUIREMENT = _load_prompt("normal_output_requirement.txt")
-_COUNSELLOR_OUTPUT_REQUIREMENT = _load_prompt("Qin/Qin_cousellor_output_requirement.txt")
-_COUNSELLOR_SPECIAL_CONTEXT = _load_prompt("Qin/Qin_cousellor_candidates.txt")
 
 
 def _make_engine(directory: str) -> GameEngine:
@@ -98,151 +74,142 @@ def _final(decision_number: int) -> str:
     return f'{{"reason":"第{decision_number}次皇帝裁决","selected_option":{{"option":"end_turn"}}}}'
 
 
-def _append_internal(
-    conversation: AgentConversation,
-    decision_id: str,
-    question: str,
-    role: str,
-    content_type: str,
-    raw_content: str,
-) -> None:
-    conversation.append_internal_decision(
-        internal_decision_id=f"{decision_id}:{role}:{content_type}",
-        decision_id=decision_id,
-        question_summary=question,
-        decision_maker=role,
-        content_type=content_type,
-        raw_content=raw_content,
+class _CaptureClient:
+    def __init__(self, role: str) -> None:
+        self.role = role
+        self.decision_number = 0
+        self.requests: list[tuple[int, LLMRequest]] = []
+
+    def complete(self, request: LLMRequest) -> LLMResponse:
+        if self.decision_number not in {1, 2}:
+            raise RuntimeError("capture client decision number was not prepared")
+        self.requests.append((self.decision_number, request))
+        if self.role in {"chancellor", "grand_marshal"}:
+            content = _advice(self.role, self.decision_number)
+        elif self.role == "imperial_counsellor":
+            content = _comment(self.decision_number)
+        else:
+            content = _final(self.decision_number)
+        return LLMResponse(content, UsageMetrics(1, 1), request.model)
+
+
+def _make_agent() -> tuple[QinCourtAgent, dict[str, _CaptureClient]]:
+    clients = {role: _CaptureClient(role) for role in _ROLES}
+    profiles = {role: ModelProfile(provider="mock", model=f"qin-{role}") for role in _ROLES}
+    conversations = {
+        role: AgentConversation(agent_id=f"a.{role}", window_turns=1) for role in _ROLES
+    }
+    return (
+        QinCourtAgent(
+            player_id="a",
+            chancellor_client=clients["chancellor"],
+            chancellor_profile=profiles["chancellor"],
+            grand_marshal_client=clients["grand_marshal"],
+            grand_marshal_profile=profiles["grand_marshal"],
+            imperial_counsellor_client=clients["imperial_counsellor"],
+            imperial_counsellor_profile=profiles["imperial_counsellor"],
+            emperor_client=clients["emperor"],
+            emperor_profile=profiles["emperor"],
+            conversations=conversations,
+            performance_generator=random_officer_performance,
+        ),
+        clients,
     )
 
 
-def _append_current_court_messages(
-    conversation: AgentConversation, request: DecisionRequest, decision_number: int, role: str
-) -> None:
-    decision_id = f"qin-prompt-{decision_number}"
-    question = render_decision_question(request)
-    if role in {"imperial_counsellor", "emperor"}:
-        for officer in ("chancellor", "grand_marshal"):
-            _append_internal(
-                conversation,
-                decision_id,
-                question,
-                officer,
-                "advice",
-                _advice(officer, decision_number),
-            )
-    if role == "emperor":
-        _append_internal(
-            conversation,
-            decision_id,
-            question,
-            "imperial_counsellor",
-            "comment",
-            _comment(decision_number),
-        )
-
-
-def _append_previous_decision(
-    conversation: AgentConversation, request: DecisionRequest, role: str
-) -> None:
-    decision_id = "qin-prompt-1"
-    question = render_decision_question(request)
-    if role in {"chancellor", "grand_marshal"}:
-        conversation.append_decision(
-            decision_id=decision_id,
-            question_summary=question,
-            assistant_reply=_advice(role, 1),
-        )
-        other = "grand_marshal" if role == "chancellor" else "chancellor"
-        _append_internal(conversation, decision_id, question, other, "advice", _advice(other, 1))
-        _append_internal(
-            conversation, decision_id, question, "imperial_counsellor", "comment", _comment(1)
-        )
-        _append_internal(
-            conversation, decision_id, question, "emperor", "final_decision", _final(1)
-        )
-    elif role == "imperial_counsellor":
-        _append_current_court_messages(conversation, request, 1, role)
-        conversation.append_decision(
-            decision_id=decision_id,
-            question_summary=question,
-            assistant_reply=_comment(1),
-        )
-        _append_internal(
-            conversation, decision_id, question, "emperor", "final_decision", _final(1)
-        )
-    else:
-        _append_current_court_messages(conversation, request, 1, role)
-        conversation.append_decision(
-            decision_id=decision_id,
-            question_summary=question,
-            assistant_reply=_final(1),
-        )
-
-
-def _conversation(role: str, prior_request: DecisionRequest, second: bool) -> AgentConversation:
-    conversation = AgentConversation(agent_id=f"a.{role}", window_turns=1)
-    conversation.start_turn(1)
-    if second:
-        _append_previous_decision(conversation, prior_request, role)
-    return conversation
-
-
-def _render(
-    role: str,
+def _run_agent(
+    agent: QinCourtAgent,
+    clients: dict[str, _CaptureClient],
     request: DecisionRequest,
-    prior_request: DecisionRequest,
-    second: bool,
-) -> tuple[tuple[LLMMessage, ...], object]:
-    conversation = _conversation(role, prior_request, second)
-    performance = random_officer_performance(request) if role == "imperial_counsellor" else None
-    if role in {"imperial_counsellor", "emperor"}:
-        _append_current_court_messages(conversation, request, 2 if second else 1, role)
-    messages, warning = compose_prompt(
-        conversation,
-        request,
-        pre_decision_context=performance,
-        role_instruction=_ROLE_INSTRUCTIONS[role],
-        segment3_prompt=(
-            _COUNSELLOR_OUTPUT_REQUIREMENT
-            if role == "imperial_counsellor"
-            else _NORMAL_OUTPUT_REQUIREMENT
-        ),
-        post_decision_context=(
-            _COUNSELLOR_SPECIAL_CONTEXT if role == "imperial_counsellor" else None
-        ),
+    decision_number: int,
+) -> str:
+    for client in clients.values():
+        client.decision_number = decision_number
+    return agent(request)
+
+
+def _capture(role: str, second: bool) -> tuple[tuple[LLMMessage, ...], object]:
+    with TemporaryDirectory() as directory:
+        engine = _make_engine(directory)
+        agent, clients = _make_agent()
+        first_request = build_decision_request(engine, sequence=1)
+        first_reply = _run_agent(agent, clients, first_request, 1)
+        if second:
+            agent.record_final_decision(first_request, first_reply)
+            request = replace(build_decision_request(engine, sequence=2), complete_rounds=1)
+            _run_agent(agent, clients, request, 2)
+            decision_number = 2
+        else:
+            decision_number = 1
+        selected = next(
+            captured
+            for captured_number, captured in clients[role].requests
+            if captured_number == decision_number
+        )
+        _assert_shape(selected.messages, role, second)
+        return selected.messages, agent.last_context_warning
+
+
+def _assert_shape(messages: tuple[LLMMessage, ...], role: str, second: bool) -> None:
+    assert messages and messages[0].role == "system"
+    assert sum(message.role == "system" for message in messages) == 1
+    assert all(
+        not (left.role == "user" and right.role == "user")
+        for left, right in zip(messages, messages[1:], strict=False)
     )
-    return messages, warning
+    dynamic = "\n".join(message.content for message in messages[1:])
+    lines = dynamic.splitlines()
+    assert lines.count("## 当前局面") == 1
+    assert lines.count("## 当前决策") == 1
+    assert lines.count("## 合法候选操作") == 1
+    assert lines.index("## 当前局面") < lines.index("## 当前决策") < lines.index("## 合法候选操作")
+    current = dynamic.rsplit("## 当前局面", 1)[-1]
+    if role in {"chancellor", "grand_marshal"}:
+        assert '"content_type":"advice"' not in current
+        assert '"content_type":"comment"' not in current
+    if role == "imperial_counsellor":
+        assert dynamic.count('"content_type":"advice"') == (4 if second else 2)
+        assert '"content_type":"comment"' not in current
+    if role == "emperor":
+        assert dynamic.count('"content_type":"comment"') == (2 if second else 1)
+    if second:
+        assert sum(message.role == "assistant" for message in messages) == 1
+        if role != "emperor":
+            assert '"content_type":"final_decision"' in dynamic
 
 
 def _write(
-    buf: StringIO,
+    buffer: StringIO,
     label: str,
     role: str,
     messages: tuple[LLMMessage, ...],
     warning: object,
 ) -> None:
-    buf.write(f"\n{_DIVIDER}\nSCENARIO {label}: 秦代 {role}\n{_DIVIDER}\n")
+    buffer.write(f"\n{_DIVIDER}\nSCENARIO {label}: 秦代 {role}\n{_DIVIDER}\n")
     for index, message in enumerate(messages, 1):
-        buf.write(f"\n--- Message {index} [{message.role}] ---\n{message.content}\n")
+        buffer.write(f"\n--- Message {index} [{message.role}] ---\n{message.content}\n")
     if warning is not None:
-        buf.write(f"\n[ContextWarning] {warning!r}\n")
+        buffer.write(f"\n[ContextWarning] {warning!r}\n")
+
+
+def _render_once() -> str:
+    buffer = StringIO()
+    for label, role in zip("ABCD", _ROLES, strict=True):
+        messages, warning = _capture(role, second=False)
+        _write(buffer, label, role, messages, warning)
+    for label, role in zip("EFGH", _ROLES, strict=True):
+        messages, warning = _capture(role, second=True)
+        _write(buffer, label, role, messages, warning)
+    return buffer.getvalue()
 
 
 def main() -> None:
-    buf = StringIO()
-    with TemporaryDirectory() as directory:
-        engine = _make_engine(directory)
-        first_request = build_decision_request(engine, sequence=1)
-        second_request = replace(build_decision_request(engine, sequence=2), complete_rounds=1)
-        for label, role in zip("ABCD", _ROLES, strict=True):
-            messages, warning = _render(role, first_request, first_request, second=False)
-            _write(buf, label, role, messages, warning)
-        for label, role in zip("EFGH", _ROLES, strict=True):
-            messages, warning = _render(role, second_request, first_request, second=True)
-            _write(buf, label, role, messages, warning)
-    _REPORT_PATH.write_text(buf.getvalue(), encoding="utf-8")
-    print(f"Wrote {_REPORT_PATH} ({len(buf.getvalue())} chars)")
+    first = _render_once()
+    second = _render_once()
+    if first != second:
+        raise AssertionError("Qin prompt rendering is not deterministic")
+    _REPORT_PATH.write_text(first, encoding="utf-8")
+    print(f"Wrote {_REPORT_PATH} ({len(first)} chars)")
 
 
 if __name__ == "__main__":

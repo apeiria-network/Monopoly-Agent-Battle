@@ -16,7 +16,7 @@ from typing import Any, cast
 
 from monopoly_agent_battle.config.models import ModelProfile
 from monopoly_agent_battle.context.composer import compose_prompt
-from monopoly_agent_battle.context.conversation import AgentConversation
+from monopoly_agent_battle.context.conversation import AgentConversation, DecisionEntry
 from monopoly_agent_battle.context.token_guard import ContextWarning
 from monopoly_agent_battle.context.validation_feedback import build_feedback
 from monopoly_agent_battle.decision.models import DecisionRequest
@@ -139,6 +139,18 @@ class QinCourtAgent:
     def record_final_decision(self, request: DecisionRequest, reply: str) -> None:
         """Record the one engine-facing reply and broadcast it to court roles."""
         self._responses[_EMPEROR] = reply
+        emperor_conversation = self._conversations[_EMPEROR]
+        if not any(
+            isinstance(entry, DecisionEntry) and entry.decision_id == request.decision_id
+            for turn in (*emperor_conversation.completed_turns, emperor_conversation.current_turn)
+            if turn is not None
+            for entry in turn.entries
+        ):
+            emperor_conversation.append_decision(
+                decision_id=request.decision_id,
+                question_summary=render_decision_question(request),
+                assistant_reply=reply,
+            )
         self._deliver(request, _EMPEROR, _FINAL, reply, {_CHANCELLOR, _GRAND_MARSHAL, _COUNSELLOR})
 
     def __call__(self, request: DecisionRequest, feedback: str | None = None) -> str:
@@ -211,17 +223,7 @@ class QinCourtAgent:
                 ensure_ascii=False,
             )
         else:
-            assert validation.option is not None
-            normalized = json.dumps(
-                {
-                    "selected_option": {
-                        "option": validation.option.option_id,
-                        **(validation.target or {}),
-                    },
-                    "reason": _truncate(validation.response.reason if validation.response else ""),
-                },
-                ensure_ascii=False,
-            )
+            normalized = raw
         self._responses[role] = normalized
         self._append_own_decision(role, request, normalized)
         self._deliver(request, role, _ADVICE, normalized, {_COUNSELLOR, _EMPEROR})
