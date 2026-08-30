@@ -1068,13 +1068,15 @@ SCENARIO E: 秦代 chancellor
 
 {"reason":"第1次御史大夫评价","assessments":[{"officer_id":"chancellor","judgement":"agree","reason":"丞相意见可行"},{"officer_id":"grand_marshal","judgement":"neutral","reason":"太尉意见仍需观察"}],"decision_maker":"imperial_counsellor","content_type":"comment"}
 
-{"reason":"第1次皇帝裁决","selected_option":{"option":"end_turn"},"decision_maker":"emperor","content_type":"final_decision"}
+{"reason":"第1次皇帝裁决","selected_option":{"option":"mortgage","target":1},"decision_maker":"emperor","content_type":"final_decision"}
+
+[第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
 
 ## 当前局面
 当前为第 0 回合，处于玩家「a」的行动回合。
 
 你的状态
-现金：1500
+现金：1560
 位置：格子 0（GO，起点）
 持有机会卡：chance-swap-property
 持有出狱卡数量：0
@@ -1091,7 +1093,7 @@ SCENARIO E: 秦代 chancellor
 棋盘状态
 | 格 | 类型 | 所有者 | 建筑 | 状态 | 当前租金 |
 |---|---|---|---|---|---|
-| 1 | 街道 | a | 0 | - | 2 |
+| 1 | 街道 | a | 0 | 抵押 | 0（抵押） |
 | 3 | 街道 | b | 0 | - | 4 |
 （未列出的地产均无主。）
 
@@ -1112,29 +1114,14 @@ SCENARIO E: 秦代 chancellor
     }
   },
   {
-    "option_id": "mortgage",
-    "title": "抵押地产",
-    "preview": "抵押一处你拥有的地产，获得其购买价；抵押期间该地产不收租，不能建造房屋，但是可以享受地产增益。赎回时需支付购买价的 110%。",
+    "option_id": "redeem_mortgage",
+    "title": "赎回抵押地产",
+    "preview": "赎回一处你抵押地产，支付该地产购买价的110%，恢复收取租金。",
     "response_format": {
-      "reason": "填写选择抵押该地产的理由。",
+      "reason": "填写选择赎回该抵押地产的理由。",
       "selected_option": {
-        "option": "mortgage",
-        "target": "填写需要抵押的目标格子编号"
-      }
-    }
-  },
-  {
-    "option_id": "use_chance_card-chance-swap-property",
-    "title": "使用机会卡「换地卡」",
-    "preview": "用自己的一处无建筑且未抵押的普通地块与目标玩家的同条件地块交换所有权。",
-    "response_format": {
-      "reason": "填写选择使用换地卡的理由。",
-      "selected_option": {
-        "option": "use_chance_card-chance-swap-property",
-        "target": {
-          "swap_in_position": "填写换入的目标格子id",
-          "swap_out_position": "填写换出的目标格子id"
-        }
+        "option": "redeem_mortgage",
+        "target": "填写选择赎回的目标格子编号；"
       }
     }
   }
@@ -1299,13 +1286,15 @@ SCENARIO F: 秦代 grand_marshal
 
 {"reason":"第1次御史大夫评价","assessments":[{"officer_id":"chancellor","judgement":"agree","reason":"丞相意见可行"},{"officer_id":"grand_marshal","judgement":"neutral","reason":"太尉意见仍需观察"}],"decision_maker":"imperial_counsellor","content_type":"comment"}
 
-{"reason":"第1次皇帝裁决","selected_option":{"option":"end_turn"},"decision_maker":"emperor","content_type":"final_decision"}
+{"reason":"第1次皇帝裁决","selected_option":{"option":"mortgage","target":1},"decision_maker":"emperor","content_type":"final_decision"}
+
+[第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
 
 ## 当前局面
 当前为第 0 回合，处于玩家「a」的行动回合。
 
 你的状态
-现金：1500
+现金：1560
 位置：格子 0（GO，起点）
 持有机会卡：chance-swap-property
 持有出狱卡数量：0
@@ -1322,7 +1311,7 @@ SCENARIO F: 秦代 grand_marshal
 棋盘状态
 | 格 | 类型 | 所有者 | 建筑 | 状态 | 当前租金 |
 |---|---|---|---|---|---|
-| 1 | 街道 | a | 0 | - | 2 |
+| 1 | 街道 | a | 0 | 抵押 | 0（抵押） |
 | 3 | 街道 | b | 0 | - | 4 |
 （未列出的地产均无主。）
 
@@ -1343,29 +1332,14 @@ SCENARIO F: 秦代 grand_marshal
     }
   },
   {
-    "option_id": "mortgage",
-    "title": "抵押地产",
-    "preview": "抵押一处你拥有的地产，获得其购买价；抵押期间该地产不收租，不能建造房屋，但是可以享受地产增益。赎回时需支付购买价的 110%。",
+    "option_id": "redeem_mortgage",
+    "title": "赎回抵押地产",
+    "preview": "赎回一处你抵押地产，支付该地产购买价的110%，恢复收取租金。",
     "response_format": {
-      "reason": "填写选择抵押该地产的理由。",
+      "reason": "填写选择赎回该抵押地产的理由。",
       "selected_option": {
-        "option": "mortgage",
-        "target": "填写需要抵押的目标格子编号"
-      }
-    }
-  },
-  {
-    "option_id": "use_chance_card-chance-swap-property",
-    "title": "使用机会卡「换地卡」",
-    "preview": "用自己的一处无建筑且未抵押的普通地块与目标玩家的同条件地块交换所有权。",
-    "response_format": {
-      "reason": "填写选择使用换地卡的理由。",
-      "selected_option": {
-        "option": "use_chance_card-chance-swap-property",
-        "target": {
-          "swap_in_position": "填写换入的目标格子id",
-          "swap_out_position": "填写换出的目标格子id"
-        }
+        "option": "redeem_mortgage",
+        "target": "填写选择赎回的目标格子编号；"
       }
     }
   }
@@ -1531,23 +1505,22 @@ SCENARIO G: 秦代 imperial_counsellor
 {"reason": "第1次御史大夫评价", "assessments": [{"officer_id": "chancellor", "judgement": "agree", "reason": "丞相意见可行"}, {"officer_id": "grand_marshal", "judgement": "neutral", "reason": "太尉意见仍需观察"}]}
 
 --- Message 4 [user] ---
-{"reason":"第1次皇帝裁决","selected_option":{"option":"end_turn"},"decision_maker":"emperor","content_type":"final_decision"}
+{"reason":"第1次皇帝裁决","selected_option":{"option":"mortgage","target":1},"decision_maker":"emperor","content_type":"final_decision"}
+
+[第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
 
 ## 决策
 现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
 
 {"reason":"第2次丞相建议","selected_option":{"option":"end_turn"},"decision_maker":"chancellor","content_type":"advice"}
 
-{"reason":"第2次太尉建议","selected_option":{"option":"use_chance_card-chance-swap-property","target":{"swap_in_position":3,"swap_out_position":1}},"decision_maker":"grand_marshal","content_type":"advice"}
-
-## 官员绩效
-最近1个回合中，丞相的决策较差。
+{"reason":"第2次太尉建议","selected_option":{"option":"end_turn"},"decision_maker":"grand_marshal","content_type":"advice"}
 
 ## 当前局面
 当前为第 0 回合，处于玩家「a」的行动回合。
 
 你的状态
-现金：1500
+现金：1560
 位置：格子 0（GO，起点）
 持有机会卡：chance-swap-property
 持有出狱卡数量：0
@@ -1564,7 +1537,7 @@ SCENARIO G: 秦代 imperial_counsellor
 棋盘状态
 | 格 | 类型 | 所有者 | 建筑 | 状态 | 当前租金 |
 |---|---|---|---|---|---|
-| 1 | 街道 | a | 0 | - | 2 |
+| 1 | 街道 | a | 0 | 抵押 | 0（抵押） |
 | 3 | 街道 | b | 0 | - | 4 |
 （未列出的地产均无主。）
 
@@ -1585,29 +1558,14 @@ SCENARIO G: 秦代 imperial_counsellor
     }
   },
   {
-    "option_id": "mortgage",
-    "title": "抵押地产",
-    "preview": "抵押一处你拥有的地产，获得其购买价；抵押期间该地产不收租，不能建造房屋，但是可以享受地产增益。赎回时需支付购买价的 110%。",
+    "option_id": "redeem_mortgage",
+    "title": "赎回抵押地产",
+    "preview": "赎回一处你抵押地产，支付该地产购买价的110%，恢复收取租金。",
     "response_format": {
-      "reason": "填写选择抵押该地产的理由。",
+      "reason": "填写选择赎回该抵押地产的理由。",
       "selected_option": {
-        "option": "mortgage",
-        "target": "填写需要抵押的目标格子编号"
-      }
-    }
-  },
-  {
-    "option_id": "use_chance_card-chance-swap-property",
-    "title": "使用机会卡「换地卡」",
-    "preview": "用自己的一处无建筑且未抵押的普通地块与目标玩家的同条件地块交换所有权。",
-    "response_format": {
-      "reason": "填写选择使用换地卡的理由。",
-      "selected_option": {
-        "option": "use_chance_card-chance-swap-property",
-        "target": {
-          "swap_in_position": "填写换入的目标格子id",
-          "swap_out_position": "填写换出的目标格子id"
-        }
+        "option": "redeem_mortgage",
+        "target": "填写选择赎回的目标格子编号；"
       }
     }
   }
@@ -1792,15 +1750,17 @@ SCENARIO H: 秦代 emperor
 {"reason":"第1次御史大夫评价","assessments":[{"officer_id":"chancellor","judgement":"agree","reason":"丞相意见可行"},{"officer_id":"grand_marshal","judgement":"neutral","reason":"太尉意见仍需观察"}],"decision_maker":"imperial_counsellor","content_type":"comment"}
 
 --- Message 3 [assistant] ---
-{"reason":"第1次皇帝裁决","selected_option":{"option":"end_turn"}}
+{"reason":"第1次皇帝裁决","selected_option":{"option":"mortgage","target":1}}
 
 --- Message 4 [user] ---
+[第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
+
 ## 决策
 现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
 
 {"reason":"第2次丞相建议","selected_option":{"option":"end_turn"},"decision_maker":"chancellor","content_type":"advice"}
 
-{"reason":"第2次太尉建议","selected_option":{"option":"use_chance_card-chance-swap-property","target":{"swap_in_position":3,"swap_out_position":1}},"decision_maker":"grand_marshal","content_type":"advice"}
+{"reason":"第2次太尉建议","selected_option":{"option":"end_turn"},"decision_maker":"grand_marshal","content_type":"advice"}
 
 {"reason":"第2次御史大夫评价","assessments":[{"officer_id":"chancellor","judgement":"agree","reason":"丞相意见可行"},{"officer_id":"grand_marshal","judgement":"neutral","reason":"太尉意见仍需观察"}],"decision_maker":"imperial_counsellor","content_type":"comment"}
 
@@ -1808,7 +1768,7 @@ SCENARIO H: 秦代 emperor
 当前为第 0 回合，处于玩家「a」的行动回合。
 
 你的状态
-现金：1500
+现金：1560
 位置：格子 0（GO，起点）
 持有机会卡：chance-swap-property
 持有出狱卡数量：0
@@ -1825,7 +1785,7 @@ SCENARIO H: 秦代 emperor
 棋盘状态
 | 格 | 类型 | 所有者 | 建筑 | 状态 | 当前租金 |
 |---|---|---|---|---|---|
-| 1 | 街道 | a | 0 | - | 2 |
+| 1 | 街道 | a | 0 | 抵押 | 0（抵押） |
 | 3 | 街道 | b | 0 | - | 4 |
 （未列出的地产均无主。）
 
@@ -1846,29 +1806,14 @@ SCENARIO H: 秦代 emperor
     }
   },
   {
-    "option_id": "mortgage",
-    "title": "抵押地产",
-    "preview": "抵押一处你拥有的地产，获得其购买价；抵押期间该地产不收租，不能建造房屋，但是可以享受地产增益。赎回时需支付购买价的 110%。",
+    "option_id": "redeem_mortgage",
+    "title": "赎回抵押地产",
+    "preview": "赎回一处你抵押地产，支付该地产购买价的110%，恢复收取租金。",
     "response_format": {
-      "reason": "填写选择抵押该地产的理由。",
+      "reason": "填写选择赎回该抵押地产的理由。",
       "selected_option": {
-        "option": "mortgage",
-        "target": "填写需要抵押的目标格子编号"
-      }
-    }
-  },
-  {
-    "option_id": "use_chance_card-chance-swap-property",
-    "title": "使用机会卡「换地卡」",
-    "preview": "用自己的一处无建筑且未抵押的普通地块与目标玩家的同条件地块交换所有权。",
-    "response_format": {
-      "reason": "填写选择使用换地卡的理由。",
-      "selected_option": {
-        "option": "use_chance_card-chance-swap-property",
-        "target": {
-          "swap_in_position": "填写换入的目标格子id",
-          "swap_out_position": "填写换出的目标格子id"
-        }
+        "option": "redeem_mortgage",
+        "target": "填写选择赎回的目标格子编号；"
       }
     }
   }

@@ -7,7 +7,6 @@ must reproduce that report byte for byte.
 
 from __future__ import annotations
 
-from dataclasses import replace
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -16,6 +15,7 @@ from monopoly_agent_battle.agents.qin import QinCourtAgent
 from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.models import DecisionRequest
+from monopoly_agent_battle.decision.protocol import command_from_option, parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
@@ -49,9 +49,10 @@ def _make_engine(directory: str) -> GameEngine:
 
 
 def _advice(role: str, decision_number: int) -> str:
-    if role == "chancellor":
+    if role == "chancellor" or decision_number == 2:
+        title = "丞相" if role == "chancellor" else "太尉"
         return (
-            f'{{"reason":"第{decision_number}次丞相建议",'
+            f'{{"reason":"第{decision_number}次{title}建议",'
             '"selected_option":{"option":"end_turn"}}'
         )
     return (
@@ -71,7 +72,9 @@ def _comment(decision_number: int) -> str:
 
 
 def _final(decision_number: int) -> str:
-    return f'{{"reason":"第{decision_number}次皇帝裁决","selected_option":{{"option":"end_turn"}}}}'
+    if decision_number == 1:
+        return '{"reason":"第1次皇帝裁决","selected_option":{"option":"mortgage","target":1}}'
+    return '{"reason":"第2次皇帝裁决","selected_option":{"option":"end_turn"}}'
 
 
 class _CaptureClient:
@@ -128,18 +131,37 @@ def _run_agent(
     return agent(request)
 
 
+def _complete_first_decision(
+    engine: GameEngine,
+    agent: QinCourtAgent,
+    clients: dict[str, _CaptureClient],
+    request: DecisionRequest,
+) -> None:
+    reply = _run_agent(agent, clients, request, 1)
+    agent.record_final_decision(request, reply)
+    validation = parse_and_validate(reply, request)
+    if not validation.valid or validation.option is None:
+        raise AssertionError(f"invalid deterministic emperor reply: {validation.error}")
+    if validation.option.option_id != "mortgage":
+        raise AssertionError("deterministic first emperor reply must select mortgage")
+    events = engine.execute(command_from_option(request, validation.option, validation.target))
+    for event in events:
+        for conversation in agent.role_conversations.values():  # type: ignore[attr-defined]
+            conversation.append_event(event, engine.state.complete_rounds)
+
+
 def _capture(role: str, second: bool) -> tuple[tuple[LLMMessage, ...], object]:
     with TemporaryDirectory() as directory:
         engine = _make_engine(directory)
         agent, clients = _make_agent()
         first_request = build_decision_request(engine, sequence=1)
-        first_reply = _run_agent(agent, clients, first_request, 1)
         if second:
-            agent.record_final_decision(first_request, first_reply)
-            request = replace(build_decision_request(engine, sequence=2), complete_rounds=1)
+            _complete_first_decision(engine, agent, clients, first_request)
+            request = build_decision_request(engine, sequence=2)
             _run_agent(agent, clients, request, 2)
             decision_number = 2
         else:
+            _run_agent(agent, clients, first_request, 1)
             decision_number = 1
         selected = next(
             captured

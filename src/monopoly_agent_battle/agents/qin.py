@@ -119,6 +119,10 @@ class QinCourtAgent:
         return self._conversations[_EMPEROR]
 
     @property
+    def role_conversations(self) -> dict[str, AgentConversation]:
+        return self._conversations
+
+    @property
     def last_llm_call_count(self) -> int:
         return self._last_llm_call_count
 
