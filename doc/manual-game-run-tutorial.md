@@ -2,7 +2,7 @@
 
 本教程说明如何使用仓库中的 YAML 配置启动一局游戏，并查看运行结果、过程记录和回放验证信息。
 
-> 以下命令默认在仓库根目录执行，且项目依赖已经可用。当前可运行规则仅为 Level 0；真实 LLM provider 尚未实现，带 AI 的可执行示例使用 `mock`。
+> 以下命令默认在仓库根目录执行，且项目依赖已经可用。当前可运行规则为 Level 0。LLM 可使用无凭据的 `mock` provider，或通过环境变量注入 API Key 的 `openai_compatible` provider。配置文件编写方法见 [game-config-tutorial.md](game-config-tutorial.md)。
 
 ## 快速开始
 
@@ -52,7 +52,7 @@ runs/quickstart-001/quickstart-random/
 └── llm_calls.jsonl   # LLM 调用记录；本例为纯随机局，不会生成
 ```
 
-其中，`result.json` 用于查看最终状态，`events.jsonl` 用于追踪对局过程，`decisions.jsonl` 用于检查控制器在决策点执行了什么操作。只有包含 `llm_baseline` 玩家的对局才会生成 `llm_calls.jsonl`。
+其中，`result.json` 用于查看最终状态，`events.jsonl` 用于追踪对局过程，`decisions.jsonl` 用于检查控制器在决策点执行了什么操作。只要对局包含普通 LLM 玩家或朝廷 Agent，就会生成 `llm_calls.jsonl`。
 
 ### 3. 查看终局结果
 
@@ -130,7 +130,9 @@ print("回放验证通过")
 
 ## 2. 完整配置结构
 
-每局游戏由一个 YAML 文件定义。下面是四人全随机对局的完整可运行模板：
+每局游戏由一个 YAML 文件定义。字段、玩家类型、朝廷官员绑定、OpenAI 兼容接口和 API Key 环境变量的完整写法，请阅读 [游戏对局配置教程](game-config-tutorial.md)。
+
+下面是四人全随机对局的完整可运行模板：
 
 ```yaml
 game_id: random-game-001
@@ -196,7 +198,7 @@ output_directory: runs
 |---|---|
 | `player_id` | 玩家唯一标识；不能为空。建议使用稳定且易读的名称，如 `player-1`、`random-a`。 |
 | `seat` | 座位号，只能是 `1` 至 `4`，同一局中不能重复。座位决定行动顺序。 |
-| `controller_type` | 可选 `random_baseline` 或 `llm_baseline`。新配置应显式填写。 |
+| `controller_type` | 可选 `random_baseline`、`llm_baseline`、`shang_court`、`qin_court`、`tang_court` 或 `ming_court`。新配置应显式填写。 |
 | `model_profile` | 仅 `llm_baseline` 使用，引用 `model_profiles` 中的 profile 名称；随机玩家禁止填写。 |
 
 ## 3. 控制器配置场景
@@ -227,55 +229,38 @@ players:
 
 纯随机游戏不会生成 `llm_calls.jsonl`，且 `result.json` 中的 `llm_calls` 为 `0`。
 
-### 3.2 Mock-LLM 玩家
+### 3.2 LLM 玩家与朝廷 Agent
 
-当前 CLI 可执行的 LLM provider 只有 `mock`。它模拟 Agent 调用链，用于测试 Prompt、决策校验、审计和回放，不调用真实模型，不读取 API Key，也不产生费用。
+当前支持两种 LLM provider：
 
-每个 `llm_baseline` 玩家必须引用一个已定义的 `model_profile`：
+- `mock`：无凭据、无网络调用，适合测试和回放验证；
+- `openai_compatible`：调用 OpenAI 兼容的 `/chat/completions` 接口，API Key 从环境变量读取。
 
-```yaml
-players:
-  - player_id: mock-1
-    seat: 1
-    controller_type: llm_baseline
-    model_profile: mock-player-1
-  - player_id: mock-2
-    seat: 2
-    controller_type: llm_baseline
-    model_profile: mock-player-2
+普通 LLM 玩家使用 `llm_baseline`。商、秦、唐、明朝廷玩家分别使用 `shang_court`、`qin_court`、`tang_court`、`ming_court`，并为每名官员绑定独立的 `model_profile`。
 
-model_profiles:
-  mock-player-1:
-    provider: mock
-    model: mock-baseline-v1
-    temperature: 0.2
-    max_tokens: 256
-    timeout_seconds: 30
-  mock-player-2:
-    provider: mock
-    model: mock-baseline-v1
+配置细节和完整示例请阅读 [游戏对局配置教程](game-config-tutorial.md)。项目提供了四朝廷示例：
+
+```text
+configs/games/example.yaml
 ```
 
-`model_profiles` 的字段如下：
-
-| 字段 | 必填 | 可配置值与作用 |
-|---|---:|---|
-| profile 名 | 是 | 如 `mock-player-1`。由玩家的 `model_profile` 引用。 |
-| `provider` | 是 | 当前只有 `mock` 可以运行。写入 `anthropic`、`openai` 或其他名称会因未注册 provider 而失败。 |
-| `model` | 是 | 模型标识。当前 Mock 示例使用 `mock-baseline-v1`。 |
-| `temperature` | 否 | 数值采样参数；可以省略。 |
-| `max_tokens` | 否 | 正整数；可以省略。 |
-| `timeout_seconds` | 否 | 大于 0 的数值；可以省略。 |
-
-可直接运行仓库示例：
+使用 `openai_compatible` 前，先设置 YAML 中 `api_key_env` 指定的环境变量。例如：
 
 ```powershell
-.\.venv\Scripts\monopoly-agent-battle.exe play --config configs/games/phase4_mock_demo.yaml
+$env:MONOPOLY_SHANG_EMPEROR_API_KEY = "你的API Key"
 ```
+
+然后启动：
+
+```powershell
+.\.venv\Scripts\monopoly-agent-battle.exe play --config configs/games/example.yaml
+```
+
+`example.yaml` 中的 URL 和模型名是占位值，使用真实服务前必须替换。API Key 不要直接写入 YAML。
 
 ### 3.3 随机与 Mock-LLM 混合对局
 
-同一局可以混用两种控制器。下例中第 1、3 位是随机玩家，第 2、4 位是 Mock-LLM 玩家：
+同一局可以混用随机玩家、普通 LLM 玩家和朝廷 Agent。下面保留一个随机玩家与 Mock-LLM 玩家混合示例；真实接口与朝廷配置见 [游戏对局配置教程](game-config-tutorial.md)。
 
 ```yaml
 game_id: mixed-game-001
@@ -325,7 +310,7 @@ output_directory: runs
 
 ### 3.4 LLM 运行参数
 
-下面字段只会影响包含 `llm_baseline` 的对局；全随机局无需配置：
+下面字段只会影响包含普通 LLM 玩家或朝廷 Agent 的对局；全随机局无需配置：
 
 ```yaml
 validation_retries: 2
@@ -374,7 +359,7 @@ runs/local-mixed-test/mixed-game-001/
 | `events.jsonl` | 每个已执行命令及其产生的引擎事件。 | 排查购地、租金、自动建房、卖楼、抵押、卡牌等过程。 |
 | `decisions.jsonl` | 每个控制器决策点的候选、响应校验、回退和实际命令。 | 排查随机或 LLM 玩家在某个回合为何作出某项选择。 |
 | `runtime.jsonl` | 重试、上下文裁剪等运行时审计记录。 | 排查 LLM 链路和运行时告警。 |
-| `llm_calls.jsonl` | 每次 LLM 客户端调用，包括失败调用。 | 仅有 LLM baseline 时生成；纯随机局没有该文件。 |
+| `llm_calls.jsonl` | 每次 LLM 客户端调用，包括失败调用。 | 普通 LLM 玩家或朝廷 Agent 对局生成；纯随机局没有该文件。 |
 
 ## 5. 查看结果和过程
 
@@ -430,7 +415,7 @@ Get-Content runs/local-mixed-test/mixed-game-001/decisions.jsonl
 
 ### 5.4 查看 LLM 调用记录
 
-仅包含 `llm_baseline` 玩家时：
+只要对局包含普通 LLM 玩家或朝廷 Agent，就可以查看：
 
 ```powershell
 Get-Content runs/local-mixed-test/mixed-game-001/llm_calls.jsonl
@@ -464,5 +449,5 @@ print("回放验证通过")
 | `random baseline player ... must not set model_profile` | 删除随机玩家的 `model_profile`。 |
 | `LLM baseline player ... requires model_profile` | 为 `llm_baseline` 玩家配置一个已定义的 profile。 |
 | `player model_profile not defined` | 在 `model_profiles` 中增加对应名称，或修正玩家引用。 |
-| `no client factory registered for provider: ...` | 当前仅 `provider: mock` 可以运行；真实 provider 尚未接入。 |
+| `no client factory registered for provider: ...` | 检查 `provider` 是否为已支持的 `mock` 或 `openai_compatible`。 |
 | 没有 `llm_calls.jsonl` | 纯随机局的预期结果；检查 `decisions.jsonl`、`events.jsonl` 和 `result.json`。 |
