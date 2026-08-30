@@ -1,0 +1,61 @@
+game_id: openai-compatible-demo
+experiment_id: openai-compatible-demo
+seed: 42
+players:
+  - player_id: openai-player
+    seat: 1
+    controller_type: llm_baseline
+    model_profile: player-openai
+  - player_id: tang-court
+    seat: 2
+    controller_type: tang_court
+    court_role_profiles:
+      zhongshu: tang-zhongshu
+      menxia: tang-menxia
+      emperor: tang-emperor
+  - player_id: random-c
+    seat: 3
+    controller_type: random_baseline
+  - player_id: random-d
+    seat: 4
+    controller_type: random_baseline
+model_profiles:
+  player-openai:
+    provider: openai_compatible
+    base_url: https://api.example.com/v1
+    api_key_env: MONOPOLY_PLAYER_API_KEY
+    model: player-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  tang-zhongshu:
+    provider: openai_compatible
+    base_url: https://api.example.com/v1
+    api_key_env: MONOPOLY_TANG_ZHONGSHU_API_KEY
+    model: zhongshu-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  tang-menxia:
+    provider: openai_compatible
+    base_url: https://review.example.com/v1
+    api_key_env: MONOPOLY_TANG_MENXIA_API_KEY
+    model: menxia-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 180
+  tang-emperor:
+    provider: openai_compatible
+    base_url: https://decision.example.com/v1
+    api_key_env: MONOPOLY_TANG_EMPEROR_API_KEY
+    model: emperor-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+initial_cash: 1500
+max_complete_rounds: 20
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs

@@ -63,6 +63,7 @@ class BaselineAgent:
                 messages=messages,
                 model=self._profile.model,
                 caller_role=self._player_id,
+                seed=self._profile.seed,
                 temperature=self._profile.temperature,
                 max_tokens=self._profile.max_tokens,
                 timeout_seconds=self._profile.timeout_seconds,

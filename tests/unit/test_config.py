@@ -92,6 +92,94 @@ def test_config_accepts_model_profiles_and_player_binding() -> None:
     assert config.model_profiles["mock"].model == "mock-baseline-v1"
 
 
+def test_config_accepts_independent_openai_compatible_profiles() -> None:
+    data = config_data()
+    data["model_profiles"] = {
+        "first": {
+            "provider": "openai_compatible",
+            "base_url": "https://first.example/v1",
+            "api_key_env": "FIRST_API_KEY",
+            "model": "first-model",
+            "seed": 42,
+        },
+        "second": {
+            "provider": "openai_compatible",
+            "base_url": "https://second.example/v1",
+            "api_key_env": "SECOND_API_KEY",
+            "model": "second-model",
+            "seed": 42,
+        },
+    }
+    data["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "llm_baseline",
+            "model_profile": "first",
+        },
+        {
+            "player_id": "b",
+            "seat": 2,
+            "controller_type": "llm_baseline",
+            "model_profile": "second",
+        },
+    ]
+
+    config = GameConfig.model_validate(data)
+
+    assert config.model_profiles["first"].base_url == "https://first.example/v1"
+    assert config.model_profiles["first"].api_key_env == "FIRST_API_KEY"
+    assert config.model_profiles["first"].seed == 42
+    assert config.model_profiles["second"].base_url == "https://second.example/v1"
+    assert config.model_profiles["second"].api_key_env == "SECOND_API_KEY"
+    assert config.model_profiles["second"].seed == 42
+
+
+def test_config_rejects_incomplete_openai_compatible_profile() -> None:
+    data = config_data()
+    data["model_profiles"] = {"real": {"provider": "openai_compatible", "model": "model-only"}}
+
+    with pytest.raises(ValidationError, match="requires: base_url, api_key_env"):
+        GameConfig.model_validate(data)
+
+
+def test_config_rejects_plaintext_api_key() -> None:
+    data = config_data()
+    data["model_profiles"] = {
+        "real": {
+            "provider": "openai_compatible",
+            "base_url": "https://example.com/v1",
+            "api_key_env": "REAL_API_KEY",
+            "api_key": "must-not-be-accepted",
+            "model": "model",
+        }
+    }
+
+    with pytest.raises(ValidationError, match="api_key"):
+        GameConfig.model_validate(data)
+
+
+def test_config_hash_contains_credential_reference_not_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("REAL_API_KEY", "actual-secret-value")
+    data = config_data()
+    data["model_profiles"] = {
+        "real": {
+            "provider": "openai_compatible",
+            "base_url": "https://example.com/v1",
+            "api_key_env": "REAL_API_KEY",
+            "model": "model",
+        }
+    }
+
+    config = GameConfig.model_validate(data)
+    frozen = canonical_config_json(config)
+
+    assert "REAL_API_KEY" in frozen
+    assert "actual-secret-value" not in frozen
+
+
 def test_config_rejects_undefined_model_profile() -> None:
     data = config_data()
     data["model_profiles"] = {}

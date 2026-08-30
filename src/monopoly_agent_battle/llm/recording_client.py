@@ -41,6 +41,7 @@ class RecordingLLMClient(LLMClient):
                     "call_id": None,
                     "caller_role": request.caller_role,
                     "model": request.model,
+                    "seed": request.seed,
                     "temperature": request.temperature,
                     "max_tokens": request.max_tokens,
                     "input_tokens": usage.input_tokens if usage is not None else 0,

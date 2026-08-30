@@ -31,6 +31,7 @@ class LLMRequest:
     messages: tuple[LLMMessage, ...]
     model: str
     caller_role: str
+    seed: int | None = None
     temperature: float | None = None
     max_tokens: int | None = None
     timeout_seconds: float | None = None

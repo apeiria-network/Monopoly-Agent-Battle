@@ -18,6 +18,7 @@ model_profiles:
   mock:
     provider: mock
     model: mock-baseline-v1
+    seed: 42
 initial_cash: 1500
 max_complete_rounds: 20
 rules_version: classic-level0-v1

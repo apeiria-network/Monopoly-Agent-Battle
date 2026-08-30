@@ -29,6 +29,7 @@ from monopoly_agent_battle.decision.runner import (
 )
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.mock_client import MockLLMClient
+from monopoly_agent_battle.llm.openai_compatible_client import OpenAICompatibleClient
 from monopoly_agent_battle.llm.recording_client import RecordingLLMClient
 from monopoly_agent_battle.llm.registry import create_client, register_client_factory
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts, utc_timestamp
@@ -79,6 +80,8 @@ def run_play(config_path: Path) -> Path:
     )
     if needs_mock_client:
         register_client_factory("mock", lambda profile: MockLLMClient(seed=config.seed))
+    if any(profile.provider == "openai_compatible" for profile in config.model_profiles.values()):
+        register_client_factory("openai_compatible", OpenAICompatibleClient)
     for player in config.players:
         if _is_random_baseline(player.controller_type):
             controllers[player.player_id] = RandomBaselineController(

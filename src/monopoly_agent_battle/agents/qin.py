@@ -311,6 +311,7 @@ class QinCourtAgent:
                     messages=messages,
                     model=profile.model,
                     caller_role=caller,
+                    seed=profile.seed,
                     temperature=profile.temperature,
                     max_tokens=profile.max_tokens,
                     timeout_seconds=profile.timeout_seconds,
