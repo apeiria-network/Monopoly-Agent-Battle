@@ -118,6 +118,8 @@ def test_qin_call_order_and_segment_five_visibility(tmp_path: Path) -> None:
     assert '"decision_maker":"chancellor"' in emperor_text
     assert '"decision_maker":"grand_marshal"' in emperor_text
     assert '"content_type":"comment"' in emperor_text
+    assert '"selected_option":{"option":"' in emperor_text
+    assert '"target_position"' not in emperor_text
     assert "## 合法候选操作" in emperor_text
     assert "## 秦代角色" in clients["chancellor"].requests[0].messages[0].content
     assert clients["chancellor"].requests[0].messages[0].content.index("## 秦代角色") < clients[
