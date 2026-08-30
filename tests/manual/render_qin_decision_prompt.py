@@ -7,6 +7,7 @@ must reproduce that report byte for byte.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -96,7 +97,9 @@ class _CaptureClient:
         return LLMResponse(content, UsageMetrics(1, 1), request.model)
 
 
-def _make_agent() -> tuple[QinCourtAgent, dict[str, _CaptureClient]]:
+def _make_agent(
+    performance_generator: Callable[[DecisionRequest], str | None] = random_officer_performance,
+) -> tuple[QinCourtAgent, dict[str, _CaptureClient]]:
     clients = {role: _CaptureClient(role) for role in _ROLES}
     profiles = {role: ModelProfile(provider="mock", model=f"qin-{role}") for role in _ROLES}
     conversations = {
@@ -114,7 +117,7 @@ def _make_agent() -> tuple[QinCourtAgent, dict[str, _CaptureClient]]:
             emperor_client=clients["emperor"],
             emperor_profile=profiles["emperor"],
             conversations=conversations,
-            performance_generator=random_officer_performance,
+            performance_generator=performance_generator,
         ),
         clients,
     )
@@ -200,6 +203,40 @@ def _assert_shape(messages: tuple[LLMMessage, ...], role: str, second: bool) -> 
             assert '"content_type":"final_decision"' in dynamic
 
 
+def _capture_performance(rounds: int) -> tuple[tuple[LLMMessage, ...], object]:
+    with TemporaryDirectory() as directory:
+        engine = _make_engine(directory)
+        engine.state.complete_rounds = rounds
+        first_request = build_decision_request(engine, sequence=1)
+        performance = random_officer_performance(first_request)
+        if performance is None:
+            raise AssertionError("performance scenario did not produce performance text")
+
+        def fixed_performance(_: DecisionRequest) -> str:
+            return performance
+
+        agent, clients = _make_agent(fixed_performance)
+        _complete_first_decision(engine, agent, clients, first_request)
+        second_request = build_decision_request(engine, sequence=2)
+        _run_agent(agent, clients, second_request, 2)
+        captured = clients["imperial_counsellor"].requests[-1][1]
+        _assert_performance_shape(captured.messages, rounds)
+        dynamic = "\n".join(message.content for message in captured.messages[1:])
+        assert "第1次" in dynamic
+        assert "第2次" in dynamic
+        return captured.messages, agent.last_context_warning
+
+
+def _assert_performance_shape(messages: tuple[LLMMessage, ...], rounds: int) -> None:
+    dynamic = "\n".join(message.content for message in messages[1:])
+    assert dynamic.count("## 官员绩效") == 2
+    second_advice_pos = dynamic.index("第2次丞相建议")
+    assert dynamic.index("## 官员绩效") < second_advice_pos < dynamic.rindex("## 官员绩效")
+    assert dynamic.count("最近1个回合中") == 2
+    assert dynamic.count("最近多个回合中") == (2 if rounds >= 3 else 0)
+    assert dynamic.rindex("## 官员绩效") < dynamic.rindex("## 当前决策")
+
+
 def _write(
     buffer: StringIO,
     label: str,
@@ -222,6 +259,9 @@ def _render_once() -> str:
     for label, role in zip("EFGH", _ROLES, strict=True):
         messages, warning = _capture(role, second=True)
         _write(buffer, label, role, messages, warning)
+    for label, rounds in (("I", 1), ("J", 3)):
+        messages, warning = _capture_performance(rounds)
+        _write(buffer, label, f"imperial_counsellor（已完成{rounds}轮）", messages, warning)
     return buffer.getvalue()
 
 

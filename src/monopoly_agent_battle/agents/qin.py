@@ -16,7 +16,11 @@ from typing import Any, cast
 
 from monopoly_agent_battle.config.models import ModelProfile
 from monopoly_agent_battle.context.composer import compose_prompt
-from monopoly_agent_battle.context.conversation import AgentConversation, DecisionEntry
+from monopoly_agent_battle.context.conversation import (
+    AgentConversation,
+    ContextEntry,
+    DecisionEntry,
+)
 from monopoly_agent_battle.context.token_guard import ContextWarning
 from monopoly_agent_battle.context.validation_feedback import build_feedback
 from monopoly_agent_battle.decision.models import DecisionRequest
@@ -257,6 +261,17 @@ class QinCourtAgent:
             )
             parsed = _fallback_comment()
         self._responses[_COUNSELLOR] = parsed
+        performance = self._performance_generator(request)
+        current_turn = self._conversations[_COUNSELLOR].current_turn
+        if (
+            performance
+            and current_turn is not None
+            and not any(
+                isinstance(entry, ContextEntry) and entry.content == performance
+                for entry in current_turn.entries
+            )
+        ):
+            self._conversations[_COUNSELLOR].append_context(performance)
         self._append_own_decision(_COUNSELLOR, request, parsed)
         self._deliver(request, _COUNSELLOR, _COMMENT, parsed, {_EMPEROR})
 
