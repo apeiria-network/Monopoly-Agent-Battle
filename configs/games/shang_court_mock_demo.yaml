@@ -26,10 +26,12 @@ model_profiles:
   mock-priest:
     provider: mock
     model: mock-shang-priest-v1
+    seed: 42
     temperature: 0.2
     max_tokens: 120
   mock-emperor:
     provider: mock
     model: mock-shang-emperor-v1
+    seed: 42
     temperature: 0.2
     max_tokens: 320

@@ -1,23 +1,27 @@
-game_id: mock-baseline-demo
-experiment_id: mock-baseline
+game_id: fake-llm-demo
+experiment_id: fake-llm
 seed: 42
 players:
   - player_id: player-1
     seat: 1
-    model_profile: mock
+    controller_type: llm_baseline
+    model_profile: fake
   - player_id: player-2
     seat: 2
-    model_profile: mock
+    controller_type: llm_baseline
+    model_profile: fake
   - player_id: player-3
     seat: 3
-    model_profile: mock
+    controller_type: llm_baseline
+    model_profile: fake
   - player_id: player-4
     seat: 4
-    model_profile: mock
+    controller_type: llm_baseline
+    model_profile: fake
 model_profiles:
-  mock:
-    provider: mock
-    model: mock-baseline-v1
+  fake:
+    provider: fake
+    model: fake-random-v1
     seed: 42
 initial_cash: 1500
 max_complete_rounds: 20

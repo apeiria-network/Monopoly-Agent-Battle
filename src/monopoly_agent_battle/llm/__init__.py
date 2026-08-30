@@ -1,5 +1,6 @@
 """Provider-agnostic LLM abstraction and mock/recording clients."""
 
+from monopoly_agent_battle.llm.fake_client import FakeLLMClient
 from monopoly_agent_battle.llm.mock_client import (
     MockLLMClient,
     estimate_tokens,
@@ -7,6 +8,7 @@ from monopoly_agent_battle.llm.mock_client import (
     script_policy,
     seeded_policy,
 )
+from monopoly_agent_battle.llm.openai_compatible_client import OpenAICompatibleClient
 from monopoly_agent_battle.llm.protocol import (
     LLMCallError,
     LLMClient,
@@ -27,6 +29,8 @@ __all__ = [
     "LLMRequest",
     "LLMResponse",
     "MockLLMClient",
+    "FakeLLMClient",
+    "OpenAICompatibleClient",
     "RecordingLLMClient",
     "UsageMetrics",
     "create_client",

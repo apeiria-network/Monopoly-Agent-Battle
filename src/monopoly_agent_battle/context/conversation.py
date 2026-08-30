@@ -308,9 +308,7 @@ class AgentConversation:
         insertion_index = next(
             (
                 index
-                for index, entry in reversed(
-                    tuple(enumerate(self.current_turn.entries))
-                )
+                for index, entry in reversed(tuple(enumerate(self.current_turn.entries)))
                 if isinstance(entry, DecisionEntry) and entry.decision_id == decision_id
             ),
             len(self.current_turn.entries),

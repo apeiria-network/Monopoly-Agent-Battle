@@ -32,6 +32,7 @@ _TITLES = {
     "9": "第二次决策：两轮草拟仍不一致，皇帝读取 advice 后终裁",
 }
 
+
 def _make_engine(directory: str) -> GameEngine:
     config = GameConfig(
         game_id="ming-prompt-inspection",
@@ -123,9 +124,7 @@ class _CaptureClient:
 def _make_agent(
     first_mode: str, second_mode: str = "unanimous"
 ) -> tuple[MingCourtAgent, dict[str, _CaptureClient]]:
-    clients = {
-        role: _CaptureClient(role, first_mode, second_mode) for role in _ROLES
-    }
+    clients = {role: _CaptureClient(role, first_mode, second_mode) for role in _ROLES}
     profiles = {role: ModelProfile(provider="mock", model=f"ming-{role}") for role in _ROLES}
     conversations = {
         role: AgentConversation(agent_id=f"a.{role}", window_turns=1) for role in _ROLES
@@ -170,9 +169,7 @@ def _complete_first_decision(
         raise AssertionError(f"invalid deterministic emperor reply: {validation.error}")
     if validation.option.option_id != "mortgage":
         raise AssertionError("deterministic emperor reply must select mortgage")
-    events = engine.execute(
-        command_from_option(request, validation.option, validation.target)
-    )
+    events = engine.execute(command_from_option(request, validation.option, validation.target))
     for event in events:
         for conversation in agent.role_conversations.values():
             conversation.append_event(event, engine.state.complete_rounds)
@@ -221,11 +218,7 @@ def _assert_shape(messages: tuple[LLMMessage, ...], role: str, label: str) -> No
     assert lines.count("## 当前局面") == 1
     assert lines.count("## 当前决策") == 1
     assert lines.count("## 合法候选操作") == 1
-    assert (
-        lines.index("## 当前局面")
-        < lines.index("## 当前决策")
-        < lines.index("## 合法候选操作")
-    )
+    assert lines.index("## 当前局面") < lines.index("## 当前决策") < lines.index("## 合法候选操作")
     assert "## 当前决策投票结果" not in dynamic
     if label in {"3", "4", "5", "7", "8"}:
         assert '"content_type":"draft"' in dynamic
@@ -259,9 +252,7 @@ def _write(
     messages: tuple[LLMMessage, ...],
     warning: object,
 ) -> None:
-    buffer.write(
-        f"\n{_DIVIDER}\nSCENARIO {label}: {role} — {_TITLES[label]}\n{_DIVIDER}\n"
-    )
+    buffer.write(f"\n{_DIVIDER}\nSCENARIO {label}: {role} — {_TITLES[label]}\n{_DIVIDER}\n")
     for index, message in enumerate(messages, 1):
         buffer.write(f"\n--- Message {index} [{message.role}] ---\n{message.content}\n")
     if warning is not None:
@@ -282,9 +273,7 @@ def _render_once() -> str:
         ("9", "emperor", "vote", "vote", True, "final"),
     )
     for label, role, first_mode, second_mode, second, phase in scenarios:
-        messages, warning = _capture(
-            label, role, first_mode, second_mode, second, phase
-        )
+        messages, warning = _capture(label, role, first_mode, second_mode, second, phase)
         _write(buffer, label, role, messages, warning)
     return buffer.getvalue()
 

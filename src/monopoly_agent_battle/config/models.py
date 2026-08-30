@@ -9,15 +9,46 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 class ModelProfile(BaseModel):
-    """Sampling and routing settings bound to one AI role."""
+    """Sampling, routing, and credential-reference settings for one AI role."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
+    base_url: str | None = Field(default=None, min_length=1)
+    api_key_env: str | None = Field(
+        default=None,
+        min_length=1,
+        pattern=r"^[A-Za-z_][A-Za-z0-9_]*$",
+    )
+    seed: int = 42
     temperature: float | None = None
     max_tokens: int | None = Field(default=None, ge=1)
     timeout_seconds: float | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_provider_settings(self) -> ModelProfile:
+        """Require endpoint and environment credential references for real clients."""
+        if self.provider not in {"mock", "fake", "openai_compatible"}:
+            msg = f"unsupported model provider: {self.provider}"
+            raise ValueError(msg)
+        if self.provider == "openai_compatible":
+            missing = [
+                name
+                for name, value in (
+                    ("base_url", self.base_url),
+                    ("api_key_env", self.api_key_env),
+                )
+                if value is None
+            ]
+            if missing:
+                msg = "openai_compatible model profile requires: " + ", ".join(missing)
+                raise ValueError(msg)
+            assert self.base_url is not None
+            if not self.base_url.startswith(("http://", "https://")):
+                msg = "openai_compatible base_url must use http:// or https://"
+                raise ValueError(msg)
+        return self
 
 
 class ShangCourtRoleProfiles(BaseModel):

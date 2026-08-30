@@ -1,0 +1,145 @@
+game_id: four-courts-openai-compatible-demo
+experiment_id: four-courts-openai-compatible-demo
+seed: 42
+players:
+  - player_id: shang-court
+    seat: 1
+    controller_type: shang_court
+    court_role_profiles:
+      great_priest: shang-great-priest
+      emperor: shang-emperor
+  - player_id: qin-court
+    seat: 2
+    controller_type: qin_court
+    court_role_profiles:
+      chancellor: qin-chancellor
+      grand_marshal: qin-grand-marshal
+      imperial_counsellor: qin-imperial-counsellor
+      emperor: qin-emperor
+  - player_id: tang-court
+    seat: 3
+    controller_type: tang_court
+    court_role_profiles:
+      zhongshu: tang-zhongshu
+      menxia: tang-menxia
+      emperor: tang-emperor
+  - player_id: ming-court
+    seat: 4
+    controller_type: ming_court
+    court_role_profiles:
+      chief_grand_secretary: ming-chief-grand-secretary
+      grand_secretary_1: ming-grand-secretary-1
+      grand_secretary_2: ming-grand-secretary-2
+      emperor: ming-emperor
+model_profiles:
+  shang-great-priest:
+    provider: openai_compatible
+    base_url: https://shang-priest.example.com/v1
+    api_key_env: MONOPOLY_SHANG_GREAT_PRIEST_API_KEY
+    model: shang-great-priest-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 120
+  shang-emperor:
+    provider: openai_compatible
+    base_url: https://shang-emperor.example.com/v1
+    api_key_env: MONOPOLY_SHANG_EMPEROR_API_KEY
+    model: shang-emperor-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  qin-chancellor:
+    provider: openai_compatible
+    base_url: https://qin-chancellor.example.com/v1
+    api_key_env: MONOPOLY_QIN_CHANCELLOR_API_KEY
+    model: qin-chancellor-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  qin-grand-marshal:
+    provider: openai_compatible
+    base_url: https://qin-grand-marshal.example.com/v1
+    api_key_env: MONOPOLY_QIN_GRAND_MARSHAL_API_KEY
+    model: qin-grand-marshal-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  qin-imperial-counsellor:
+    provider: openai_compatible
+    base_url: https://qin-counsellor.example.com/v1
+    api_key_env: MONOPOLY_QIN_IMPERIAL_COUNSELLOR_API_KEY
+    model: qin-imperial-counsellor-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  qin-emperor:
+    provider: openai_compatible
+    base_url: https://qin-emperor.example.com/v1
+    api_key_env: MONOPOLY_QIN_EMPEROR_API_KEY
+    model: qin-emperor-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  tang-zhongshu:
+    provider: openai_compatible
+    base_url: https://tang-zhongshu.example.com/v1
+    api_key_env: MONOPOLY_TANG_ZHONGSHU_API_KEY
+    model: tang-zhongshu-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  tang-menxia:
+    provider: openai_compatible
+    base_url: https://tang-menxia.example.com/v1
+    api_key_env: MONOPOLY_TANG_MENXIA_API_KEY
+    model: tang-menxia-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 180
+  tang-emperor:
+    provider: openai_compatible
+    base_url: https://tang-emperor.example.com/v1
+    api_key_env: MONOPOLY_TANG_EMPEROR_API_KEY
+    model: tang-emperor-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  ming-chief-grand-secretary:
+    provider: openai_compatible
+    base_url: https://ming-chief.example.com/v1
+    api_key_env: MONOPOLY_MING_CHIEF_GRAND_SECRETARY_API_KEY
+    model: ming-chief-grand-secretary-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  ming-grand-secretary-1:
+    provider: openai_compatible
+    base_url: https://ming-secretary-1.example.com/v1
+    api_key_env: MONOPOLY_MING_GRAND_SECRETARY_1_API_KEY
+    model: ming-grand-secretary-1-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  ming-grand-secretary-2:
+    provider: openai_compatible
+    base_url: https://ming-secretary-2.example.com/v1
+    api_key_env: MONOPOLY_MING_GRAND_SECRETARY_2_API_KEY
+    model: ming-grand-secretary-2-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  ming-emperor:
+    provider: openai_compatible
+    base_url: https://ming-emperor.example.com/v1
+    api_key_env: MONOPOLY_MING_EMPEROR_API_KEY
+    model: ming-emperor-model
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+initial_cash: 1500
+max_complete_rounds: 20
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs

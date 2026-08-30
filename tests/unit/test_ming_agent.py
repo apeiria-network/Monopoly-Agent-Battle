@@ -168,9 +168,7 @@ def test_ming_redraft_and_weighted_vote_are_isolated(tmp_path: Path) -> None:
     assert all("内阁意见不一致，请重新草拟" in prompt for prompt in redraft_prompts)
     assert all("当前决策投票结果" not in prompt for prompt in redraft_prompts)
     for prompt in redraft_prompts:
-        assert prompt.index('"content_type":"draft"') < prompt.index(
-            "内阁意见不一致，请重新草拟"
-        )
+        assert prompt.index('"content_type":"draft"') < prompt.index("内阁意见不一致，请重新草拟")
     advice_prompt = "\n".join(message.content for message in clients["chief"].requests[2].messages)
     assert "内阁最终表决结果：" in advice_prompt
 

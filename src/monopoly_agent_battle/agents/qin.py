@@ -174,6 +174,20 @@ class QinCourtAgent:
                 for role in (_CHANCELLOR, _GRAND_MARSHAL):
                     if role in futures:
                         futures[role].result()
+                adviser_traces = [
+                    trace for trace in self._trace if trace.role in {_CHANCELLOR, _GRAND_MARSHAL}
+                ]
+                other_traces = [
+                    trace
+                    for trace in self._trace
+                    if trace.role not in {_CHANCELLOR, _GRAND_MARSHAL}
+                ]
+                self._trace = [
+                    trace
+                    for role in (_CHANCELLOR, _GRAND_MARSHAL)
+                    for trace in adviser_traces
+                    if trace.role == role
+                ] + other_traces
         if _COUNSELLOR not in self._responses:
             self._call_counsellor(request)
         self._deliver(request, _COUNSELLOR, _COMMENT, self._responses[_COUNSELLOR], {_EMPEROR})
@@ -311,9 +325,11 @@ class QinCourtAgent:
                     messages=messages,
                     model=profile.model,
                     caller_role=caller,
+                    seed=profile.seed,
                     temperature=profile.temperature,
                     max_tokens=profile.max_tokens,
                     timeout_seconds=profile.timeout_seconds,
+                    decision_request=request,
                 )
             )
         except ConnectionError as error:

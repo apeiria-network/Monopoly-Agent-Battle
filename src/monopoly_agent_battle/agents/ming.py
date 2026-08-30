@@ -241,9 +241,7 @@ class MingCourtAgent:
         for role in _MEMBERS:
             self._conversations[role].append_context(_REDRAFT_INSTRUCTION)
         with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {
-                role: executor.submit(self._redraft, role, request) for role in _MEMBERS
-            }
+            futures = {role: executor.submit(self._redraft, role, request) for role in _MEMBERS}
             for role in _MEMBERS:
                 self._first[role] = futures[role].result()
         for role in _MEMBERS:
@@ -387,9 +385,11 @@ class MingCourtAgent:
                     messages=messages,
                     model=profile.model,
                     caller_role=caller,
+                    seed=profile.seed,
                     temperature=profile.temperature,
                     max_tokens=profile.max_tokens,
                     timeout_seconds=profile.timeout_seconds,
+                    decision_request=request,
                 )
             )
         except ConnectionError as error:

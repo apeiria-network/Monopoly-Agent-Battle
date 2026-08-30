@@ -6,14 +6,24 @@
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
+| `configs/games/example.yaml` | 商、秦、唐、明四朝廷 OpenAI 兼容接口示例；13 名官员分别绑定独立 URL、API Key 环境变量、模型及 `seed: 42`。 | 替换示例 URL 和模型名、设置对应环境变量后，作为 `monopoly-agent-battle play --config` 的输入。 |
+| `configs/games/fake_llm_demo.yaml` | 四名普通 Fake LLM 玩家示例，不发送网络请求。 | 作为 `play --config` 的输入。 |
+| `configs/games/four_courts_fake_demo.yaml` | 商、秦、唐、明四朝廷 Fake LLM 示例。 | 无需 API Key，可测试完整朝廷流程。 |
 | `configs/games/phase0_demo.yaml` | 四玩家 Level 0 示例对局配置。 | 作为 `demo --config` 的输入。 |
 | `configs/games/phase4_mock_demo.yaml` | 四玩家 Mock LLM baseline 对局配置（`provider: mock`，无凭据）。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/shang_court_mock_demo.yaml` | 商代双角色朝廷的无凭据短局配置：一名 `shang_court` 玩家分别绑定 `mock-priest` 与 `mock-emperor`，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/tang_court_mock_demo.yaml` | 唐代三角色朝廷的无凭据短局配置：一名 `tang_court` 玩家分别绑定中书省、门下省与皇帝的 Mock 模型，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/ming_court_mock_demo.yaml` | 明代四角色朝廷的无凭据短局配置：一名 `ming_court` 玩家绑定首辅、两名共用模型的大学士和皇帝，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/random_baseline_demo.yaml` | 四玩家完全随机、非 LLM 的 Level 0 示例配置；显式使用 `controller_type: random_baseline`，不含 `model_profiles`。 | 作为 `monopoly-agent-battle play --config` 的输入；不产生 LLM 调用产物。 |
-| `src/monopoly_agent_battle/config/models.py` | 定义并校验单局配置、控制器类型及模型绑定；朝廷各个官员 profile，均参与配置哈希与校验。 | 由配置加载器和对局入口调用。 |
+| `src/monopoly_agent_battle/config/models.py` | 定义并校验单局配置、控制器及模型绑定；每个玩家或官员的 profile 可独立配置 URL、API Key 环境变量、模型、LLM seed 和调用参数。 | 由配置加载器和对局入口调用；真实 API Key 不进入配置。 |
 | `src/monopoly_agent_battle/config/loader.py` | 加载 YAML 配置，生成规范 JSON 及 SHA-256 `config_hash`。 | 由 CLI 或实验编排调用。 |
+
+## 使用文档（`doc/`）
+
+| 路径 | 用途 | 使用方式 |
+|---|---|---|
+| `doc/game-config-tutorial.md` | 面向普通使用者的游戏 YAML 配置教程，说明玩家控制器、朝廷官员 profile、OpenAI 兼容接口、环境变量 API Key 和 LLM seed 的写法。 | 编写或修改对局配置前阅读。 |
+| `doc/manual-game-run-tutorial.md` | 手动启动对局、准备环境、查看运行产物和执行回放验证的教程。 | 按步骤运行 `play` 或 `demo`。 |
 
 ## 领域模型（`src/monopoly_agent_battle/domain/`）
 
@@ -52,10 +62,12 @@
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
-| `llm/protocol.py` | 供应商无关 LLM 协议（消息列表请求/响应、用量、错误类型）。 | 由各客户端与适配器实现。 |
+| `llm/protocol.py` | 供应商无关 LLM 协议，统一消息、模型、LLM seed、采样参数、响应、用量和错误类型。 | 由各客户端与 Agent 使用。 |
 | `llm/mock_client.py` | 确定性可播种的 Mock LLM 客户端（含首项/种子/脚本策略）。 | 无凭据对局、CI 与测试使用。 |
+| `llm/fake_client.py` | 接收完整上下文并本地随机生成协议合法回复，不发送网络请求。 | 配置 `provider: fake` 后由 `play` 创建。 |
+| `llm/openai_compatible_client.py` | 调用 OpenAI 兼容 `/chat/completions` 接口；按 profile 读取独立 URL 和 API Key 环境变量，并归一化响应与 token 用量。 | 配置 `provider: openai_compatible` 后由 `play` 创建。 |
 | `llm/recording_client.py` | 包装任意客户端，逐次调用（含失败）写入 `llm_calls.jsonl` 并重抛异常。 | 由 `play`/集成测试组装；供调用统计与无效阈值。 |
-| `llm/registry.py` | 按供应商别名注册/创建客户端（可插拔适配器）。 | `register_client_factory`/`create_client`；4A 仅注册 `"mock"`。 |
+| `llm/registry.py` | 按供应商别名注册和创建客户端。 | `play` 注册 `mock`、`fake` 与 `openai_compatible`。 |
 | `agents/baseline.py` | BaselineAgent（Stage 4D）：每次决策由 `compose_prompt()` 构造完整消息列表；段 3 告警仅作私有运行时记录，不进入 LLM 消息；标记为 LLM 控制器供运行器计量。 | 由 `play`/实验组装为 `DispatchController` 输入。 |
 | `agents/shang.py` | 商代双角色 CourtAgent：大祭司仅根据当前问题生成神谕，皇帝结合既有上下文和神谕作出最终协议回复；支持分阶段重试与私有审计。提示词为暂定版本，待人工重写审核。 | `play` 为 `shang_court` 玩家组装使用。 |
 | `agents/qin.py` | 秦代四角色 CourtAgent：丞相与太尉并行独立进言，御史大夫读取官员绩效并用 `judgement` 综合评价两者本次建议，皇帝最后裁决并产出唯一引擎决策；朝廷内部消息按第 5 段可见性投递，绩效位于第 5 段末尾、段 6 当前决策信息之前；角色非法输出按角色分别重试并安全回退，最终决策由运行器统一广播。提示词为暂定版本，待人工重写审核。 | `play` 为 `qin_court` 玩家组装使用。 |
@@ -96,11 +108,12 @@
 | `context/validation_feedback.py` | Stage 4C 校验失败用户可见反馈模板；依据 `DecisionValidation.error_category` 选择模板。 | `build_feedback(validation, request) -> str`。 |
 | `MonopolyAgentBattle_developer_docs/history_context_supplement.md` | Stage 4 历史上下文规范及 4C-remake 确认设计：system/user 消息归属、段 3 独立严格 500-token 裁剪、事件换行、运行时告警隔离和校验反馈生命周期。 | 作为 4C-remake 的实现与人工审核依据；4D 开发前应先查阅。 |
 
+## 运行产物与 CLI（`src/monopoly_agent_battle/logging/`、`cli/`）
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
 | `logging/run_artifacts.py` | 创建单局运行目录，持久化冻结配置、JSONL 命令/领域事件、决策审计、LLM 调用记录、私有运行时重试/回退事件与结果快照。 | 由单局运行器调用。 |
-| `cli/main.py` | 提供 `demo`（阶段 0 运行产物闭环演示）和 `play`（无凭据 Mock LLM baseline、完全随机非 LLM baseline 或两者混合的完整对局）命令；仅 LLM 玩家创建模型客户端与会话，随机玩家使用按种子、座位和玩家 ID 稳定派生的独立 RNG。 | `.venv/Scripts/monopoly-agent-battle.exe demo --config configs/games/phase0_demo.yaml`；`.venv/Scripts/monopoly-agent-battle.exe play --config configs/games/phase4_mock_demo.yaml`；`.venv/Scripts/monopoly-agent-battle.exe play --config configs/games/random_baseline_demo.yaml`。 |
+| `cli/main.py` | 提供 `demo` 和完整对局 `play`；按配置组装随机、普通 LLM、商、秦、唐、明控制器，并注册 Mock 或 OpenAI 兼容客户端。 | `.venv/Scripts/monopoly-agent-battle.exe play --config configs/games/example.yaml`。 |
 
 ## 自动化测试（`tests/`）
 
@@ -116,7 +129,7 @@
 | `tests/unit/test_random_baseline.py` | 完全随机非 LLM 控制器的确定性响应序列、协议合法性、合法多字段目标编码和非 LLM 计量标识。 | `python -m pytest tests/unit/test_random_baseline.py` |
 | `tests/integration/test_random_baseline_runner.py` | 纯随机和随机/Mock-LLM 混合完整对局：审计、回放、跨运行复现、无 LLM 产物、LLM 计量隔离及连接失败阈值。 | `python -m pytest tests/integration/test_random_baseline_runner.py` |
 | `tests/integration/test_decision_runner.py` | 决策驱动完整对局、自动普通掷骰事件审计/回放、监狱掷骰 Prompt 选择、监狱等待的自动推进、连接重试、回退及原始校验错误保留。 | `python -m pytest tests/integration/test_decision_runner.py` |
-| `tests/unit/test_llm_protocol.py` | LLM 协议与 Mock/录制客户端行为。 | `python -m pytest tests/unit/test_llm_protocol.py` |
+| `tests/unit/test_llm_protocol.py` | LLM 协议及 Mock、Fake、录制客户端行为。 | `python -m pytest tests/unit/test_llm_protocol.py` |
 | `tests/unit/test_baseline_agent.py` / `tests/integration/test_llm_runner.py` / `tests/integration/test_decision_runner.py` | 覆盖真实 LLM 请求的 system/user 边界、候选格式、运行时信息隔离、完整 Mock 对局，以及段 3 溢出警告的私有且按行动回合去重记录。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_baseline_agent.py tests/integration/test_llm_runner.py tests/integration/test_decision_runner.py` |
 | `tests/unit/context/test_broadcast.py` | 上下文播报器单元测试（Stage 4B）：豁免事件返回 None、全引擎事件类型穷举（白名单+豁免覆盖全部 49 个事件）、未注册事件抛异常、确定性渲染、涉己/旁观差异（card_drawn、card_discarded、chance_card_stolen）、payment_made 银行/玩家、player_jailed 原因映射、棋盘名称回退。 | `python -m pytest tests/unit/context/test_broadcast.py` |
 | `tests/unit/context/test_rules.py` / `test_token_guard.py` / `test_conversation.py` / `test_composer.py` / `test_validation_feedback.py` | 覆盖规则加载、段 3 严格 500-token 裁剪及同回合缓存稳定性、system/user 消息归属、相邻事件换行、重试消息顺序、校验反馈、同一决策 ID 的问题折叠及多条 assistant 回复保留。 | `.venv/Scripts/python.exe -m pytest tests/unit/context/` |

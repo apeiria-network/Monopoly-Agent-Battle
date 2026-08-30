@@ -28,15 +28,18 @@ model_profiles:
   mock-chief:
     provider: mock
     model: mock-ming-chief-v1
+    seed: 42
     temperature: 0.2
     max_tokens: 320
   mock-grand-secretary:
     provider: mock
     model: mock-ming-grand-secretary-v1
+    seed: 42
     temperature: 0.2
     max_tokens: 320
   mock-emperor:
     provider: mock
     model: mock-ming-emperor-v1
+    seed: 42
     temperature: 0.2
     max_tokens: 320

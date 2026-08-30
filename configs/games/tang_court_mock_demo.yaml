@@ -27,15 +27,18 @@ model_profiles:
   mock-zhongshu:
     provider: mock
     model: mock-tang-zhongshu-v1
+    seed: 42
     temperature: 0.2
     max_tokens: 320
   mock-menxia:
     provider: mock
     model: mock-tang-menxia-v1
+    seed: 42
     temperature: 0.2
     max_tokens: 180
   mock-emperor:
     provider: mock
     model: mock-tang-emperor-v1
+    seed: 42
     temperature: 0.2
     max_tokens: 320
