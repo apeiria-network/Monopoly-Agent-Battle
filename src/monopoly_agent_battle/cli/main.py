@@ -98,7 +98,9 @@ def run_play(config_path: Path) -> Path:
             priest_client = RecordingLLMClient(create_client(priest_profile), artifacts)
             emperor_client = RecordingLLMClient(create_client(emperor_profile), artifacts)
             conversation = AgentConversation(
-                agent_id=player.player_id, window_turns=config.window_turns
+                agent_id=player.player_id,
+                window_turns=config.window_turns,
+                prompt_profile=config.prompt_profile,
             )
             conversations[player.player_id] = conversation
             controllers[player.player_id] = ShangCourtAgent(
@@ -122,7 +124,9 @@ def run_play(config_path: Path) -> Path:
             }
             role_conversations = {
                 role: AgentConversation(
-                    agent_id=f"{player.player_id}.{role}", window_turns=config.window_turns
+                    agent_id=f"{player.player_id}.{role}",
+                    window_turns=config.window_turns,
+                    prompt_profile=config.prompt_profile,
                 )
                 for role in roles
             }
@@ -158,7 +162,9 @@ def run_play(config_path: Path) -> Path:
             }
             role_conversations = {
                 role: AgentConversation(
-                    agent_id=f"{player.player_id}.{role}", window_turns=config.window_turns
+                    agent_id=f"{player.player_id}.{role}",
+                    window_turns=config.window_turns,
+                    prompt_profile=config.prompt_profile,
                 )
                 for role in roles
             }
@@ -189,7 +195,9 @@ def run_play(config_path: Path) -> Path:
             }
             role_conversations = {
                 role: AgentConversation(
-                    agent_id=f"{player.player_id}.{role}", window_turns=config.window_turns
+                    agent_id=f"{player.player_id}.{role}",
+                    window_turns=config.window_turns,
+                    prompt_profile=config.prompt_profile,
                 )
                 for role in roles
             }
@@ -212,7 +220,9 @@ def run_play(config_path: Path) -> Path:
         profile = config.model_profiles[player.model_profile]
         client = RecordingLLMClient(create_client(profile), artifacts)
         conversation = AgentConversation(
-            agent_id=player.player_id, window_turns=config.window_turns
+            agent_id=player.player_id,
+            window_turns=config.window_turns,
+            prompt_profile=config.prompt_profile,
         )
         conversations[player.player_id] = conversation
         controllers[player.player_id] = BaselineAgent(

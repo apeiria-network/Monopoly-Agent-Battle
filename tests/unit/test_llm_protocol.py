@@ -22,6 +22,8 @@ from monopoly_agent_battle.llm.protocol import (
     LLMConnectionError,
     LLMMessage,
     LLMRequest,
+    LLMResponse,
+    UsageMetrics,
 )
 from monopoly_agent_battle.llm.recording_client import RecordingLLMClient
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
@@ -63,6 +65,12 @@ def test_llm_connection_error_is_retryable() -> None:
     error = LLMConnectionError("down")
     assert isinstance(error, ConnectionError)
     assert isinstance(error, LLMCallError)
+
+
+def test_uncached_input_tokens_are_clamped_for_inconsistent_provider_usage() -> None:
+    usage = UsageMetrics(input_tokens=5, output_tokens=1, cached_input_tokens=8)
+
+    assert usage.uncached_input_tokens == 0
 
 
 def test_mock_selects_first_rendered_candidate_and_estimates_tokens() -> None:
@@ -174,6 +182,8 @@ def test_recording_client_writes_success_record(tmp_path: Path) -> None:
     assert record["caller_role"] == "a"
     assert record["model"] == "mock-baseline-v1"
     assert record["input_tokens"] > 0
+    assert record["cached_input_tokens"] == 0
+    assert record["uncached_input_tokens"] == record["input_tokens"]
     assert record["output_tokens"] > 0
     assert record["thinking_tokens"] == 0
     assert record["tool_calls"] == 0
@@ -196,3 +206,24 @@ def test_recording_client_records_failure_and_reraises(tmp_path: Path) -> None:
     assert len(records) == 1
     assert records[0]["error"] == "down"
     assert records[0]["response_summary"] is None
+    assert records[0]["cached_input_tokens"] == 0
+    assert records[0]["uncached_input_tokens"] == 0
+
+
+def test_recording_client_writes_cached_and_uncached_input_tokens(tmp_path: Path) -> None:
+    class CachedUsageClient:
+        def complete(self, request: LLMRequest) -> LLMResponse:
+            return LLMResponse(
+                content="answer",
+                usage=UsageMetrics(
+                    input_tokens=100, output_tokens=3, cached_input_tokens=75
+                ),
+                model=request.model,
+            )
+
+    artifacts = RunArtifacts.create(_llm_config(tmp_path))
+    RecordingLLMClient(CachedUsageClient(), artifacts).complete(_make_request("prompt"))
+
+    record = _llm_call_records(tmp_path)[0]
+    assert record["cached_input_tokens"] == 75
+    assert record["uncached_input_tokens"] == 25

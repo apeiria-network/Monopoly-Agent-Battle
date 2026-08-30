@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
@@ -11,7 +12,12 @@ from monopoly_agent_battle.context.conversation import (
     AgentConversation,
     InternalDecisionEntry,
 )
-from monopoly_agent_battle.decision.prompts import render_decision_question
+from monopoly_agent_battle.decision.prompts import (
+    options_from_prompt,
+    render_decision_question,
+    render_role,
+    render_rules,
+)
 from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import GameEvent, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
@@ -57,6 +63,57 @@ def test_first_decision_no_history_skips_segments_3_and_4(tmp_path: Path) -> Non
     assert "合法候选操作" in messages[-1].content
     assert "## 输出要求" not in messages[-1].content
     assert warning is None
+
+
+def test_cache_first_uses_stable_rules_prefix_and_compact_options(tmp_path: Path) -> None:
+    engine = _make_engine(tmp_path)
+    conv = AgentConversation(
+        agent_id="a", window_turns=1, prompt_profile="cache-first-v1"
+    )
+    request = build_decision_request(engine, sequence=1)
+    role_instruction = "role-instruction-sentinel"
+    output_guide = "output-guide-sentinel"
+
+    first, _warning = compose_prompt(
+        conv,
+        request,
+        role_instruction=role_instruction,
+        segment3_prompt=output_guide,
+    )
+    second, _warning = compose_prompt(
+        conv,
+        request,
+        role_instruction=role_instruction,
+        segment3_prompt=output_guide,
+    )
+
+    system = first[0].content
+    assert system == second[0].content
+    role = render_role(request, role_instruction)
+    suffix = f"\n\n{role}\n\n{output_guide}"
+    assert system.endswith(suffix)
+    compact_rules = system[: -len(suffix)]
+    source_atoms = re.findall(r"[^\W_]+", render_rules())
+    compact_atoms = re.findall(r"[^\W_]+", compact_rules)
+    assert compact_atoms == source_atoms
+    assert len(compact_rules) < len(render_rules())
+
+    options = options_from_prompt(first[-1].content)
+    assert options
+    compact_options = json.dumps(options, ensure_ascii=False, separators=(",", ":"))
+    assert first[-1].content.endswith(compact_options)
+
+
+def test_full_prompt_profile_preserves_existing_rendering(tmp_path: Path) -> None:
+    engine = _make_engine(tmp_path)
+    request = build_decision_request(engine, sequence=1)
+
+    implicit, _warning = compose_prompt(AgentConversation(agent_id="a"), request)
+    explicit, _warning = compose_prompt(
+        AgentConversation(agent_id="a", prompt_profile="full-v1"), request
+    )
+
+    assert implicit == explicit
 
 
 def test_adjacent_events_share_one_event_block_with_single_newlines(tmp_path: Path) -> None:

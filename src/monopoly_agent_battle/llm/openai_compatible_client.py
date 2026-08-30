@@ -98,6 +98,7 @@ class OpenAICompatibleClient(LLMClient):
             input_tokens = _integer_usage(usage, "prompt_tokens")
             output_tokens = _integer_usage(usage, "completion_tokens")
             thinking_tokens = _thinking_tokens(usage)
+            cached_input_tokens = _cached_input_tokens(usage)
             response_model = document.get("model", request.model)
             if not isinstance(response_model, str):
                 raise TypeError
@@ -112,6 +113,7 @@ class OpenAICompatibleClient(LLMClient):
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 thinking_tokens=thinking_tokens,
+                cached_input_tokens=cached_input_tokens,
             ),
             model=response_model,
         )
@@ -132,3 +134,10 @@ def _thinking_tokens(usage: dict[str, Any]) -> int:
         if isinstance(value, int) and value >= 0:
             return value
     return 0
+
+
+def _cached_input_tokens(usage: dict[str, Any]) -> int:
+    details = usage.get("prompt_tokens_details")
+    if not isinstance(details, dict):
+        return 0
+    return _integer_usage(cast(dict[str, Any], details), "cached_tokens")

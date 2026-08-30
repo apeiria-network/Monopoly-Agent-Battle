@@ -83,6 +83,7 @@ def test_client_sends_independent_endpoint_credentials_and_parameters(
                 "choices": [{"message": {"content": "answer"}}],
                 "usage": {
                     "prompt_tokens": 10,
+                    "prompt_tokens_details": {"cached_tokens": 6},
                     "completion_tokens": 4,
                     "completion_tokens_details": {"reasoning_tokens": 2},
                 },
@@ -111,8 +112,32 @@ def test_client_sends_independent_endpoint_credentials_and_parameters(
     assert response.content == "answer"
     assert response.model == "actual-model"
     assert response.usage.input_tokens == 10
+    assert response.usage.cached_input_tokens == 6
+    assert response.usage.uncached_input_tokens == 4
     assert response.usage.output_tokens == 4
     assert response.usage.thinking_tokens == 2
+
+
+def test_client_defaults_missing_cached_token_details_to_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_LLM_API_KEY", "secret")
+
+    def fake_urlopen(_request: urllib.request.Request, timeout: float) -> FakeHTTPResponse:
+        del timeout
+        return FakeHTTPResponse(
+            {
+                "model": "actual-model",
+                "choices": [{"message": {"content": "answer"}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 4},
+            }
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    usage = OpenAICompatibleClient(profile()).complete(request()).usage
+
+    assert usage.cached_input_tokens == 0
+    assert usage.uncached_input_tokens == 10
 
 
 def test_client_rejects_missing_environment_credential(monkeypatch: pytest.MonkeyPatch) -> None:

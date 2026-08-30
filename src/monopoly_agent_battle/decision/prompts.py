@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, cast
 
 from monopoly_agent_battle.context.rules import load_game_rules
@@ -67,9 +68,18 @@ def render_system_prompt(
     *,
     role_instruction: str | None = None,
     output_guide: str | None = None,
+    prompt_profile: str = "full-v1",
 ) -> str:
-    """Render segments 1-3, with optional role-specific segment-1 and segment-3 text."""
+    """Render fixed prompt segments using the selected compatible layout."""
     output_section = output_guide or ("## 输出要求\n" + _OUTPUT_GUIDE)
+    if prompt_profile == "cache-first-v1":
+        return "\n\n".join(
+            (
+                _compact_fixed_markdown(render_rules()),
+                render_role(request, role_instruction),
+                output_section,
+            )
+        )
     return "\n\n".join(
         (
             render_role(request, role_instruction),
@@ -84,7 +94,9 @@ def render_situation(visible: dict[str, Any]) -> str:
     return "## 当前局面\n" + _render_situation(visible)
 
 
-def render_decision_and_options(request: DecisionRequest) -> str:
+def render_decision_and_options(
+    request: DecisionRequest, *, prompt_profile: str = "full-v1"
+) -> str:
     """Segments 8+9 for the current dynamic user message."""
     visible: dict[str, Any] = request.visible_state
     options = [
@@ -99,7 +111,9 @@ def render_decision_and_options(request: DecisionRequest) -> str:
     return "\n\n".join(
         (
             "## 当前决策\n" + _render_decision(request, visible),
-            "## 合法候选操作\n" + _json(options),
+            "## 合法候选操作\n" + _json(
+                options, compact=prompt_profile == "cache-first-v1"
+            ),
         )
     )
 
@@ -115,13 +129,19 @@ def render_decision_question(request: DecisionRequest) -> str:
     return "## 当前决策\n" + _render_decision(request, visible)
 
 
-def render_current_user_message(request: DecisionRequest) -> str:
+def render_current_user_message(
+    request: DecisionRequest, *, prompt_profile: str = "full-v1"
+) -> str:
     """Segments 5-9 merged for the final dynamic user message."""
     visible: dict[str, Any] = request.visible_state
-    return render_situation(visible) + "\n\n" + render_decision_and_options(request)
+    return render_situation(visible) + "\n\n" + render_decision_and_options(
+        request, prompt_profile=prompt_profile
+    )
 
 
-def render_decision_prompt(request: DecisionRequest) -> str:
+def render_decision_prompt(
+    request: DecisionRequest, *, prompt_profile: str = "full-v1"
+) -> str:
     """Return a compatibility single-string view of the current request.
 
     The view preserves the Stage 4C ordering: role, rules and fixed output
@@ -129,7 +149,9 @@ def render_decision_prompt(request: DecisionRequest) -> str:
     Stage 4C conversations should instead use the messages from
     ``compose_prompt``.
     """
-    return render_system_prompt(request) + "\n\n" + render_current_user_message(request)
+    return render_system_prompt(
+        request, prompt_profile=prompt_profile
+    ) + "\n\n" + render_current_user_message(request, prompt_profile=prompt_profile)
 
 
 def _render_response_format(value: object, option_id: str) -> object:
@@ -392,8 +414,28 @@ def _alliance_effects(visible: dict[str, Any], player_id: str) -> str:
     return "；".join(parts)
 
 
-def _json(value: object) -> str:
+def _json(value: object, *, compact: bool = False) -> str:
+    if compact:
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
     return json.dumps(value, ensure_ascii=False, indent=2)
+
+
+_MARKDOWN_TABLE_SEPARATOR = re.compile(r"^\|(?::?-+:?\|)+$")
+
+
+def _compact_fixed_markdown(markdown: str) -> str:
+    """Remove layout-only Markdown bytes without dropping rule content."""
+    lines: list[str] = []
+    for raw_line in markdown.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("|") and line.endswith("|"):
+            line = "|" + "|".join(cell.strip() for cell in line[1:-1].split("|")) + "|"
+            if _MARKDOWN_TABLE_SEPARATOR.fullmatch(line):
+                continue
+        lines.append(line)
+    return "\n".join(lines)
 
 
 _OPTIONS_HEADER = "## 合法候选操作\n"
