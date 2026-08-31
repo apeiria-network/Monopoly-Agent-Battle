@@ -47,7 +47,7 @@
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
-| `decision/models.py` | 定义冻结的决策请求、合法候选项（含候选 `title` / `preview` / `response_format` 及 `OptionTarget` 目标规格）、响应、校验结果及其 JSON 审计表示。 | 决策生成、提示词渲染、运行器和审计记录共享。 |
+| `decision/models.py` | 定义决策请求、候选项、响应和校验结果；审计记录包含目标字段映射、规范化目标及错误类别。 | 决策生成、提示词渲染、运行器和审计记录共享。 |
 | `decision/wording.py` | 集中定义每个普通命令与机会卡候选的 `OptionWording(title, preview, response_format)`；候选文本与单/双目标输出格式已通过项目负责人逐项人工验收，不与候选生成逻辑混放。 | `requests.py` 以候选代表命令调用 `option_wording(command)` 取得完整候选文案。 |
 | `decision/requests.py` | 从当前引擎状态投影完整允许的玩家可见视图：公开棋盘格名称/类型/价格/建造成本/租金/税、所有公开资产与状态、当前落点、持续效果及自己的卡牌。以克隆引擎预执行过滤候选，并按「命令形状」折叠（`command_type + 固定参数`），`DecisionOption.target` 记录目标字段与合法取值；只为付款处置、资产管理、监狱滚骰、强制弃牌和抢夺选卡创建请求。仅抢夺成功后的单次请求临时显示目标机会卡；牌堆、RNG、审计 ID、其他玩家实时手牌和运行时信息不会进入普通视图。候选文案由 `wording.py` 透传。 | 每个实际决策点调用 `build_decision_request(engine, sequence)`。 |
 | `decision/prompts.py` | Stage 4C 提示词渲染：角色、规则与固定输出要求构成 system；当前局面、决策与合法候选构成动态 user；候选专属 `response_format` 留在候选 JSON。 | `compose_prompt()` 分别调用 system 与当前 user 渲染器；Mock 客户端以 `options_from_prompt()` 读取候选；兼容旧调用方可使用 `render_decision_prompt()` 取得相同顺序的单字符串视图。 |
@@ -123,6 +123,7 @@
 | 路径 | 覆盖范围 | 使用方式 |
 |---|---|---|
 | `tests/unit/test_config.py` | 配置校验、YAML 加载和配置哈希；覆盖显式随机/LLM 控制器的模型配置约束、商代与秦代 `court_role_profiles` 的接受/缺失/角色不匹配校验，以及控制器类型对哈希的影响。 | `python -m pytest tests/unit/test_config.py` |
+| `tests/unit/test_decision_audit_schema.py` | 决策审计字段、目标映射和错误类别回归测试。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_decision_audit_schema.py` |
 | `tests/unit/test_decision_protocol.py` | 决策可见性隔离、`current_space.rent` 仅未付金额、实际决策阶段候选项、普通流程拒绝创建请求、响应 schema 拒绝、Prompt 审计字段隔离、监狱多选项、付款上下文不暴露内部操作 ID、抢夺选卡期间的临时目标手牌可见性及选后恢复隔离、候选 `response_format` 渲染、随机 baseline 复用的合法多字段目标 JSON 编码，以及 Prompt 自然语言渲染（角色目标、你的状态、其他玩家状态、棋盘状态表、同盟与剩余监狱回合数）。 | `python -m pytest tests/unit/test_decision_protocol.py` |
 | `tests/unit/test_shang_agent.py` / `tests/integration/test_shang_runner.py` | 商代角色边界、分阶段重试、私有 trace、LLM 计量、隐私隔离与回放验证。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_shang_agent.py tests/integration/test_shang_runner.py` |
 | `tests/unit/test_qin_agent.py` | 秦代四角色调用顺序与第 5 段内部消息可见性、御史大夫结构校验重试与 neutral 安全回退、丞相/太尉角色级重试与默认回退、当前决策隐藏皇帝最终裁决、最终决策幂等广播。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_qin_agent.py` |
@@ -132,6 +133,7 @@
 | `tests/unit/test_random_baseline.py` | 完全随机非 LLM 控制器的确定性响应序列、协议合法性、合法多字段目标编码和非 LLM 计量标识。 | `python -m pytest tests/unit/test_random_baseline.py` |
 | `tests/integration/test_random_baseline_runner.py` | 纯随机和随机/Mock-LLM 混合完整对局：审计、回放、跨运行复现、无 LLM 产物、LLM 计量隔离及连接失败阈值。 | `python -m pytest tests/integration/test_random_baseline_runner.py` |
 | `tests/integration/test_decision_runner.py` | 决策驱动完整对局、自动普通掷骰事件审计/回放、监狱掷骰 Prompt 选择、监狱等待的自动推进、连接重试、回退及原始校验错误保留。 | `python -m pytest tests/integration/test_decision_runner.py` |
+| `tests/integration/test_stage6_fault_audit.py` | Stage 6 决策故障审计：非法响应、重试、默认回退、连接故障、跨产物关联、非 LLM 回退隔离及 10% 有效性阈值。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/integration/test_stage6_fault_audit.py` |
 | `tests/unit/test_llm_protocol.py` | LLM 协议及 Mock、Fake、录制客户端行为。 | `python -m pytest tests/unit/test_llm_protocol.py` |
 | `tests/unit/test_baseline_agent.py` / `tests/integration/test_llm_runner.py` / `tests/integration/test_decision_runner.py` | 覆盖真实 LLM 请求的 system/user 边界、候选格式、运行时信息隔离、完整 Mock 对局，以及段 3 溢出警告的私有且按行动回合去重记录。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_baseline_agent.py tests/integration/test_llm_runner.py tests/integration/test_decision_runner.py` |
 | `tests/unit/context/test_broadcast.py` | 上下文播报器单元测试（Stage 4B）：豁免事件返回 None、全引擎事件类型穷举（白名单+豁免覆盖全部 49 个事件）、未注册事件抛异常、确定性渲染、涉己/旁观差异（card_drawn、card_discarded、chance_card_stolen）、payment_made 银行/玩家、player_jailed 原因映射、棋盘名称回退。 | `python -m pytest tests/unit/context/test_broadcast.py` |
