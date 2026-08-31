@@ -147,7 +147,7 @@ def test_random_requests_do_not_dilute_llm_connection_failure_rate(tmp_path: Pat
     assert llm_decisions
     assert random_decisions
     assert result["llm_calls"] > 0
-    assert result["reconnect_events"] >= result["llm_calls"]
+    assert result["llm_fallbacks"] > 0
     assert result["validity_status"] == "invalid"
 
 

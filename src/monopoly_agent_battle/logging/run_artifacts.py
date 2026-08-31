@@ -9,6 +9,8 @@ from typing import Any
 
 from monopoly_agent_battle.config.loader import config_hash
 from monopoly_agent_battle.config.models import GameConfig
+from monopoly_agent_battle.context.broadcast import render_event
+from monopoly_agent_battle.domain.models import GameEvent
 
 
 def utc_timestamp() -> str:
@@ -73,6 +75,23 @@ class RunArtifacts:
             "runtime.jsonl",
             {"event_type": event_type, "occurred_at": utc_timestamp(), "payload": payload},
         )
+
+    def append_performance(self, record: dict[str, Any]) -> None:
+        """Append one auditable basic or long-term court performance window."""
+        self.append_jsonl("performance.jsonl", record)
+
+    def append_game_broadcast(self, event: GameEvent, complete_round: int) -> None:
+        """Append one public fixed-sentence broadcast when the event is visible."""
+        sentence = render_event(event, None)
+        if sentence is not None:
+            self.append_text("game_broadcast.txt", f"[第{complete_round}轮] {sentence}")
+
+    def append_text(self, filename: str, line: str) -> None:
+        """Append one UTF-8 text line terminated by exactly one newline."""
+        path = self.run_directory / filename
+        with path.open("a", encoding="utf-8", newline="\n") as output_file:
+            output_file.write(line)
+            output_file.write("\n")
 
     def append_jsonl(self, filename: str, record: dict[str, Any]) -> None:
         """Append one JSON object terminated by exactly one newline."""

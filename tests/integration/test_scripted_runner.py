@@ -54,6 +54,13 @@ def test_runner_persists_reproducible_completed_game(tmp_path: Path) -> None:
     event_lines = (
         (first_artifacts.run_directory / "events.jsonl").read_text(encoding="utf-8").splitlines()
     )
+    broadcast_lines = (
+        first_artifacts.run_directory / "game_broadcast.txt"
+    ).read_text(encoding="utf-8").splitlines()
+    assert broadcast_lines
+    assert all(line.startswith("[第") for line in broadcast_lines)
+    assert all("command_executed" not in line for line in broadcast_lines)
+    assert any("游戏结束" in line for line in broadcast_lines)
 
     assert first.status == "completed"
     assert first.events == second.events

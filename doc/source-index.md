@@ -41,7 +41,7 @@
 | `engine.py` | 持有唯一可变游戏状态的种子化确定性引擎；执行回合及顺序化付款、抽牌和移动结算。骰子落到已拥有的未抵押、非酒店普通街道时自动建造一层，卡牌移动/刚购入/资金不足不触发处置。正值且未被查封的应付租金自动消耗免租次数；同盟收租对付款方单笔 `rent` 扣款，产权人与盟友在收入层自动各得一半（奇数半分由银行补差）；付款方耗尽合法出售/抵押选项时自动破产，仅取消该付款方的队列操作，后续付款人仍继续结算；队列清空后按恢复上下文还原行动玩家和回合阶段。实现全部 16 张机会卡、两步骤抢夺选卡、强制超限弃牌、C-028 half-up 取整/银行差额、持续效果和产权卡原子校验。 | 构造 `GameEngine(config)`，以 `execute(command)` 提交命令；不依赖 LLM。 |
 | `controllers.py` | 提供固定命令序列的脚本化控制器；复用领域层唯一的完整 `GameCommand` 联合类型，覆盖强制弃牌、抢夺选卡、社区基金出狱卡与结构化机会卡使用。 | 主要供自动化测试和无 LLM 模拟调用。 |
 | `runner.py` | 执行无 LLM 的固定命令脚本，持久化命令与领域事件；命令耗尽且仍处于 `FORCED_DISCARD` 或 `THEFT_CARD_SELECTION` 时报告 `awaiting_decision`。结果快照覆盖卡堆、手牌、免租、持续效果、含移动上下文的结算队列、临时抢夺状态、玩家和产权。 | 调用 `run_scripted_game(config, controller, artifacts)`。 |
-| `replay.py` | 从冻结配置和已记录命令重放运行产物，验证事件编号、事件内容和最终状态快照；状态比较忽略非状态统计键。 | 调用 `verify_run(run_directory)`；不依赖运行时 RNG、LLM 或控制器。 |
+| `replay.py` | 从冻结配置和已记录命令重放运行产物，验证事件编号、事件内容和最终状态快照；状态比较忽略非状态统计键（包括 LLM 调用、重连、回退和有效性统计）。 | 调用 `verify_run(run_directory)`；不依赖运行时 RNG、LLM 或控制器。 |
 
 ## 决策协议（`src/monopoly_agent_battle/decision/`）
 
@@ -52,7 +52,7 @@
 | `decision/requests.py` | 从当前引擎状态投影完整允许的玩家可见视图：公开棋盘格名称/类型/价格/建造成本/租金/税、所有公开资产与状态、当前落点、持续效果及自己的卡牌。以克隆引擎预执行过滤候选，并按「命令形状」折叠（`command_type + 固定参数`），`DecisionOption.target` 记录目标字段与合法取值；只为付款处置、资产管理、监狱滚骰、强制弃牌和抢夺选卡创建请求。仅抢夺成功后的单次请求临时显示目标机会卡；牌堆、RNG、审计 ID、其他玩家实时手牌和运行时信息不会进入普通视图。候选文案由 `wording.py` 透传。 | 每个实际决策点调用 `build_decision_request(engine, sequence)`。 |
 | `decision/prompts.py` | Stage 4C 提示词渲染：角色、规则与固定输出要求构成 system；当前局面、决策与合法候选构成动态 user；候选专属 `response_format` 留在候选 JSON。 | `compose_prompt()` 分别调用 system 与当前 user 渲染器；Mock 客户端以 `options_from_prompt()` 读取候选；兼容旧调用方可使用 `render_decision_prompt()` 取得相同顺序的单字符串视图。 |
 | `decision/protocol.py` | 解析并严格校验不可信 JSON 响应；`selected_option` 为 `{"option","target"}` 对象，校验 `option` 与 `target` 合法取值后合并参数并重建引擎命令；`option_json()` 统一将指定合法目标元组编码为单字段标量或多字段对象，供默认回退和随机 baseline 复用；复用领域层唯一的完整 `GameCommand` 联合类型。 | 由决策运行器在调用引擎前使用。 |
-| `decision/runner.py` | 以决策协议运行完整对局，并维护每位 Agent 的行动回合、事件历史、校验重试和默认回退。段 3 溢出警告只写入 `runtime.jsonl`，同一 Agent 行动回合最多一次；按请求区分 LLM 与非 LLM 控制器，仅前者计入 LLM 调用、重连与有效性统计，决策审计写入 `controller_type`。 | 调用 `run_decision_game(engine, controller, artifacts, conversations=...)`；CLI 通过 `DispatchController` 分派至各 Agent。 |
+| `decision/runner.py` | 以决策协议运行完整对局，并维护每位 Agent 的行动回合、事件历史、校验重试和默认回退；区分全部决策回退与 LLM 触发的默认回退，并按后者占 LLM 调用数的比例计算对局有效性；朝廷玩家的绩效证据与窗口由此接入运行流程。 | 调用 `run_decision_game(engine, controller, artifacts, conversations=..., performance_tracker=...)`；CLI 通过 `DispatchController` 分派至各 Agent。 |
 | `MonopolyAgentBattle_developer_docs/stage3-problems.md` | 记录负责人 2026-08-13 提出的 Stage 3 规则反馈和边界说明；问题 1–5（强制弃牌、自动建房、自动破产、自动免租、两步骤抢夺）已于 2026-08-14 完成代码实现与自动化回归，问题 6 的 Prompt 已于 2026-08-16 通过负责人人工验收。 | 作为 Stage 3 规则与交接记录，须结合开发看板中的实际验证结果阅读。 |
 | `MonopolyAgentBattle_developer_docs/stage3-decision-prompt-template.md` | Stage 3 决策提示词六段式目标样板；记录每层目标形态、标识体系统一约定（玩家 `player_id` / 格子数字 / 颜色组英文键 / 机会卡 `card_id`）、实现状态与已确认决策；已记录 2026-08-16 的 Prompt 人工验收通过状态。 | 作为问题 6 Prompt 重做的设计、验收与交接基准。 |
 | `MonopolyAgentBattle_developer_docs/history_context_supplement.md` | Stage 4 历史上下文系统方案、10 段 prompt 结构、可见性规则、固定句式目录与 4A/4B/4C/4D 子阶段拆分；其中 §五白名单句式已于 2026-08-18 通过项目负责人人工审核。 | 作为 4B/4C 上下文播报与会话构建实现的依据。 |
@@ -70,10 +70,13 @@
 | `llm/registry.py` | 按供应商别名注册和创建客户端。 | `play` 注册 `mock`、`fake` 与 `openai_compatible`。 |
 | `agents/baseline.py` | BaselineAgent（Stage 4D）：每次决策由 `compose_prompt()` 构造完整消息列表；段 3 告警仅作私有运行时记录，不进入 LLM 消息；标记为 LLM 控制器供运行器计量。 | 由 `play`/实验组装为 `DispatchController` 输入。 |
 | `agents/shang.py` | 商代双角色 CourtAgent：大祭司仅根据当前问题生成神谕，皇帝结合既有上下文和神谕作出最终协议回复；支持分阶段重试与私有审计。提示词为暂定版本，待人工重写审核。 | `play` 为 `shang_court` 玩家组装使用。 |
-| `agents/qin.py` | 秦代四角色 CourtAgent：丞相与太尉并行独立进言，御史大夫读取官员绩效并用 `judgement` 综合评价两者本次建议，皇帝最后裁决并产出唯一引擎决策；朝廷内部消息按第 5 段可见性投递，绩效位于第 5 段末尾、段 6 当前决策信息之前；角色非法输出按角色分别重试并安全回退，最终决策由运行器统一广播。提示词为暂定版本，待人工重写审核。 | `play` 为 `qin_court` 玩家组装使用。 |
+| `agents/qin.py` | 秦代四角色 CourtAgent：丞相与太尉并行独立进言，御史大夫综合评价两者建议，皇帝最后裁决并产出唯一引擎决策；已结算的真实绩效仅提供给御史大夫。 | `play` 为 `qin_court` 玩家组装使用。 |
 | `agents/tang.py` | 唐代三角色 CourtAgent：中书省起草、门下省审核、皇帝终裁；最多三轮，皇帝按否决次数读取最后一轮或完整三轮内部记录。内部消息使用可信角色元数据，门下省严格限制为 `agree` / `disagree` 审核 JSON，非法输出按角色重试并安全回退。 | `play` 为 `tang_court` 玩家组装使用。 |
 | `agents/ming.py` | 明代四角色 CourtAgent：首辅与两名大学士并行草拟，分歧时依据其他已完成草案并行重拟，仍不一致时按首辅 1.5、两名大学士各 1.0 加权投票；首辅 advice 的选项由系统强制采用一致或投票结果并支持重试，皇帝读取 advice 后最终裁决。当前决策与历史决策按角色隔离投递，首辅自身 advice 保留为 assistant 消息。提示词为暂定版本，待人工重写审核。 | `play` 为 `ming_court` 玩家组装使用。 |
-| `performance/random_generator.py` | 独立生成当前阶段使用的官员绩效文本，按完整回合门槛向秦代御史大夫提供最近回合及最近多个回合的随机差评；不参与游戏引擎随机状态。 | 由 `QinCourtAgent` 注入御史大夫上下文。 |
+| `performance/random_generator.py` | 保留旧随机官员绩效文本生成逻辑，供兼容或独立测试使用；不参与当前真实绩效生产流程。 | 生产对局不调用。 |
+| `performance/scoring.py` | 定义决策签名、官员意见证据、1 回合/3 回合窗口结果及一致率差评规则。 | 由绩效跟踪器调用，结果可写入 `performance.jsonl`。 |
+| `performance/evidence.py` | 将协议校验后的决策回复转换为标准化绩效证据。 | 由决策运行器和绩效跟踪器调用。 |
+| `performance/tracker.py` | 按朝廷玩家自身行动回合保存净资产快照和官员意见，结算基础及长期绩效窗口。 | 由 CLI 创建并传入决策运行器。 |
 | `agents/random_baseline.py` | 可复现的完全随机非 LLM 控制器：从请求的合法候选及对应合法目标元组中选择，并生成标准决策 JSON；不依赖 Prompt、会话、LLM 客户端、模型配置或凭据。 | `play` 为每个 `random_baseline` 玩家注入独立稳定派生 RNG 后组装使用。 |
 
 ### Agent 提示词文档（`src/monopoly_agent_battle/agents/agent_prompt_list/`）
@@ -112,7 +115,7 @@
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
-| `logging/run_artifacts.py` | 创建单局运行目录，持久化冻结配置、JSONL 命令/领域事件、决策审计、LLM 调用记录、私有运行时重试/回退事件与结果快照。 | 由单局运行器调用。 |
+| `logging/run_artifacts.py` | 创建单局运行目录，持久化冻结配置、JSONL 领域事件、决策审计、LLM 调用、私有运行时事件、绩效窗口、结果快照及对局播报。 | 由单局运行器调用。 |
 | `cli/main.py` | 提供 `demo` 和完整对局 `play`；按配置组装随机、普通 LLM、商、秦、唐、明控制器，并注册 Mock 或 OpenAI 兼容客户端。 | `.venv/Scripts/monopoly-agent-battle.exe play --config configs/games/example.yaml`。 |
 
 ## 自动化测试（`tests/`）

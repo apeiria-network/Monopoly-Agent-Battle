@@ -33,7 +33,7 @@ class ReplayVerificationError(ValueError):
 
 
 _NON_STATE_RESULT_KEYS = frozenset(
-    {"llm_calls", "reconnect_events", "decision_fallbacks", "validity_status"}
+    {"llm_calls", "reconnect_events", "decision_fallbacks", "llm_fallbacks", "validity_status"}
 )
 
 
