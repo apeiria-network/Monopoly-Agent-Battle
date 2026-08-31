@@ -18,6 +18,7 @@ from monopoly_agent_battle.decision.runner import (
 )
 from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
+from monopoly_agent_battle.game.replay import verify_run
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 
 
@@ -164,6 +165,28 @@ def test_audit_decision_ids_and_fallback_validation_remain_consistent(tmp_path: 
         for item in runtime
         if "decision_id" in item["payload"]
     )
+
+
+def test_invalid_llm_game_still_completes_with_replayable_audit(tmp_path: Path) -> None:
+    config = make_config(tmp_path)
+    artifacts = RunArtifacts.create(config)
+
+    def controller(_request: DecisionRequest, _feedback: str | None = None) -> str:
+        return "not-json"
+
+    result = run_decision_game(GameEngine(config), controller, artifacts)
+    result_document = json.loads(
+        (artifacts.run_directory / "result.json").read_text(encoding="utf-8")
+    )
+
+    assert result.status == "completed"
+    assert result_document["status"] == "completed"
+    assert result_document["end_reason"] == "round_limit"
+    assert result_document["validity_status"] == "invalid"
+    assert result_document["llm_fallbacks"] > 0
+    for filename in ("runtime.jsonl", "decisions.jsonl", "events.jsonl", "result.json"):
+        assert (artifacts.run_directory / filename).exists()
+    verify_run(artifacts.run_directory)
 
 
 def valid_default_controller(request: DecisionRequest, _feedback: str | None = None) -> str:

@@ -211,14 +211,42 @@ def test_recording_client_records_failure_and_reraises(tmp_path: Path) -> None:
     assert records[0]["uncached_input_tokens"] == 0
 
 
+def test_recording_client_preserves_call_ids_across_failure_and_success(tmp_path: Path) -> None:
+    artifacts = RunArtifacts.create(_llm_config(tmp_path))
+    attempts = 0
+
+    def mixed_policy(request: LLMRequest) -> str:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise LLMConnectionError("temporary outage")
+        return MockLLMClient(seed=0).complete(request).content
+
+    client = RecordingLLMClient(MockLLMClient(policy=mixed_policy), artifacts)
+    with pytest.raises(LLMConnectionError):
+        client.complete(_make_request("first"))
+    client.complete(
+        _make_request(
+            _prompt_with_options(
+                [{"option_id": "end_turn", "title": "t", "preview": "p", "response_format": {}}]
+            )
+        )
+    )
+
+    records = _llm_call_records(tmp_path)
+    assert [record["call_id"] for record in records] == [1, 2]
+    assert records[0]["error"] == "temporary outage"
+    assert records[0]["response_summary"] is None
+    assert records[1]["error"] is None
+    assert records[1]["response_summary"] is not None
+
+
 def test_recording_client_writes_cached_and_uncached_input_tokens(tmp_path: Path) -> None:
     class CachedUsageClient:
         def complete(self, request: LLMRequest) -> LLMResponse:
             return LLMResponse(
                 content="answer",
-                usage=UsageMetrics(
-                    input_tokens=100, output_tokens=3, cached_input_tokens=75
-                ),
+                usage=UsageMetrics(input_tokens=100, output_tokens=3, cached_input_tokens=75),
                 model=request.model,
             )
 
