@@ -198,7 +198,8 @@ def test_emperor_connection_retries_only_emperor_and_counts_all_calls(tmp_path: 
     assert llm_calls[1]["error"] == "emperor unavailable"
     assert result["llm_calls"] == len(llm_calls)
     assert result["reconnect_events"] == 1
-    assert result["validity_status"] == "invalid"
+    assert result["llm_fallbacks"] == 0
+    assert result["validity_status"] == "valid"
     verify_run(run_directory)
 
 
@@ -269,5 +270,6 @@ def test_priest_connection_exhaustion_falls_back_and_is_auditable(tmp_path: Path
     ]
     assert result["llm_calls"] == len(llm_calls)
     assert result["reconnect_events"] >= 3
+    assert result["llm_fallbacks"] >= 1
     assert result["validity_status"] == "invalid"
     verify_run(run_directory)

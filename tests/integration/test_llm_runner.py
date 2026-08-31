@@ -119,20 +119,42 @@ def test_mock_baseline_completes_full_game_with_audit(tmp_path: Path) -> None:
     verify_run(artifacts.run_directory)
 
 
-def test_reconnect_rate_over_threshold_marks_game_invalid(tmp_path: Path) -> None:
+def test_successful_reconnect_does_not_mark_game_invalid(tmp_path: Path) -> None:
     config = make_config(tmp_path)
     artifacts = RunArtifacts.create(config)
+    attempts = 0
 
-    def disconnect_policy(_request: LLMRequest) -> str:
-        raise LLMConnectionError("service unavailable")
+    def reconnect_policy(request: LLMRequest) -> str:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise LLMConnectionError("service unavailable")
+        return MockLLMClient(seed=0).complete(request).content
 
-    controller, conversations = _dispatch(config, artifacts, disconnect_policy)
+    controller, conversations = _dispatch(config, artifacts, reconnect_policy)
     run_decision_game(GameEngine(config), controller, artifacts, conversations=conversations)
 
     result_document = _result_document(artifacts.run_directory)
-    assert result_document["reconnect_events"] > 0
-    assert result_document["validity_status"] == "invalid"
+    assert result_document["reconnect_events"] == 1
+    assert result_document["llm_fallbacks"] == 0
+    assert result_document["validity_status"] == "valid"
     assert (artifacts.run_directory / "llm_calls.jsonl").exists()
+
+
+def test_invalid_llm_replies_trigger_invalid_status_after_fallback(tmp_path: Path) -> None:
+    config = make_config(tmp_path)
+    artifacts = RunArtifacts.create(config)
+
+    def invalid_policy(_request: LLMRequest) -> str:
+        return '{"selected_option":{"option":"not-a-legal-option"},"reason":"x"}'
+
+    controller, conversations = _dispatch(config, artifacts, invalid_policy)
+    run_decision_game(GameEngine(config), controller, artifacts, conversations=conversations)
+
+    result_document = _result_document(artifacts.run_directory)
+    assert result_document["decision_fallbacks"] > 0
+    assert result_document["llm_fallbacks"] > 0
+    assert result_document["validity_status"] == "invalid"
 
 
 def test_invalid_output_retries_with_feedback_then_executes(tmp_path: Path) -> None:
@@ -163,4 +185,7 @@ def test_invalid_output_retries_with_feedback_then_executes(tmp_path: Path) -> N
     assert first["fallback"] is False
     assert first["validation_errors"] == ["selected_option is not a legal candidate"]
     assert len(llm_calls) == len(decisions) + 1
-    assert _result_document(artifacts.run_directory)["llm_calls"] == len(llm_calls)
+    result_document = _result_document(artifacts.run_directory)
+    assert result_document["llm_calls"] == len(llm_calls)
+    assert result_document["llm_fallbacks"] == 0
+    assert result_document["validity_status"] == "valid"

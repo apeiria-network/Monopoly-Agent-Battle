@@ -111,6 +111,7 @@ def run_decision_game(
     llm_calls = 0
     reconnect_events = 0
     decision_fallbacks = 0
+    llm_fallbacks = 0
     conv_map, decision_conversations = _normalize_conversations(conversations or {})
     turn_counters: dict[str, int] = dict.fromkeys(conv_map, 0)
     logged_segment3_warning_turns: set[tuple[str, int]] = set()
@@ -182,6 +183,8 @@ def run_decision_game(
         persisted_reply = raw_response
         if fallback:
             decision_fallbacks += 1
+            if uses_llm:
+                llm_fallbacks += 1
             default = next(option for option in request.options if option.is_default)
             fallback_reply = json.dumps(
                 {
@@ -257,7 +260,8 @@ def run_decision_game(
                 "llm_calls": llm_calls,
                 "reconnect_events": reconnect_events,
                 "decision_fallbacks": decision_fallbacks,
-                "validity_status": _validity_status(llm_calls, reconnect_events),
+                "llm_fallbacks": llm_fallbacks,
+                "validity_status": _validity_status(llm_calls, llm_fallbacks),
             }
         )
         artifacts.write_result(result)
@@ -507,8 +511,8 @@ def _request_response(
             )
 
 
-def _validity_status(llm_calls: int, reconnect_events: int) -> str:
-    """Mark a game invalid when reconnect events reach 10% of all LLM calls."""
-    if llm_calls > 0 and reconnect_events * 10 >= llm_calls:
+def _validity_status(llm_calls: int, decision_fallbacks: int) -> str:
+    """Mark a game invalid when LLM-triggered fallbacks reach 10% of calls."""
+    if llm_calls > 0 and decision_fallbacks * 10 >= llm_calls:
         return "invalid"
     return "valid"

@@ -120,6 +120,10 @@ def test_invalid_output_is_retried_with_feedback_then_falls_back(tmp_path: Path)
     assert feedbacks[0] is None
     assert feedbacks[1] is not None and "Error: 不合法的选项id" in feedbacks[1]
     assert feedbacks[2] is not None and "Error: 不合法的选项id" in feedbacks[2]
+    result = json.loads((artifacts.run_directory / "result.json").read_text(encoding="utf-8"))
+    assert result["decision_fallbacks"] > 0
+    assert result["llm_fallbacks"] > 0
+    assert result["validity_status"] == "invalid"
 
 
 def test_segment3_overflow_is_logged_once_per_action_turn(tmp_path: Path) -> None:
