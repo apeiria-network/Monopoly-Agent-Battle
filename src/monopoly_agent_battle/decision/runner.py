@@ -410,7 +410,9 @@ def _execute_and_audit(
     artifacts: RunArtifacts | None,
 ) -> list[GameEvent]:
     """Execute one command and write its replay-compatible event records."""
+    round_before = engine.state.complete_rounds
     command_events = engine.execute(command)
+    round_after = engine.state.complete_rounds
     if artifacts is not None:
         artifacts.append_event(
             "command_executed",
@@ -418,6 +420,10 @@ def _execute_and_audit(
         )
         for event in command_events:
             artifacts.append_event(event.event_type, event.payload)
+            event_round = round_after if event.event_type == "turn_started" else round_before
+            if event.event_type == "game_finished":
+                event_round = round_after
+            artifacts.append_game_broadcast(event, event_round)
     return command_events
 
 

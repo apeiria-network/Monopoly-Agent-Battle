@@ -42,7 +42,9 @@ def run_scripted_game(
             }:
                 status = "awaiting_decision"
             break
+        round_before = engine.state.complete_rounds
         command_events = engine.execute(command)
+        round_after = engine.state.complete_rounds
         events.extend(command_events)
         if artifacts is not None:
             artifacts.append_event(
@@ -51,6 +53,10 @@ def run_scripted_game(
             )
             for event in command_events:
                 artifacts.append_event(event.event_type, event.payload)
+                event_round = round_after if event.event_type == "turn_started" else round_before
+                if event.event_type == "game_finished":
+                    event_round = round_after
+                artifacts.append_game_broadcast(event, event_round)
     if engine.state.finished:
         status = "completed"
     if artifacts is not None:
