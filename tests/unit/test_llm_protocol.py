@@ -70,6 +70,7 @@ def test_llm_connection_error_is_retryable() -> None:
 def test_uncached_input_tokens_are_clamped_for_inconsistent_provider_usage() -> None:
     usage = UsageMetrics(input_tokens=5, output_tokens=1, cached_input_tokens=8)
 
+    assert usage.cached_input_tokens == 5
     assert usage.uncached_input_tokens == 0
 
 

@@ -26,10 +26,14 @@ class UsageMetrics:
     duration_ms: int = 0
     cached_input_tokens: int = 0
 
+    def __post_init__(self) -> None:
+        if self.cached_input_tokens > self.input_tokens:
+            object.__setattr__(self, "cached_input_tokens", self.input_tokens)
+
     @property
     def uncached_input_tokens(self) -> int:
         """Input tokens not reported as cache hits, clamped for bad provider data."""
-        return max(self.input_tokens - self.cached_input_tokens, 0)
+        return self.input_tokens - self.cached_input_tokens
 
 
 @dataclass(frozen=True, slots=True)
