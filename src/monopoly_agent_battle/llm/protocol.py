@@ -24,6 +24,12 @@ class UsageMetrics:
     output_tokens: int
     thinking_tokens: int = 0
     duration_ms: int = 0
+    cached_input_tokens: int = 0
+
+    @property
+    def uncached_input_tokens(self) -> int:
+        """Input tokens not reported as cache hits, clamped for bad provider data."""
+        return max(self.input_tokens - self.cached_input_tokens, 0)
 
 
 @dataclass(frozen=True, slots=True)

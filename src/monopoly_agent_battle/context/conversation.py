@@ -16,6 +16,7 @@ does not call the LLM, and is fully replayable given the same event / decision
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 from monopoly_agent_battle.context.broadcast import render_event
 from monopoly_agent_battle.context.token_guard import (
@@ -130,6 +131,7 @@ class AgentConversation:
 
     agent_id: str
     window_turns: int = 1
+    prompt_profile: Literal["full-v1", "cache-first-v1"] = "full-v1"
     completed_turns: list[TurnRecord] = field(default_factory=lambda: [])
     current_turn: TurnRecord | None = None
     _segment3_cache: tuple[str, ...] | None = None

@@ -140,6 +140,7 @@ class GameConfig(BaseModel):
     model_profiles: dict[str, ModelProfile] = Field(default_factory=dict)
     validation_retries: int = Field(default=2, ge=0)
     window_turns: int = Field(default=1, ge=1)
+    prompt_profile: Literal["full-v1", "cache-first-v1"] = "full-v1"
     sentence_template_version: str | None = None
     context_token_cap: int | None = Field(default=None, ge=1)
     output_directory: Path = Path("runs")

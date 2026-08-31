@@ -429,5 +429,24 @@ def test_config_has_stage4_context_defaults() -> None:
     config = GameConfig.model_validate(config_data())
     assert config.validation_retries == 2
     assert config.window_turns == 1
+    assert config.prompt_profile == "full-v1"
     assert config.sentence_template_version is None
     assert config.context_token_cap is None
+
+
+def test_config_accepts_cache_first_prompt_profile_and_hashes_it() -> None:
+    default = GameConfig.model_validate(config_data())
+    data = config_data()
+    data["prompt_profile"] = "cache-first-v1"
+    cache_first = GameConfig.model_validate(data)
+
+    assert cache_first.prompt_profile == "cache-first-v1"
+    assert config_hash(default) != config_hash(cache_first)
+
+
+def test_config_rejects_unknown_prompt_profile() -> None:
+    data = config_data()
+    data["prompt_profile"] = "compressed-someday"
+
+    with pytest.raises(ValidationError, match="prompt_profile"):
+        GameConfig.model_validate(data)

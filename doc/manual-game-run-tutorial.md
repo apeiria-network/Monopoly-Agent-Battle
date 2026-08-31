@@ -322,6 +322,7 @@ output_directory: runs
 ```yaml
 validation_retries: 2
 window_turns: 1
+prompt_profile: cache-first-v1
 sentence_template_version: v1
 context_token_cap: 4000
 ```
@@ -330,6 +331,7 @@ context_token_cap: 4000
 |---|---:|---|
 | `validation_retries` | `2` | LLM 返回不符合决策协议时，最多额外重试的次数；必须不小于 `0`。 |
 | `window_turns` | `1` | 每名 LLM 玩家保留的会话回合窗口；必须至少为 `1`。 |
+| `prompt_profile` | `full-v1` | Prompt 布局。`full-v1` 保持原格式；`cache-first-v1` 将固定规则置于前缀并移除规则 Markdown 的布局冗余、紧凑化候选 JSON，以提高兼容 Provider 的前缀缓存命中机会。 |
 | `sentence_template_version` | 无 | 固定事件播报句式版本；可省略。 |
 | `context_token_cap` | 无 | 上下文 token 上限；设置时必须至少为 `1`。 |
 
