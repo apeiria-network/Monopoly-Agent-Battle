@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.protocol import parse_and_validate
@@ -20,11 +20,11 @@ def signature_from_reply(request: DecisionRequest, reply: str) -> DecisionSignat
 
 def selected_option(reply: str) -> dict[str, Any] | None:
     """Read a trusted workflow-specific selected_option object."""
-    try:
-        document = json.loads(reply)
-    except json.JSONDecodeError:
+    document_value = json.loads(reply)
+    if not isinstance(document_value, dict):
         return None
-    if not isinstance(document, dict):
+    document = cast(dict[str, Any], document_value)
+    selected_value = document.get("selected_option")
+    if not isinstance(selected_value, dict):
         return None
-    selected = document.get("selected_option")
-    return selected if isinstance(selected, dict) else None
+    return cast(dict[str, Any], selected_value)

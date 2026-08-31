@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
+from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.game.rules.classic_level0 import net_worth
 from monopoly_agent_battle.performance.scoring import (
     DecisionEvidence,
@@ -17,9 +19,9 @@ from monopoly_agent_battle.performance.scoring import (
 @dataclass(slots=True)
 class _PlayerHistory:
     turn: int = 0
-    snapshots: dict[int, int] = field(default_factory=dict)
-    decisions: dict[int, list[DecisionEvidence]] = field(default_factory=dict)
-    results: list[PerformanceWindowResult] = field(default_factory=list)
+    snapshots: dict[int, int] = field(default_factory=lambda: {})
+    decisions: dict[int, list[DecisionEvidence]] = field(default_factory=lambda: {})
+    results: list[PerformanceWindowResult] = field(default_factory=lambda: [])
 
 
 class PerformanceTracker:
@@ -120,7 +122,7 @@ def _officers(court: str) -> tuple[str, ...]:
 
 
 def evidence_from_trace(
-    request: Any,
+    request: DecisionRequest,
     trace: dict[str, object],
     emperor_option: str,
     emperor_target: dict[str, object] | None,
@@ -132,18 +134,23 @@ def evidence_from_trace(
 
     emperor = DecisionSignature.from_parts(emperor_option, emperor_target)
     court = str(trace.get("court"))
-    calls = trace.get("calls", [])
-    if not isinstance(calls, list):
+    raw_calls = trace.get("calls", [])
+    if not isinstance(raw_calls, list):
         return None
+    calls = cast(list[object], raw_calls)
+    typed_calls = [
+        cast(Mapping[str, object], item)
+        for item in calls
+        if isinstance(item, dict)
+    ]
     signatures: dict[str, DecisionSignature | None] = {}
     special: dict[str, bool] = {}
     roles = _officers(court)
     for role in roles:
-        candidates = [
+        candidates: list[Mapping[str, object]] = [
             item
-            for item in calls
-            if isinstance(item, dict)
-            and item.get("role") == role
+            for item in typed_calls
+            if item.get("role") == role
             and item.get("outcome") in {"success", "advice_normalized"}
             and isinstance(item.get("content"), str)
         ]

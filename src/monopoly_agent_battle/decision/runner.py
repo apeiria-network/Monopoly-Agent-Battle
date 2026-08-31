@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict
-from typing import Any, cast
+from typing import cast
 
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.context.validation_feedback import build_feedback
@@ -27,6 +27,7 @@ from monopoly_agent_battle.domain.models import GameEvent, JailStatus, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.runner import ScriptedRunResult, state_snapshot
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
+from monopoly_agent_battle.performance.scoring import PerformanceWindowResult
 from monopoly_agent_battle.performance.tracker import PerformanceTracker, evidence_from_trace
 
 RawDecisionController = Callable[[DecisionRequest, str | None], str]
@@ -352,12 +353,12 @@ def _dispatch_events(
 
 
 def _record_performance_windows(
-    results: list[object],
+    results: Sequence[PerformanceWindowResult],
     artifacts: RunArtifacts | None,
     controller: RawDecisionController | None,
 ) -> None:
     for result in results:
-        payload = cast(Any, result).as_dict()
+        payload = result.as_dict()
         if artifacts is not None:
             artifacts.append_performance(payload)
         if controller is not None and payload["court"] == "qin_court":

@@ -148,9 +148,11 @@ class QinCourtAgent:
         if not isinstance(assessments, dict):
             return
         lines = [f"## {label}", f"净资产变化：{record.get('delta')}"]
-        for officer, raw in assessments.items():
-            if not isinstance(raw, dict):
+        typed_assessments = cast(dict[str, object], assessments)
+        for officer, raw_value in typed_assessments.items():
+            if not isinstance(raw_value, dict):
                 continue
+            raw = cast(dict[str, object], raw_value)
             lines.append(
                 f"{officer}：C={raw.get('consistent_count')}/N={raw.get('decision_count')}，"
                 f"{'记为差评' if raw.get('bad_review') else '不记差评'}。"
