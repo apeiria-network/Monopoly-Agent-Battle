@@ -115,7 +115,7 @@
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
-| `logging/run_artifacts.py` | 创建单局运行目录，持久化冻结配置、JSONL 领域事件、决策审计、LLM 调用、私有运行时事件、绩效窗口及结果快照。 | 由单局运行器调用。 |
+| `logging/run_artifacts.py` | 创建单局运行目录，持久化冻结配置、JSONL 领域事件、决策审计、LLM 调用、私有运行时事件、绩效窗口、结果快照及对局播报。 | 由单局运行器调用。 |
 | `cli/main.py` | 提供 `demo` 和完整对局 `play`；按配置组装随机、普通 LLM、商、秦、唐、明控制器，并注册 Mock 或 OpenAI 兼容客户端。 | `.venv/Scripts/monopoly-agent-battle.exe play --config configs/games/example.yaml`。 |
 
 ## 自动化测试（`tests/`）
