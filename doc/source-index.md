@@ -129,7 +129,8 @@
 | `tests/unit/test_qin_agent.py` | 秦代四角色调用顺序与第 5 段内部消息可见性、御史大夫结构校验重试与 neutral 安全回退、丞相/太尉角色级重试与默认回退、当前决策隐藏皇帝最终裁决、最终决策幂等广播。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_qin_agent.py` |
 | `tests/unit/test_tang_agent.py` | 唐代三角色串行调用、三轮上限、门下省非对象/非法 JSON 安全重试与回退，以及最终决策幂等广播、多轮自身回复保留、皇帝最终决策历史持久化及可信投递。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_tang_agent.py` |
 | `tests/unit/test_ming_agent.py` | 明代四角色并行草案、分歧重拟、加权投票、首辅 advice 强制结果与重试、首辅 advice assistant 历史、其他角色 advice/投票历史可见性及重拟草案隔离。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_ming_agent.py` |
-| `tests/integration/test_tang_runner.py` | 唐代运行器集成、连接失败、审计产物、court trace 和 `verify_run()` 回放验证。 | `.venv/Scripts/python.exe -m pytest tests/integration/test_tang_runner.py` |
+| `tests/integration/test_qin_runner.py` | 秦代四角色运行器集成、连接失败、审计产物、court trace、PerformanceTracker 终局绩效落盘、窗口唯一性及 `verify_run()` 回放验证。 | `.venv/Scripts/python.exe -m pytest tests/integration/test_qin_runner.py` |
+| `tests/unit/performance/test_tracker.py` | PerformanceTracker 行动回合窗口、终局基础/长期窗口、全朝廷玩家收口、商代无可评分官员、幂等 finalize 和非终局调用约束。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/performance/test_tracker.py` |
 | `tests/unit/test_random_baseline.py` | 完全随机非 LLM 控制器的确定性响应序列、协议合法性、合法多字段目标编码和非 LLM 计量标识。 | `python -m pytest tests/unit/test_random_baseline.py` |
 | `tests/integration/test_random_baseline_runner.py` | 纯随机和随机/Mock-LLM 混合完整对局：审计、回放、跨运行复现、无 LLM 产物、LLM 计量隔离及连接失败阈值。 | `python -m pytest tests/integration/test_random_baseline_runner.py` |
 | `tests/integration/test_decision_runner.py` | 决策驱动完整对局、自动普通掷骰事件审计/回放、监狱掷骰 Prompt 选择、监狱等待的自动推进、连接重试、回退及原始校验错误保留。 | `python -m pytest tests/integration/test_decision_runner.py` |
