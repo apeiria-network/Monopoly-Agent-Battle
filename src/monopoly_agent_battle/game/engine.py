@@ -1502,6 +1502,14 @@ class GameEngine:
         self.state.settlement_operations = retained
         living = self._living_players()
         if len(living) == 1:
+            for operation in retained:
+                events.append(
+                    GameEvent(
+                        "settlement_operation_cancelled",
+                        {"operation_id": operation.operation_id, "reason": "game_finished"},
+                    )
+                )
+            self.state.settlement_operations.clear()
             self._finish(EndReason.LAST_SURVIVOR)
             return events + [GameEvent("game_finished", {"reason": EndReason.LAST_SURVIVOR.value})]
         if retained:

@@ -135,6 +135,8 @@
 | `tests/integration/test_random_baseline_runner.py` | 纯随机和随机/Mock-LLM 混合完整对局：审计、回放、跨运行复现、无 LLM 产物、LLM 计量隔离及连接失败阈值。 | `python -m pytest tests/integration/test_random_baseline_runner.py` |
 | `tests/integration/test_decision_runner.py` | 决策驱动完整对局、自动普通掷骰事件审计/回放、监狱掷骰 Prompt 选择、监狱等待的自动推进、连接重试、回退及原始校验错误保留。 | `python -m pytest tests/integration/test_decision_runner.py` |
 | `tests/integration/test_stage6_fault_audit.py` | Stage 6 决策故障审计：非法响应、重试、回退、跨产物关联、统计隔离、10% 阈值及无效局完成和回放。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/integration/test_stage6_fault_audit.py` |
+| `tests/integration/test_stage6_llm_audit_schema.py` | Stage 6 LLM 调用审计 schema 与统计一致性：字段集合、连续 call ID、非负计量、缓存/未缓存 token 关系，以及调用、连接错误、runtime 重试和 result 汇总计数一致性。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/integration/test_stage6_llm_audit_schema.py` |
+| `tests/integration/test_stage6_settlement_termination.py` | Stage 6 复杂结算终止路径：生日卡多付款人连续破产、最后幸存者终局队列清理、取消事件，以及回合上限终局无悬挂结算操作。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/integration/test_stage6_settlement_termination.py` |
 | `tests/integration/test_stage6_golden_replay.py` | 固定种子四人整局的事件、决策、结果确定性及完整回放。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/integration/test_stage6_golden_replay.py` |
 | `tests/unit/test_stage6_protocol_performance.py` | 协议异常结构、reason 截断、额外字段及绩效 0%/50%/100% 和零决策边界。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_stage6_protocol_performance.py` |
 | `tests/unit/test_llm_protocol.py` | LLM 协议及 Mock、Fake、录制客户端；覆盖成功/失败记录和调用 ID 连续性。 | `python -m pytest tests/unit/test_llm_protocol.py` |
