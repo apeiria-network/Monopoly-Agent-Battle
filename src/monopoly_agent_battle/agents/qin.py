@@ -9,6 +9,7 @@ private AgentConversation and therefore render in segment 5.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -18,7 +19,6 @@ from monopoly_agent_battle.config.models import ModelProfile
 from monopoly_agent_battle.context.composer import compose_prompt
 from monopoly_agent_battle.context.conversation import (
     AgentConversation,
-    ContextEntry,
     DecisionEntry,
 )
 from monopoly_agent_battle.context.token_guard import ContextWarning
@@ -27,10 +27,6 @@ from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.prompts import render_decision_question
 from monopoly_agent_battle.decision.protocol import default_option_json, parse_and_validate
 from monopoly_agent_battle.llm.protocol import LLMClient, LLMMessage, LLMRequest
-from monopoly_agent_battle.performance.random_generator import (
-    PerformanceGenerator,
-    random_officer_performance,
-)
 
 _CHANCELLOR = "chancellor"
 _GRAND_MARSHAL = "grand_marshal"
@@ -90,7 +86,7 @@ class QinCourtAgent:
         emperor_profile: ModelProfile,
         conversations: dict[str, AgentConversation],
         validation_retries: int = 2,
-        performance_generator: PerformanceGenerator = random_officer_performance,
+        performance_generator: Callable[[DecisionRequest], str | None] | None = None,
     ) -> None:
         self._player_id = player_id
         self._clients = {
@@ -107,7 +103,8 @@ class QinCourtAgent:
         }
         self._conversations = conversations
         self._validation_retries = validation_retries
-        self._performance_generator = performance_generator
+        self._performance_context: str | None = None
+        self._legacy_performance_generator = performance_generator
         self._decision_id: str | None = None
         self._responses: dict[str, str] = {}
         self._trace: list[QinCallTrace] = []
@@ -143,6 +140,30 @@ class QinCourtAgent:
 
     def court_calls(self) -> list[dict[str, object]]:
         return [asdict(item) for item in self._trace]
+
+    def publish_performance(self, record: dict[str, object]) -> None:
+        """Publish the latest completed performance window to the counsellor only."""
+        label = "基础绩效" if record.get("window") == "basic" else "长期绩效"
+        assessments = record.get("assessments")
+        if not isinstance(assessments, dict):
+            return
+        lines = [f"## {label}", f"净资产变化：{record.get('delta')}"]
+        for officer, raw in assessments.items():
+            if not isinstance(raw, dict):
+                continue
+            lines.append(
+                f"{officer}：C={raw.get('consistent_count')}/N={raw.get('decision_count')}，"
+                f"{'记为差评' if raw.get('bad_review') else '不记差评'}。"
+            )
+        rendered = "\n".join(lines)
+        previous = self._performance_context or ""
+        sections = [
+            part
+            for part in previous.split("\n\n")
+            if part and not part.startswith(f"## {label}")
+        ]
+        sections.append(rendered)
+        self._performance_context = "\n\n".join(sections)
 
     def record_final_decision(self, request: DecisionRequest, reply: str) -> None:
         """Record the one engine-facing reply and broadcast it to court roles."""
@@ -275,17 +296,10 @@ class QinCourtAgent:
             )
             parsed = _fallback_comment()
         self._responses[_COUNSELLOR] = parsed
-        performance = self._performance_generator(request)
-        current_turn = self._conversations[_COUNSELLOR].current_turn
-        if (
-            performance
-            and current_turn is not None
-            and not any(
-                isinstance(entry, ContextEntry) and entry.content == performance
-                for entry in current_turn.entries
-            )
-        ):
-            self._conversations[_COUNSELLOR].append_context(performance)
+        if self._legacy_performance_generator is not None:
+            legacy = self._legacy_performance_generator(request)
+            if legacy:
+                self._performance_context = legacy
         self._append_own_decision(_COUNSELLOR, request, parsed)
         self._deliver(request, _COUNSELLOR, _COMMENT, parsed, {_EMPEROR})
 
@@ -357,7 +371,9 @@ class QinCourtAgent:
         return response.content
 
     def _messages(self, role: str, request: DecisionRequest) -> tuple[LLMMessage, ...]:
-        pre_decision_context = self._performance_generator(request) if role == _COUNSELLOR else None
+        pre_decision_context = self._performance_context if role == _COUNSELLOR else None
+        if role == _COUNSELLOR and self._legacy_performance_generator is not None:
+            pre_decision_context = self._legacy_performance_generator(request)
         messages, warning = compose_prompt(
             self._conversations[role],
             request,

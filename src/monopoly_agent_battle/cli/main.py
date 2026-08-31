@@ -34,6 +34,7 @@ from monopoly_agent_battle.llm.openai_compatible_client import OpenAICompatibleC
 from monopoly_agent_battle.llm.recording_client import RecordingLLMClient
 from monopoly_agent_battle.llm.registry import create_client, register_client_factory
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts, utc_timestamp
+from monopoly_agent_battle.performance.tracker import PerformanceTracker
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -231,11 +232,19 @@ def run_play(config_path: Path) -> Path:
             profile=profile,
             conversation=conversation,
         )
+    engine = GameEngine(config)
+    court_types = {
+        player.player_id: str(player.controller_type)
+        for player in config.players
+        if player.controller_type in {"shang_court", "qin_court", "tang_court", "ming_court"}
+    }
+    tracker = PerformanceTracker(engine, court_types)
     run_decision_game(
-        GameEngine(config),
+        engine,
         DispatchController(controllers),
         artifacts,
         conversations=conversations,
+        performance_tracker=tracker,
     )
     return artifacts.run_directory
 

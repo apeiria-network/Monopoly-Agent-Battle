@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Mapping
 from dataclasses import asdict
-from typing import cast
+from typing import Any, cast
 
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.context.validation_feedback import build_feedback
@@ -27,6 +27,7 @@ from monopoly_agent_battle.domain.models import GameEvent, JailStatus, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.runner import ScriptedRunResult, state_snapshot
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
+from monopoly_agent_battle.performance.tracker import PerformanceTracker, evidence_from_trace
 
 RawDecisionController = Callable[[DecisionRequest, str | None], str]
 
@@ -94,6 +95,7 @@ def run_decision_game(
     *,
     max_connection_retries: int = 2,
     conversations: Mapping[str, ConversationBinding] | None = None,
+    performance_tracker: PerformanceTracker | None = None,
 ) -> ScriptedRunResult:
     """Drive a game by validating controller output and auditing deterministic fallbacks.
 
@@ -114,6 +116,10 @@ def run_decision_game(
     # Bootstrap the first Agent's turn: the engine never emits ``turn_started``
     # for its initial player, so ``start_turn`` must be called explicitly here.
     initial_player_id = engine.state.current_player_id
+    if performance_tracker is not None:
+        _record_performance_windows(
+            performance_tracker.start_turn(initial_player_id), artifacts, controller
+        )
     if initial_player_id in conv_map or any(
         key.startswith(f"{initial_player_id}.") for key in conv_map
     ):
@@ -140,6 +146,8 @@ def run_decision_game(
                 logged_segment3_warning_turns,
                 artifacts,
                 engine,
+                performance_tracker,
+                controller,
             )
             events.extend(command_events)
             continue
@@ -200,6 +208,13 @@ def run_decision_game(
         if callable(final_recorder):
             final_recorder(request, persisted_reply)
         command = command_from_option(request, validation.option, validation.target)
+        court_trace = _court_trace(controller, request)
+        if performance_tracker is not None and court_trace is not None:
+            evidence = evidence_from_trace(
+                request, court_trace, validation.option.option_id, validation.target
+            )
+            if evidence is not None:
+                performance_tracker.record_decision(request.player_id, evidence)
         command_events = _execute_and_audit(engine, command, artifacts)
         _dispatch_events(
             command_events,
@@ -208,6 +223,8 @@ def run_decision_game(
             logged_segment3_warning_turns,
             artifacts,
             engine,
+            performance_tracker,
+            controller,
         )
         events.extend(command_events)
         if artifacts is not None:
@@ -225,7 +242,9 @@ def run_decision_game(
                     request, validation.option, validation.target
                 ),
             }
-            court_trace = _court_trace(controller, request)
+            court_trace = (
+                court_trace if court_trace is not None else _court_trace(controller, request)
+            )
             if court_trace is not None:
                 decision_record["court_trace"] = court_trace
             artifacts.append_decision(decision_record)
@@ -303,14 +322,17 @@ def _dispatch_events(
     logged_segment3_warning_turns: set[tuple[str, int]],
     artifacts: RunArtifacts | None,
     engine: GameEngine,
+    performance_tracker: PerformanceTracker | None = None,
+    controller: RawDecisionController | None = None,
 ) -> None:
     """Route engine events to every Agent conversation for history tracking."""
-    if not conversations:
-        return
     for event in engine_events:
         complete_round = engine.state.complete_rounds
         if event.event_type == "turn_started":
             player_id = str(event.payload["player_id"])
+            if performance_tracker is not None:
+                results = performance_tracker.start_turn(player_id)
+                _record_performance_windows(results, artifacts, controller)
             for agent_id, conversation in conversations.items():
                 if agent_id == player_id or agent_id.startswith(f"{player_id}."):
                     turn_counters[agent_id] += 1
@@ -327,6 +349,21 @@ def _dispatch_events(
         else:
             for conversation in conversations.values():
                 conversation.append_event(event, complete_round)
+
+
+def _record_performance_windows(
+    results: list[object],
+    artifacts: RunArtifacts | None,
+    controller: RawDecisionController | None,
+) -> None:
+    for result in results:
+        payload = cast(Any, result).as_dict()
+        if artifacts is not None:
+            artifacts.append_performance(payload)
+        if controller is not None and payload["court"] == "qin_court":
+            publisher = getattr(controller, "publish_performance", None)
+            if callable(publisher):
+                publisher(str(payload["player_id"]), payload)
 
 
 def _record_segment3_warning(

@@ -74,6 +74,10 @@ class RunArtifacts:
             {"event_type": event_type, "occurred_at": utc_timestamp(), "payload": payload},
         )
 
+    def append_performance(self, record: dict[str, Any]) -> None:
+        """Append one auditable basic or long-term court performance window."""
+        self.append_jsonl("performance.jsonl", record)
+
     def append_jsonl(self, filename: str, record: dict[str, Any]) -> None:
         """Append one JSON object terminated by exactly one newline."""
         path = self.run_directory / filename
