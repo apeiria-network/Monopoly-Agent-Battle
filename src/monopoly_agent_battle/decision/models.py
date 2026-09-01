@@ -110,6 +110,7 @@ def decision_request_record(request: DecisionRequest) -> dict[str, object]:
                     {
                         "kind": option.target.kind,
                         "fields": list(option.target.fields),
+                        "command_fields": list(option.target.command_fields),
                         "legal_values": [list(values) for values in option.target.legal_values],
                     }
                     if option.target is not None
@@ -136,5 +137,7 @@ def validation_record(validation: DecisionValidation) -> dict[str, Any]:
             else None
         ),
         "validation_error": validation.error,
+        "error_category": validation.error_category,
         "selected_option": validation.option.option_id if validation.option is not None else None,
+        "target": validation.target,
     }

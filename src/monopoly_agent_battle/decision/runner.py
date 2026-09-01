@@ -253,6 +253,8 @@ def run_decision_game(
                 decision_record["court_trace"] = court_trace
             artifacts.append_decision(decision_record)
         sequence += 1
+    if performance_tracker is not None:
+        _record_performance_windows(performance_tracker.finalize(), artifacts, controller)
     if artifacts is not None:
         result = state_snapshot(engine.state, "completed")
         result.update(

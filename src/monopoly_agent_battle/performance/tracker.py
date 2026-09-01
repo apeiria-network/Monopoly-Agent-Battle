@@ -22,6 +22,7 @@ class _PlayerHistory:
     snapshots: dict[int, int] = field(default_factory=lambda: {})
     decisions: dict[int, list[DecisionEvidence]] = field(default_factory=lambda: {})
     results: list[PerformanceWindowResult] = field(default_factory=lambda: [])
+    finalized: bool = False
 
 
 class PerformanceTracker:
@@ -64,6 +65,32 @@ class PerformanceTracker:
 
     def all_results(self) -> list[PerformanceWindowResult]:
         return [result for history in self._history.values() for result in history.results]
+
+    def finalize(self) -> list[PerformanceWindowResult]:
+        """Score every open court window at the terminal game boundary exactly once."""
+        if not self._engine.state.finished:
+            raise ValueError("performance windows can only be finalized after the game is finished")
+        results: list[PerformanceWindowResult] = []
+        for player_id, history in self._history.items():
+            if history.turn < 1 or history.finalized:
+                continue
+            terminal_turn = history.turn + 1
+            player_results = [
+                self._score(player_id, PerformanceWindow.BASIC, history.turn, terminal_turn)
+            ]
+            if history.turn >= 3:
+                player_results.append(
+                    self._score(
+                        player_id,
+                        PerformanceWindow.LONG_TERM,
+                        history.turn - 2,
+                        terminal_turn,
+                    )
+                )
+            history.results.extend(player_results)
+            history.finalized = True
+            results.extend(player_results)
+        return results
 
     def current_text(self, player_id: str) -> str | None:
         history = self._history.get(player_id)
@@ -138,11 +165,7 @@ def evidence_from_trace(
     if not isinstance(raw_calls, list):
         return None
     calls = cast(list[object], raw_calls)
-    typed_calls = [
-        cast(Mapping[str, object], item)
-        for item in calls
-        if isinstance(item, dict)
-    ]
+    typed_calls = [cast(Mapping[str, object], item) for item in calls if isinstance(item, dict)]
     signatures: dict[str, DecisionSignature | None] = {}
     special: dict[str, bool] = {}
     roles = _officers(court)

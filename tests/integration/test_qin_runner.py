@@ -24,6 +24,7 @@ from monopoly_agent_battle.llm.mock_client import MockLLMClient, ResponsePolicy
 from monopoly_agent_battle.llm.protocol import LLMRequest
 from monopoly_agent_battle.llm.recording_client import RecordingLLMClient
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
+from monopoly_agent_battle.performance.tracker import PerformanceTracker
 
 
 def _records(path: Path) -> list[dict[str, Any]]:
@@ -128,8 +129,33 @@ def _run(tmp_path: Path, policy: ResponsePolicy) -> tuple[RunArtifacts, list[LLM
         return policy(request)
 
     controller, conversations = _dispatch(config, artifacts, capture_policy)
-    run_decision_game(GameEngine(config), controller, artifacts, conversations=conversations)
+    engine = GameEngine(config)
+    tracker = PerformanceTracker(engine, {"qin": "qin_court"})
+    run_decision_game(
+        engine,
+        controller,
+        artifacts,
+        conversations=conversations,
+        performance_tracker=tracker,
+    )
     return artifacts, captured
+
+
+def test_qin_terminal_performance_is_persisted_once(tmp_path: Path) -> None:
+    artifacts, _ = _run(tmp_path, lambda request: _valid_choice(request))
+    performance = _records(artifacts.run_directory / "performance.jsonl")
+    keys = [
+        (
+            record["player_id"],
+            record["window"],
+            record["start_action_turn"],
+            record["end_action_turn"],
+        )
+        for record in performance
+    ]
+    assert performance
+    assert len(keys) == len(set(keys))
+    assert any(record["end_action_turn"] > 1 for record in performance)
 
 
 def test_qin_four_roles_run_and_performance_context_are_auditable(tmp_path: Path) -> None:
