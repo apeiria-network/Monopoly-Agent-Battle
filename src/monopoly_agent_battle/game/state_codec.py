@@ -94,7 +94,10 @@ def restore_checkpoint(document: dict[str, Any], state: GameState, rng: random.R
     raw = document.get("state")
     if not isinstance(raw, dict):
         raise ValueError("checkpoint state must be an object")
-    restored = _state(cast(dict[str, Any], raw))
+    try:
+        restored = _state(cast(dict[str, Any], raw))
+    except (KeyError, TypeError, ValueError, IndexError) as error:
+        raise ValueError("checkpoint contains invalid state") from error
     if set(restored.players) != set(state.players):
         raise ValueError("checkpoint players do not match configuration")
     for field_name in (

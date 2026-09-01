@@ -112,6 +112,32 @@ def interrupt_run(tmp_path: Path, game_id: str = "interrupted") -> RunArtifacts:
     return artifacts
 
 
+def test_resume_rejects_completed_run(tmp_path: Path) -> None:
+    value = config(tmp_path, "completed")
+    artifacts = RunArtifacts.create(value)
+    run_decision_game(GameEngine(value), controllers(value), artifacts)
+
+    with pytest.raises(ResumeError, match="completed run"):
+        resume_random_game(artifacts.run_directory)
+
+
+@pytest.mark.parametrize(
+    "boundary", [None, 0, 10_000, "1"], ids=["missing", "stale", "future", "wrong-type"]
+)
+def test_resume_rejects_checkpoint_boundary_mismatch(tmp_path: Path, boundary: object) -> None:
+    artifacts = interrupt_run(tmp_path, f"boundary-{str(boundary)}")
+    path = artifacts.run_directory / "checkpoint.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if boundary is None:
+        document.pop("last_event_id")
+    else:
+        document["last_event_id"] = boundary
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ResumeError, match="checkpoint boundary"):
+        resume_random_game(artifacts.run_directory)
+
+
 def test_resume_rejects_modified_config_hash(tmp_path: Path) -> None:
     artifacts = interrupt_run(tmp_path, "modified-config")
     path = artifacts.run_directory / "config.json"
