@@ -92,7 +92,7 @@ def test_priest_receives_only_current_question_and_emperor_receives_oracle(tmp_p
     assert priest_request.model == "priest-model"
     assert [message.role for message in priest_request.messages] == ["system", "user"]
     priest_text = "\n".join(message.content for message in priest_request.messages)
-    assert "暂定技术提示词" in priest_text
+    assert "你是商代朝廷的大祭司" in priest_text
     assert "## 当前决策" in priest_request.messages[-1].content
     assert "## 合法候选操作" not in priest_text
     assert '"option_id"' not in priest_text
