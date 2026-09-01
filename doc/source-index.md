@@ -115,8 +115,11 @@
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
-| `logging/run_artifacts.py` | 创建单局运行目录，持久化冻结配置、JSONL 领域事件、决策审计、LLM 调用、私有运行时事件、绩效窗口、结果快照及对局播报。 | 由单局运行器调用。 |
-| `cli/main.py` | 提供 `demo` 和完整对局 `play`；按配置组装随机、普通 LLM、商、秦、唐、明控制器，并注册 Mock 或 OpenAI 兼容客户端。 | `.venv/Scripts/monopoly-agent-battle.exe play --config configs/games/example.yaml`。 |
+| `logging/run_artifacts.py` | 创建或重新打开单局运行目录，持久化冻结配置和各类审计产物；checkpoint 原子替换并绑定最后完整事件 ID，已有 JSONL 序号必须连续。 | 由单局运行器及断点恢复流程调用。 |
+| `game/state_codec.py` | 以版本化纯 JSON 编解码完整可变游戏状态和引擎 RNG，用于安全 checkpoint 恢复。 | `encode_checkpoint(state, rng)`；`restore_checkpoint(document, state, rng)`。 |
+| `game/resume.py` | 在原目录从完整命令边界恢复全随机 baseline 对局；校验配置、checkpoint、事件流和历史随机决策，并在完成后执行回放验证。 | `resume_random_game(run_directory)`；CLI 使用 `resume --run-dir`。 |
+| `cli/main.py` | 提供 `demo`、完整对局 `play`、单局 `report` 和全随机未完成对局 `resume`；按配置组装随机、普通 LLM、商、秦、唐、明控制器。 | `.venv/Scripts/monopoly-agent-battle.exe resume --run-dir <运行目录>`。 |
+| `reporting/single_game.py` | 从单局运行产物生成不包含私有 payload 的安全汇总报告，并渲染 Markdown。 | 调用 `build_single_game_report(run_directory)` 和 `render_single_game_report(report)`。 |
 
 ## 自动化测试（`tests/`）
 
@@ -158,6 +161,9 @@
 | `tests/unit/game/test_chance_cards.py` | 覆盖 16 张机会卡的 48 个文字验收场景（每张 2 个有效场景与 1 个无效场景），并覆盖现金/产权/建筑、C-028 均富和税额、购地价格、抢夺骰结果与成功后的两步选卡、持续效果精确期限与查封优先组合租金、自动免租、强制超限弃牌；无效路径使用完整状态快照验证原子拒绝。另含卡堆重洗、持有卡破产归还、产权转移后颜色组效果和查封+同盟边界回归。 | `python -m pytest tests/unit/game/test_chance_cards.py` |
 | `tests/integration/test_scripted_runner.py` | 覆盖终局审计产物、固定序列回放、机会卡抽取/使用、双地产目标及事件编号篡改拒绝；所有调用 `verify_run()` 的场景均由冻结配置、固定随机结果和正式命令重建，不依赖测试前隐藏状态注入。 | `python -m pytest tests/integration/test_scripted_runner.py` |
 | `tests/integration/test_cli_demo.py` | CLI 创建可审计运行目录的端到端闭环。 | `python -m pytest tests/integration/test_cli_demo.py` |
+| `tests/unit/test_single_game_report.py` | 可读单局报告的安全聚合、Markdown 渲染及缺失结果拒绝。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_single_game_report.py` |
+| `tests/unit/game/test_state_codec.py` | 完整非默认游戏状态与 RNG 的纯 JSON checkpoint 往返，以及 schema、state、玩家、字段、枚举和 RNG 损坏拒绝。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/game/test_state_codec.py` |
+| `tests/integration/test_resume_random_game.py` | 全随机对局中断续跑与连续运行一致性；覆盖已完成/非随机/配置篡改拒绝、事件日志连续性、checkpoint 边界和随机决策审计损坏。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/integration/test_resume_random_game.py` |
 
 ## 常用质量检查
 
