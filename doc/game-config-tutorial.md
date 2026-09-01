@@ -185,29 +185,56 @@ model_profiles:
 
 ## 6. API Key 配置
 
-API Key 只通过环境变量注入，不能直接写入 YAML。
+API Key 不能直接写入 YAML。最简单的本地配置方式是在**项目根目录**创建 `.env.local` 文件；程序通过 CLI 启动时会自动读取该文件。
 
-PowerShell 示例：
+可以先复制项目提供的模板：
 
 ```powershell
-$env:MONOPOLY_PLAYER_API_KEY = "你的API Key"
-$env:TANG_ZHONGSHU_API_KEY = "另一个API Key"
+Copy-Item .env.example .env.local
 ```
 
-YAML 中只填写环境变量名：
+然后编辑 `.env.local`：
+
+```dotenv
+MONOPOLY_API_KEY=你的真实APIKey
+```
+
+YAML 中只填写对应的环境变量名称：
 
 ```yaml
-api_key_env: MONOPOLY_PLAYER_API_KEY
+model_profiles:
+  player-model:
+    provider: openai_compatible
+    base_url: https://api.example.com/v1
+    api_key_env: MONOPOLY_API_KEY
+    model: your-model
+```
+
+多个玩家或官员可以共用同一个环境变量，也可以分别设置：
+
+```dotenv
+MONOPOLY_SHANG_API_KEY=商代使用的真实APIKey
+MONOPOLY_QIN_API_KEY=秦代使用的真实APIKey
+MONOPOLY_TANG_API_KEY=唐代使用的真实APIKey
+MONOPOLY_MING_API_KEY=明代使用的真实APIKey
+```
+
+`.env.local` 已被 `.gitignore` 忽略，不会被正常提交到 Git。`.env.example` 只作为格式模板，不应填写真实密钥。
+
+系统中已经存在的环境变量优先于 `.env.local`，因此也可以临时在当前 PowerShell 中覆盖：
+
+```powershell
+$env:MONOPOLY_API_KEY = "临时使用的API Key"
 ```
 
 不要这样填写：
 
 ```yaml
-# 错误：禁止在配置文件中保存明文 API Key
+# 错误：禁止在 YAML 中保存明文 API Key
 api_key: sk-真实密钥
 ```
 
-程序不会把环境变量中的真实 API Key 写入配置快照、调用日志或错误信息。
+程序不会把 `.env.local` 中的真实 API Key 写入配置快照、调用日志或错误信息。启动命令必须在项目根目录执行，程序才能自动找到项目根目录下的 `.env.local`。
 
 ## 7. LLM 参数
 
@@ -284,6 +311,6 @@ runs/<experiment_id>/<game_id>/
 | `model_profile not defined` | 在 `model_profiles` 中增加对应 profile，或修正引用名称。 |
 | `requires model_profile` | 为 `llm_baseline` 玩家填写 `model_profile`。 |
 | `requires court_role_profiles` | 为朝廷玩家填写全部官员 profile。 |
-| API Key 环境变量未设置 | 设置 YAML 中 `api_key_env` 指定的环境变量。 |
+| API Key 环境变量未设置 | 在项目根目录的 `.env.local` 中填写 YAML 的 `api_key_env` 对应变量，或在当前 PowerShell 中设置该变量。 |
 | `no client factory registered for provider` | 检查 `provider` 是否为 `openai_compatible`、`fake` 或 `mock`。 |
 | 输出目录已存在 | 修改 `game_id` 或 `experiment_id`。 |

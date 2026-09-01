@@ -14,6 +14,7 @@ from monopoly_agent_battle.agents.random_baseline import RandomBaselineControlle
 from monopoly_agent_battle.agents.shang import ShangCourtAgent
 from monopoly_agent_battle.agents.tang import TangCourtAgent
 from monopoly_agent_battle.config.loader import config_hash, load_game_config
+from monopoly_agent_battle.config.local_env import load_local_env
 from monopoly_agent_battle.config.models import (
     MingCourtRoleProfiles,
     QinCourtRoleProfiles,
@@ -43,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the command-line parser."""
     parser = argparse.ArgumentParser(prog="monopoly-agent-battle")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    demo_parser = subparsers.add_parser("demo", help="create a Phase 0 game run skeleton")
+    subparsers.add_parser("demo", help="create a Phase 0 game run skeleton")
     play_parser = subparsers.add_parser(
         "play", help="run a complete game with mock-LLM and random non-LLM baselines"
     )
@@ -272,6 +273,7 @@ def _random_baseline_rng(seed: int, seat: int, player_id: str) -> random.Random:
 
 def main() -> None:
     """Run the requested command."""
+    load_local_env()
     arguments = build_parser().parse_args()
     if arguments.command == "demo":
         print(run_demo(arguments.config))

@@ -370,11 +370,61 @@ runs/local-mixed-test/mixed-game-001/
 | `runtime.jsonl` | 重试、上下文裁剪等运行时审计记录。 | 排查 LLM 链路和运行时告警。 |
 | `llm_calls.jsonl` | 每次 LLM 客户端调用，包括失败调用。 | 普通 LLM 玩家或朝廷 Agent 对局生成；纯随机局没有该文件。 |
 
-## 5. 查看结果和过程
+## 5. 断点保存与续跑
+
+当前断点续跑功能的行为是：**断点保存自动进行，断点续跑需要手动执行命令**。
+
+### 5.1 自动保存断点
+
+对局运行过程中，程序会在每条命令执行完成后自动更新运行目录中的：
+
+```text
+checkpoint.json
+```
+
+例如：
+
+```text
+runs/quickstart-001/quickstart-random/checkpoint.json
+```
+
+如果进程被关闭、终端中断或发生异常，只要该运行目录和其中的产物仍然完整，就可以尝试续跑。无需手动创建或复制 checkpoint 文件。
+
+### 5.2 手动续跑
+
+当前仅支持**全随机 `random_baseline` 对局**续跑。使用原运行目录执行：
+
+```powershell
+.\.venv\Scripts\monopoly-agent-battle.exe resume `
+  --run-dir runs/<experiment_id>/<game_id>
+```
+
+例如：
+
+```powershell
+.\.venv\Scripts\monopoly-agent-battle.exe resume `
+  --run-dir runs/quickstart-001/quickstart-random
+```
+
+续跑时不需要重新指定 YAML。程序会从最近一次完整命令边界恢复游戏状态、引擎随机数和随机玩家决策序列，并继续写入原运行目录。续跑完成后会自动执行回放验证。
+
+### 5.3 续跑限制与拒绝情况
+
+以下情况不能使用当前 `resume` 命令：
+
+- 对局包含普通 LLM 玩家或商、秦、唐、明朝廷 Agent；
+- 对局已经正常完成；
+- 缺少或损坏 `checkpoint.json`；
+- 配置哈希、事件编号或历史随机决策记录不一致；
+- 手动修改了运行目录中的审计产物。
+
+如果程序拒绝续跑，请保留错误信息和原运行目录，不要删除或覆盖其中的 `events.jsonl`、`decisions.jsonl`、`config.json` 或 `checkpoint.json`。
+
+## 6. 查看结果和过程
 
 以下示例假设运行目录为 `runs/local-mixed-test/mixed-game-001`。
 
-### 5.1 查看终局结果
+### 6.1 查看终局结果
 
 ```powershell
 Get-Content runs/local-mixed-test/mixed-game-001/result.json -Raw
@@ -393,7 +443,7 @@ Get-Content runs/local-mixed-test/mixed-game-001/result.json -Raw
 | `llm_calls` | 本局 LLM 调用次数；纯随机局为 `0`。 |
 | `decision_fallbacks` | 控制器响应无效后最终使用默认决策的次数。 |
 
-### 5.2 查看事件流
+### 6.2 查看事件流
 
 ```powershell
 Get-Content runs/local-mixed-test/mixed-game-001/events.jsonl
@@ -409,7 +459,7 @@ Select-String -Path runs/local-mixed-test/mixed-game-001/events.jsonl -Pattern '
 
 例如，要判断终局中为什么几乎没有房子，应同时检查 `building_added` 和 `building_sold`，不能只看 `result.json` 中最终的 `building_level`。
 
-### 5.3 查看控制器决策
+### 6.3 查看控制器决策
 
 ```powershell
 Get-Content runs/local-mixed-test/mixed-game-001/decisions.jsonl
@@ -422,7 +472,7 @@ Get-Content runs/local-mixed-test/mixed-game-001/decisions.jsonl
 - `fallback`：是否因无效响应执行默认选项
 - `validation_errors`：LLM 响应不符合协议时的校验错误
 
-### 5.4 查看 LLM 调用记录
+### 6.4 查看 LLM 调用记录
 
 只要对局包含普通 LLM 玩家或朝廷 Agent，就可以查看：
 
@@ -432,7 +482,7 @@ Get-Content runs/local-mixed-test/mixed-game-001/llm_calls.jsonl
 
 全随机局没有这个文件是预期行为，不代表运行失败。
 
-## 6. 回放验证
+## 7. 回放验证
 
 回放器会从 `config.json` 重建游戏，根据记录的命令和随机结果重新执行，并比较事件序列与终局状态。它不会再次调用 LLM。
 
@@ -448,7 +498,7 @@ print("回放验证通过")
 
 正常输出“回放验证通过”，说明配置、命令、事件和 `result.json` 相互一致。若失败，检查运行产物是否被手动编辑、是否缺少 JSONL 记录，或运行是否未完整结束。
 
-## 7. 常见配置问题
+## 8. 常见配置问题
 
 | 现象 | 检查项 |
 |---|---|

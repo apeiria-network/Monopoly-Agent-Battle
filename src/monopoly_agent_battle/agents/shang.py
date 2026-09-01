@@ -1,13 +1,9 @@
-"""Provisional two-role Shang court controller.
-
-The prompt wording in this module is intentionally a temporary technical
-placeholder. It establishes the approved role/context boundary only and must
-be manually rewritten and reviewed before being treated as final content.
-"""
+"""Shang two-role court workflow."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from pathlib import Path
 
 from monopoly_agent_battle.config.models import ModelProfile
 from monopoly_agent_battle.context.composer import compose_prompt
@@ -21,11 +17,15 @@ _GREAT_PRIEST_ROLE = "great_priest"
 _EMPEROR_ROLE = "emperor"
 _ORACLE_CONTENT_TYPE = "oracle"
 _FINAL_DECISION_CONTENT_TYPE = "final_decision"
+_PROMPT_ROOT = Path(__file__).resolve().parent / "agent_prompt_list"
 
-_PROVISIONAL_PRIEST_SYSTEM_PROMPT = """你是商代朝廷中的大祭司。以下仅为暂定技术提示词，
-后续必须人工重写。你只根据本次收到的当前决策问题给皇帝写一段简短、神谕式的启示或提醒。
-不得输出 JSON，不得选择或推荐任何具体候选操作，不得编造游戏状态，不得要求隐藏信息，
-不得修改游戏状态，也不得声明最终决策。"""
+
+def _load_prompt(relative_path: str) -> str:
+    return (_PROMPT_ROOT / relative_path).read_text(encoding="utf-8").strip()
+
+
+_PRIEST_SYSTEM_PROMPT = _load_prompt("Shang/Shang_great_priest.txt")
+_EMPEROR_ROLE_INSTRUCTION = _load_prompt("Shang/Shang_emperor.txt")
 
 _ORACLE_SECTION_HEADER = "## 朝廷内部神谕（仅供皇帝本次决策参考）"
 
@@ -126,7 +126,7 @@ class ShangCourtAgent:
         caller_role = f"{self._player_id}.great_priest"
         llm_request = LLMRequest(
             messages=(
-                LLMMessage(role="system", content=_PROVISIONAL_PRIEST_SYSTEM_PROMPT),
+                LLMMessage(role="system", content=_PRIEST_SYSTEM_PROMPT),
                 LLMMessage(role="user", content=render_decision_question(request)),
             ),
             model=self._great_priest_profile.model,
@@ -172,7 +172,11 @@ class ShangCourtAgent:
 
     def _request_emperor(self, request: DecisionRequest) -> str:
         assert self._oracle is not None
-        messages, warning = compose_prompt(self._emperor_conversation, request)
+        messages, warning = compose_prompt(
+            self._emperor_conversation,
+            request,
+            role_instruction=_EMPEROR_ROLE_INSTRUCTION,
+        )
         self._last_warning = warning
         emperor_messages = messages
         if not any(
