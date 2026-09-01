@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import Any
+from typing import Any, cast
 
 from monopoly_agent_battle.domain.models import (
     CardDeck,
@@ -94,7 +94,7 @@ def restore_checkpoint(document: dict[str, Any], state: GameState, rng: random.R
     raw = document.get("state")
     if not isinstance(raw, dict):
         raise ValueError("checkpoint state must be an object")
-    restored = _state(raw)
+    restored = _state(cast(dict[str, Any], raw))
     if set(restored.players) != set(state.players):
         raise ValueError("checkpoint players do not match configuration")
     for field_name in (
@@ -125,7 +125,7 @@ def restore_checkpoint(document: dict[str, Any], state: GameState, rng: random.R
     try:
         if not isinstance(encoded, list):
             raise ValueError("checkpoint rng_state must be an array")
-        rng.setstate(_random_state(encoded))
+        rng.setstate(_random_state(cast(list[Any], encoded)))
     except (TypeError, ValueError, IndexError) as error:
         raise ValueError("checkpoint contains invalid rng_state") from error
 
@@ -235,9 +235,11 @@ def _operation_from(v: dict[str, Any]) -> SettlementOperation:
 
 def _json_value(value: Any) -> Any:
     if isinstance(value, tuple):
-        return [_json_value(item) for item in value]
+        items = cast(tuple[Any, ...], value)
+        return [_json_value(item) for item in items]
     if isinstance(value, list):
-        return [_json_value(item) for item in value]
+        items = cast(list[Any], value)
+        return [_json_value(item) for item in items]
     if isinstance(value, (int, float, str)) or value is None:
         return value
     raise TypeError("random state contains a non-JSON value")
@@ -246,14 +248,22 @@ def _json_value(value: Any) -> Any:
 def _random_state(value: list[Any]) -> tuple[Any, ...]:
     if len(value) != 3 or not isinstance(value[0], int) or not isinstance(value[1], list):
         raise ValueError("random state has an invalid shape")
-    inner = tuple(item for item in value[1] if isinstance(item, int))
-    if len(inner) != len(value[1]) or not isinstance(value[2], (int, float)):
+    inner_values = cast(list[Any], value[1])
+    inner = tuple(
+        item for item in inner_values if isinstance(item, int) and not isinstance(item, bool)
+    )
+    gaussian = value[2]
+    if (
+        len(inner) != len(inner_values)
+        or isinstance(gaussian, bool)
+        or (gaussian is not None and not isinstance(gaussian, (int, float)))
+    ):
         raise ValueError("random state has invalid values")
-    return (value[0], inner, value[2])
+    return (value[0], inner, gaussian)
 
 
 def _object(raw: dict[str, Any], key: str) -> dict[str, Any]:
     value = raw.get(key)
     if not isinstance(value, dict):
         raise ValueError(f"checkpoint field {key} must be an object")
-    return value
+    return cast(dict[str, Any], value)

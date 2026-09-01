@@ -7,6 +7,7 @@ import pytest
 
 from monopoly_agent_battle.agents.random_baseline import RandomBaselineController
 from monopoly_agent_battle.cli.main import _random_baseline_rng
+from monopoly_agent_battle.config.loader import config_hash
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.decision.runner import DispatchController, run_decision_game
 from monopoly_agent_battle.game.engine import GameEngine
@@ -103,9 +104,72 @@ def test_resume_random_run_matches_uninterrupted_execution(tmp_path: Path) -> No
     assert event_ids == list(range(1, len(event_ids) + 1))
 
 
-def test_resume_rejects_completed_run(tmp_path: Path) -> None:
-    value = config(tmp_path, "completed")
+def interrupt_run(tmp_path: Path, game_id: str = "interrupted") -> RunArtifacts:
+    value = config(tmp_path, game_id)
     artifacts = RunArtifacts.create(value)
-    run_decision_game(GameEngine(value), controllers(value), artifacts)
-    with pytest.raises(ResumeError, match="completed"):
+    with pytest.raises(RuntimeError, match="simulated"):
+        run_decision_game(GameEngine(value), controllers(value, interrupt=2), artifacts)
+    return artifacts
+
+
+def test_resume_rejects_modified_config_hash(tmp_path: Path) -> None:
+    artifacts = interrupt_run(tmp_path, "modified-config")
+    path = artifacts.run_directory / "config.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["config"]["seed"] = 18
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ResumeError, match="hash mismatch"):
+        resume_random_game(artifacts.run_directory)
+
+
+def test_resume_rejects_non_random_players(tmp_path: Path) -> None:
+    artifacts = interrupt_run(tmp_path, "non-random")
+    path = artifacts.run_directory / "config.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["config"]["players"][0]["controller_type"] = "llm_baseline"
+    document["config"]["players"][0]["model_profile"] = "mock-profile"
+    document["config"]["model_profiles"] = {
+        "mock-profile": {"provider": "mock", "model": "test-model", "seed": 1}
+    }
+
+    modified = GameConfig.model_validate(document["config"])
+    document["config_hash"] = config_hash(modified)
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ResumeError, match="all-random"):
+        resume_random_game(artifacts.run_directory)
+
+
+def test_resume_rejects_damaged_event_log(tmp_path: Path) -> None:
+    artifacts = interrupt_run(tmp_path, "damaged-log")
+    path = artifacts.run_directory / "events.jsonl"
+    records = path.read_text(encoding="utf-8").splitlines()
+    record = json.loads(records[-1])
+    record["event_id"] += 2
+    records[-1] = json.dumps(record)
+    path.write_text("\n".join(records) + "\n", encoding="utf-8")
+
+    with pytest.raises(ResumeError, match="non-contiguous event_id"):
+        resume_random_game(artifacts.run_directory)
+
+
+def test_resume_rejects_tampered_random_decision(tmp_path: Path) -> None:
+    artifacts = interrupt_run(tmp_path, "tampered-decision")
+    path = artifacts.run_directory / "decisions.jsonl"
+    records = path.read_text(encoding="utf-8").splitlines()
+    record = json.loads(records[0])
+    options = record["request"]["options"]
+    replacement = next(
+        option
+        for option in options
+        if option["command_type"].replace("_", "").lower()
+        != record["executed_command"]["command_type"].replace("_", "").lower()
+    )
+    record["executed_command"]["command_type"] = replacement["command_type"]
+    record["executed_command"]["command"] = {"player_id": record["request"]["player_id"]}
+    records[0] = json.dumps(record)
+    path.write_text("\n".join(records) + "\n", encoding="utf-8")
+
+    with pytest.raises(ResumeError, match="random baseline sequence"):
         resume_random_game(artifacts.run_directory)

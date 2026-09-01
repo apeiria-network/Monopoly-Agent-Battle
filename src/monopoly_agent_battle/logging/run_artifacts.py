@@ -56,7 +56,9 @@ class RunArtifacts:
     def write_checkpoint(self, checkpoint: dict[str, Any]) -> None:
         """Atomically replace the resumable checkpoint document."""
         temporary = self.run_directory / "checkpoint.json.tmp"
-        self.write_json("checkpoint.json.tmp", checkpoint)
+        document = dict(checkpoint)
+        document["last_event_id"] = self._next_event_id - 1
+        self.write_json("checkpoint.json.tmp", document)
         temporary.replace(self.run_directory / "checkpoint.json")
 
     def read_checkpoint(self) -> dict[str, Any]:
@@ -119,7 +121,7 @@ class RunArtifacts:
 def _next_jsonl_id(path: Path, field: str) -> int:
     if not path.exists():
         return 1
-    highest = 0
+    expected = 1
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip():
             continue
@@ -128,6 +130,7 @@ def _next_jsonl_id(path: Path, field: str) -> int:
         except json.JSONDecodeError as error:
             raise ValueError(f"invalid JSON in {path.name}:{line_number}") from error
         value = record.get(field)
-        if isinstance(value, int) and value > highest:
-            highest = value
-    return highest + 1
+        if not isinstance(value, int) or isinstance(value, bool) or value != expected:
+            raise ValueError(f"non-contiguous {field} in {path.name}:{line_number}")
+        expected += 1
+    return expected
