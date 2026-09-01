@@ -28,6 +28,7 @@ from monopoly_agent_battle.decision.runner import (
     run_decision_game,
 )
 from monopoly_agent_battle.game.engine import GameEngine
+from monopoly_agent_battle.game.resume import resume_random_game
 from monopoly_agent_battle.llm.fake_client import FakeLLMClient
 from monopoly_agent_battle.llm.mock_client import MockLLMClient
 from monopoly_agent_battle.llm.openai_compatible_client import OpenAICompatibleClient
@@ -35,6 +36,7 @@ from monopoly_agent_battle.llm.recording_client import RecordingLLMClient
 from monopoly_agent_battle.llm.registry import create_client, register_client_factory
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts, utc_timestamp
 from monopoly_agent_battle.performance.tracker import PerformanceTracker
+from monopoly_agent_battle.reporting.single_game import write_single_game_report
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -42,13 +44,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="monopoly-agent-battle")
     subparsers = parser.add_subparsers(dest="command", required=True)
     demo_parser = subparsers.add_parser("demo", help="create a Phase 0 game run skeleton")
-    demo_parser.add_argument("--config", required=True, type=Path, help="path to a game YAML file")
     play_parser = subparsers.add_parser(
         "play", help="run a complete game with mock-LLM and random non-LLM baselines"
     )
     play_parser.add_argument("--config", required=True, type=Path, help="path to a game YAML file")
+    report_parser = subparsers.add_parser(
+        "report", help="render a readable report from a completed or partial run"
+    )
+    report_parser.add_argument("--run-dir", required=True, type=Path, help="run artifact directory")
+    report_parser.add_argument("--output", type=Path, help="optional Markdown output path")
+    resume_parser = subparsers.add_parser(
+        "resume", help="resume an unfinished all-random run"
+    )
+    resume_parser.add_argument("--run-dir", required=True, type=Path, help="run artifact directory")
     return parser
-
 
 def run_demo(config_path: Path) -> Path:
     """Create an auditable empty game run from a frozen configuration."""
@@ -268,3 +277,7 @@ def main() -> None:
         print(run_demo(arguments.config))
     elif arguments.command == "play":
         print(run_play(arguments.config))
+    elif arguments.command == "report":
+        print(write_single_game_report(arguments.run_dir, arguments.output))
+    elif arguments.command == "resume":
+        print(resume_random_game(arguments.run_dir))

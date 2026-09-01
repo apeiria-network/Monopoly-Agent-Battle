@@ -26,6 +26,7 @@ from monopoly_agent_battle.domain.commands import EndTurn, GameCommand, RollDice
 from monopoly_agent_battle.domain.models import GameEvent, JailStatus, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.runner import ScriptedRunResult, state_snapshot
+from monopoly_agent_battle.game.state_codec import encode_checkpoint
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 from monopoly_agent_battle.performance.scoring import PerformanceWindowResult
 from monopoly_agent_battle.performance.tracker import PerformanceTracker, evidence_from_trace
@@ -430,6 +431,7 @@ def _execute_and_audit(
             if event.event_type == "game_finished":
                 event_round = round_after
             artifacts.append_game_broadcast(event, event_round)
+        artifacts.write_checkpoint(encode_checkpoint(engine.state, engine.random))
     return command_events
 
 

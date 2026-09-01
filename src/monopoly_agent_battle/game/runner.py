@@ -12,7 +12,7 @@ from monopoly_agent_battle.domain.models import (
     TurnPhase,
 )
 from monopoly_agent_battle.game.controllers import ScriptedController
-from monopoly_agent_battle.game.engine import GameEngine
+from monopoly_agent_battle.game.state_codec import encode_checkpoint
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 
 
@@ -57,6 +57,7 @@ def run_scripted_game(
                 if event.event_type == "game_finished":
                     event_round = round_after
                 artifacts.append_game_broadcast(event, event_round)
+            artifacts.write_checkpoint(encode_checkpoint(engine.state, engine.random))
     if engine.state.finished:
         status = "completed"
     if artifacts is not None:
