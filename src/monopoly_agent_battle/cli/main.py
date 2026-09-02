@@ -54,11 +54,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     report_parser.add_argument("--run-dir", required=True, type=Path, help="run artifact directory")
     report_parser.add_argument("--output", type=Path, help="optional Markdown output path")
-    resume_parser = subparsers.add_parser(
-        "resume", help="resume an unfinished all-random run"
-    )
+    resume_parser = subparsers.add_parser("resume", help="resume an unfinished all-random run")
     resume_parser.add_argument("--run-dir", required=True, type=Path, help="run artifact directory")
     return parser
+
 
 def run_demo(config_path: Path) -> Path:
     """Create an auditable empty game run from a frozen configuration."""

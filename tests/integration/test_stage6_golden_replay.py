@@ -7,7 +7,7 @@ import json
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -66,12 +66,16 @@ def _canonical_decision(record: dict[str, Any]) -> dict[str, Any]:
     """Normalize only unordered parallel calls inside one court trace."""
     normalized = dict(record)
     trace = normalized.get("court_trace")
-    if isinstance(trace, dict) and isinstance(trace.get("calls"), list):
-        normalized["court_trace"] = dict(trace)
-        normalized["court_trace"]["calls"] = sorted(
-            trace["calls"],
-            key=lambda call: json.dumps(call, ensure_ascii=False, sort_keys=True),
-        )
+    if isinstance(trace, dict):
+        typed_trace = cast(dict[str, Any], trace)
+        raw_calls = typed_trace.get("calls")
+        if isinstance(raw_calls, list):
+            calls = cast(list[dict[str, Any]], raw_calls)
+            normalized["court_trace"] = dict(typed_trace)
+            normalized["court_trace"]["calls"] = sorted(
+                calls,
+                key=lambda call: json.dumps(call, ensure_ascii=False, sort_keys=True),
+            )
     return normalized
 
 
@@ -81,6 +85,7 @@ def write_four_courts_config(path: Path, output_directory: Path, game_id: str) -
     raw_config = yaml.safe_load(source.read_text(encoding="utf-8"))
     if not isinstance(raw_config, dict):
         raise AssertionError("four-court golden configuration must be a mapping")
+    raw_config = cast(dict[str, Any], raw_config)
     raw_config.update(
         {
             "game_id": game_id,

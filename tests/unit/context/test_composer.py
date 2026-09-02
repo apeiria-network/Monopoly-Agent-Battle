@@ -67,9 +67,7 @@ def test_first_decision_no_history_skips_segments_3_and_4(tmp_path: Path) -> Non
 
 def test_cache_first_uses_stable_rules_prefix_and_compact_options(tmp_path: Path) -> None:
     engine = _make_engine(tmp_path)
-    conv = AgentConversation(
-        agent_id="a", window_turns=1, prompt_profile="cache-first-v1"
-    )
+    conv = AgentConversation(agent_id="a", window_turns=1, prompt_profile="cache-first-v1")
     request = build_decision_request(engine, sequence=1)
     role_instruction = "role-instruction-sentinel"
     output_guide = "output-guide-sentinel"

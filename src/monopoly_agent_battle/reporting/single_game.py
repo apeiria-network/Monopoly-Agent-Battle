@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 class ReportError(ValueError):
@@ -22,6 +22,7 @@ def build_single_game_report(run_directory: Path) -> dict[str, Any]:
     config = config_doc.get("config")
     if not isinstance(config, dict):
         raise ReportError("config.json is missing object field 'config'")
+    typed_config = cast(dict[str, Any], config)
     events = _read_jsonl(run_directory / "events.jsonl")
     decisions = _read_jsonl(run_directory / "decisions.jsonl")
     llm_calls = _read_jsonl(run_directory / "llm_calls.jsonl")
@@ -30,12 +31,14 @@ def build_single_game_report(run_directory: Path) -> dict[str, Any]:
     players = result.get("players", {})
     if not isinstance(players, dict):
         raise ReportError("result.json field 'players' must be an object")
+    typed_players = cast(dict[str, Any], players)
     event_counts = Counter(str(record.get("event_type", "unknown")) for record in events)
     runtime_counts = Counter(str(record.get("event_type", "unknown")) for record in runtime)
-    player_rows = []
-    for player_id, player in players.items():
-        if not isinstance(player, dict):
+    player_rows: list[dict[str, object]] = []
+    for player_id, raw_player in typed_players.items():
+        if not isinstance(raw_player, dict):
             continue
+        player = cast(dict[str, Any], raw_player)
         player_rows.append(
             {
                 "player_id": str(player_id),
@@ -48,10 +51,10 @@ def build_single_game_report(run_directory: Path) -> dict[str, Any]:
         )
     return {
         "run_directory": str(run_directory),
-        "game_id": config.get("game_id"),
-        "experiment_id": config.get("experiment_id"),
+        "game_id": typed_config.get("game_id"),
+        "experiment_id": typed_config.get("experiment_id"),
         "config_hash": config_doc.get("config_hash"),
-        "rules_version": config.get("rules_version"),
+        "rules_version": typed_config.get("rules_version"),
         "status": result.get("status"),
         "end_reason": result.get("end_reason"),
         "validity_status": result.get("validity_status", "not_recorded"),
@@ -147,7 +150,7 @@ def _read_required_json(path: Path) -> dict[str, Any]:
         raise ReportError(f"cannot read {path.name}: {error}") from error
     if not isinstance(value, dict):
         raise ReportError(f"{path.name} must contain a JSON object")
-    return value
+    return cast(dict[str, Any], value)
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -161,7 +164,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
             value = json.loads(line)
             if not isinstance(value, dict):
                 raise ReportError(f"{path.name}:{line_number} must be a JSON object")
-            records.append(value)
+            records.append(cast(dict[str, Any], value))
     except (OSError, json.JSONDecodeError) as error:
         raise ReportError(f"cannot read {path.name}: {error}") from error
     return records

@@ -19,6 +19,7 @@ from monopoly_agent_battle.config.models import ModelProfile
 from monopoly_agent_battle.context.composer import compose_prompt
 from monopoly_agent_battle.context.conversation import (
     AgentConversation,
+    ContextEntry,
     DecisionEntry,
 )
 from monopoly_agent_battle.context.token_guard import ContextWarning
@@ -160,9 +161,7 @@ class QinCourtAgent:
         rendered = "\n".join(lines)
         previous = self._performance_context or ""
         sections = [
-            part
-            for part in previous.split("\n\n")
-            if part and not part.startswith(f"## {label}")
+            part for part in previous.split("\n\n") if part and not part.startswith(f"## {label}")
         ]
         sections.append(rendered)
         self._performance_context = "\n\n".join(sections)
@@ -299,9 +298,15 @@ class QinCourtAgent:
             parsed = _fallback_comment()
         self._responses[_COUNSELLOR] = parsed
         if self._legacy_performance_generator is not None:
-            legacy = self._legacy_performance_generator(request)
-            if legacy:
-                self._performance_context = legacy
+            performance = self._legacy_performance_generator(request)
+            if performance:
+                self._performance_context = performance
+                current_turn = self._conversations[_COUNSELLOR].current_turn
+                if current_turn is not None and not any(
+                    isinstance(entry, ContextEntry) and entry.content == performance
+                    for entry in current_turn.entries
+                ):
+                    self._conversations[_COUNSELLOR].append_context(performance)
         self._append_own_decision(_COUNSELLOR, request, parsed)
         self._deliver(request, _COUNSELLOR, _COMMENT, parsed, {_EMPEROR})
 

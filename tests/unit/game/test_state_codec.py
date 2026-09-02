@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+# Pytest parameterized mutation callbacks are dynamically typed by design.
+# pyright: reportUnknownArgumentType=false, reportUnknownLambdaType=false, reportUnknownParameterType=false, reportUnknownMemberType=false
 import json
 import random
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -117,7 +121,13 @@ def test_checkpoint_round_trip_is_json_and_restores_rng(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda document: document.update(schema="wrong"), "unsupported checkpoint schema"),
+        (
+            cast(
+                Callable[[dict[str, Any]], object],
+                lambda document: document.update(schema="wrong"),
+            ),
+            "unsupported checkpoint schema",
+        ),
         (lambda document: document.pop("state"), "checkpoint state must be an object"),
         (
             lambda document: document["state"]["players"].pop("b"),
@@ -136,7 +146,9 @@ def test_checkpoint_round_trip_is_json_and_restores_rng(tmp_path: Path) -> None:
         (lambda document: document.update(rng_state=[3, [1, 2], True]), "invalid rng_state"),
     ],
 )
-def test_checkpoint_rejects_malformed_documents(tmp_path: Path, mutate, message: str) -> None:
+def test_checkpoint_rejects_malformed_documents(
+    tmp_path: Path, mutate: Callable[[dict[str, Any]], object], message: str
+) -> None:
     value = config(tmp_path)
     document = encode_checkpoint(GameEngine(value).state, random.Random(value.seed))
     mutate(document)

@@ -45,9 +45,7 @@ class RecordingLLMClient(LLMClient):
                     "temperature": request.temperature,
                     "max_tokens": request.max_tokens,
                     "input_tokens": usage.input_tokens if usage is not None else 0,
-                    "cached_input_tokens": (
-                        usage.cached_input_tokens if usage is not None else 0
-                    ),
+                    "cached_input_tokens": (usage.cached_input_tokens if usage is not None else 0),
                     "uncached_input_tokens": (
                         usage.uncached_input_tokens if usage is not None else 0
                     ),

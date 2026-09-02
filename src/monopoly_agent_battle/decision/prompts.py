@@ -111,9 +111,7 @@ def render_decision_and_options(
     return "\n\n".join(
         (
             "## 当前决策\n" + _render_decision(request, visible),
-            "## 合法候选操作\n" + _json(
-                options, compact=prompt_profile == "cache-first-v1"
-            ),
+            "## 合法候选操作\n" + _json(options, compact=prompt_profile == "cache-first-v1"),
         )
     )
 
@@ -134,14 +132,14 @@ def render_current_user_message(
 ) -> str:
     """Segments 5-9 merged for the final dynamic user message."""
     visible: dict[str, Any] = request.visible_state
-    return render_situation(visible) + "\n\n" + render_decision_and_options(
-        request, prompt_profile=prompt_profile
+    return (
+        render_situation(visible)
+        + "\n\n"
+        + render_decision_and_options(request, prompt_profile=prompt_profile)
     )
 
 
-def render_decision_prompt(
-    request: DecisionRequest, *, prompt_profile: str = "full-v1"
-) -> str:
+def render_decision_prompt(request: DecisionRequest, *, prompt_profile: str = "full-v1") -> str:
     """Return a compatibility single-string view of the current request.
 
     The view preserves the Stage 4C ordering: role, rules and fixed output
@@ -149,9 +147,11 @@ def render_decision_prompt(
     Stage 4C conversations should instead use the messages from
     ``compose_prompt``.
     """
-    return render_system_prompt(
-        request, prompt_profile=prompt_profile
-    ) + "\n\n" + render_current_user_message(request, prompt_profile=prompt_profile)
+    return (
+        render_system_prompt(request, prompt_profile=prompt_profile)
+        + "\n\n"
+        + render_current_user_message(request, prompt_profile=prompt_profile)
+    )
 
 
 def _render_response_format(value: object, option_id: str) -> object:
