@@ -17,11 +17,13 @@
 | `configs/games/random_baseline_demo.yaml` | 四玩家完全随机、非 LLM 的 Level 0 示例配置；显式使用 `controller_type: random_baseline`，不含 `model_profiles`。 | 作为 `monopoly-agent-battle play --config` 的输入；不产生 LLM 调用产物。 |
 | `src/monopoly_agent_battle/config/models.py` | 定义并校验单局配置、控制器及模型绑定；每个玩家或官员的 profile 可独立配置 URL、API Key 环境变量、模型、LLM seed 和调用参数。 | 由配置加载器和对局入口调用；真实 API Key 不进入配置。 |
 | `src/monopoly_agent_battle/config/loader.py` | 加载 YAML 配置，生成规范 JSON 及 SHA-256 `config_hash`。 | 由 CLI 或实验编排调用。 |
+| `.env.example` | 本地凭据模板（占位值），列出通用 `MONOPOLY_API_KEY` 及 `example.yaml` 中 13 名官员的 `api_key_env` 变量名。 | `Copy-Item .env.example .env.local` 后填入真实 API Key；禁止提交真实密钥。 |
 
 ## 使用文档（`doc/`）
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
+| `doc/system-operation-manual.md` | 系统操作手册总览：模块概览、配置模型、凭据环境变量约定、单局运行（play/demo/report）、回放、结果检查、常见错误诊断、现有能力下的预实验准备与质量门；配置与产物细节链接至另两份教程。 | 部署或排查系统时作为入口阅读。 |
 | `doc/game-config-tutorial.md` | 面向普通使用者的游戏 YAML 配置教程，说明玩家控制器、朝廷官员 profile、OpenAI 兼容接口、环境变量 API Key 和 LLM seed 的写法。 | 编写或修改对局配置前阅读。 |
 | `doc/manual-game-run-tutorial.md` | 手动启动对局、准备环境、查看运行产物和执行回放验证的教程。 | 按步骤运行 `play` 或 `demo`。 |
 
