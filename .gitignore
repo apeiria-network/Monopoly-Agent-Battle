@@ -41,3 +41,4 @@ Desktop.ini
 
 # Game run artifacts (never committed)
 /runs/
+/artifacts/
