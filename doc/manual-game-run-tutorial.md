@@ -118,7 +118,19 @@ print("回放验证通过")
 .\.venv\Scripts\monopoly-agent-battle.exe play --config configs/games/random_baseline_demo.yaml
 ```
 
-`play` 会读取配置并推进游戏，直到只剩一名未破产玩家，或达到 `max_complete_rounds` 的完整回合上限。
+`play` 会读取配置并推进游戏，直到只剩一名未破产玩家，或达到 `max_complete_rounds` 的完整回合上限。对局启动后全程无人值守，中途不需要任何输入。
+
+上面是**前台运行**，运行期间不能关闭终端（关闭或 Ctrl+C 会中断对局）。若希望关掉终端后仍继续运行，可**脱离终端后台运行**，把输出重定向到日志：
+
+```powershell
+Start-Process -FilePath ".\.venv\Scripts\monopoly-agent-battle.exe" `
+  -ArgumentList 'play','--config','configs/games/random_baseline_demo.yaml' `
+  -RedirectStandardOutput 'runs\bg-stdout.log' `
+  -RedirectStandardError  'runs\bg-stderr.log' `
+  -WindowStyle Hidden -PassThru
+```
+
+记下返回的进程 `Id`（PID）；用 `Get-Content runs\bg-stdout.log -Wait` 实时查看，用 `Stop-Process -Id <PID>` 停止。中途停止会产生不完整的废局，需改 `game_id`/`experiment_id` 后重跑。
 
 项目还提供 `demo` 命令：
 

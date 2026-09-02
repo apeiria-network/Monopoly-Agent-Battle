@@ -133,6 +133,35 @@ CLI 提供四个子命令（`cli/main.py`）：`demo`、`play`、`report`、`res
 
 真实接口示例见 `configs/games/example.yaml`（13 名官员各绑定独立 URL / 环境变量 / 模型；URL 与模型名为占位值，使用前替换并注入对应环境变量）。
 
+对局启动后全程无人值守，主循环自动推进到「只剩一名未破产玩家」或达到 `max_complete_rounds`，中途不需要任何键盘输入；LLM 断线会按配置自动重试，仍失败则自动回退到默认合法选项并记入审计。可按需选择前台或脱离终端两种运行方式。
+
+#### 5.1.1 前台运行（终端不可关闭）
+
+```powershell
+.\.venv\Scripts\monopoly-agent-battle.exe play --config configs/games/你的.yaml
+```
+
+对局跑在当前前台进程里，**运行期间不能关闭终端**（关闭或 Ctrl+C 会中断对局）。适合短局或人在旁边守着的场景。
+
+#### 5.1.2 脱离终端后台运行（关终端仍继续）
+
+用 `Start-Process` 拉起独立进程并把输出重定向到日志文件，之后可关闭终端：
+
+```powershell
+Start-Process -FilePath ".\.venv\Scripts\monopoly-agent-battle.exe" `
+  -ArgumentList 'play','--config','configs/games/你的.yaml' `
+  -RedirectStandardOutput 'runs\你的-stdout.log' `
+  -RedirectStandardError  'runs\你的-stderr.log' `
+  -WindowStyle Hidden -PassThru
+```
+
+- `-PassThru` 会返回进程对象，记下其 `Id`（PID）以便后续管理。
+- 事后查看进度：`Get-Content runs\你的-stdout.log -Wait`（实时跟随）或直接读运行目录下的产物。
+- 需要停止：`Stop-Process -Id <PID>`。**注意：中途停止会产生不完整的废局**，LLM/朝廷局不支持断点续跑，需改 `game_id` 或 `experiment_id` 后重跑。
+- 凭据仍从仓库根目录的 `.env.local` 读取（CLI 进程启动时自行加载）；若改用会话级 `$env:` 临时变量，须在同一 PowerShell 会话内 `Start-Process`。
+
+无论前台还是后台，真实 LLM 局都可能耗时较长并产生费用；系统不做限时或预算上限（属未实现的阶段 7）。
+
 ### 5.2 `demo`：仅初始化产物
 
 ```powershell
