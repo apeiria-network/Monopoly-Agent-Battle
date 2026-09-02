@@ -12,6 +12,7 @@ from monopoly_agent_battle.domain.models import (
     TurnPhase,
 )
 from monopoly_agent_battle.game.controllers import ScriptedController
+from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.state_codec import encode_checkpoint
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 

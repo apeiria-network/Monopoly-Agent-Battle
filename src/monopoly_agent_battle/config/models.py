@@ -153,6 +153,14 @@ class GameConfig(BaseModel):
             raise ValueError(msg)
         return value
 
+    @field_validator("output_directory")
+    @classmethod
+    def reject_escaping_output_directory(cls, value: Path) -> Path:
+        if any(part == ".." for part in value.parts):
+            msg = "output_directory must not contain '..' path components"
+            raise ValueError(msg)
+        return value
+
     @model_validator(mode="after")
     def validate_players_and_level(self) -> GameConfig:
         if not 2 <= len(self.players) <= 4:

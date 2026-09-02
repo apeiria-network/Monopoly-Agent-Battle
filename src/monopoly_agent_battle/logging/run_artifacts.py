@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from monopoly_agent_battle.config.loader import config_hash
@@ -25,6 +26,7 @@ class RunArtifacts:
         self.run_directory = run_directory
         self._next_event_id = 1
         self._next_llm_call_id = 1
+        self._llm_call_lock = Lock()
 
     @classmethod
     def create(cls, config: GameConfig) -> RunArtifacts:
@@ -85,10 +87,11 @@ class RunArtifacts:
         self.append_jsonl("decisions.jsonl", record)
 
     def append_llm_call(self, record: dict[str, Any]) -> None:
-        record = dict(record)
-        record["call_id"] = self._next_llm_call_id
-        self._next_llm_call_id += 1
-        self.append_jsonl("llm_calls.jsonl", record)
+        with self._llm_call_lock:
+            record = dict(record)
+            record["call_id"] = self._next_llm_call_id
+            self._next_llm_call_id += 1
+            self.append_jsonl("llm_calls.jsonl", record)
 
     def append_runtime(self, event_type: str, payload: dict[str, Any]) -> None:
         self.append_jsonl(

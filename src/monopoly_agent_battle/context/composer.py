@@ -128,9 +128,7 @@ def compose_prompt(
         if pre_decision_context:
             buffer.append(pre_decision_context)
 
-    buffer.append(
-        render_current_user_message(request, prompt_profile=conversation.prompt_profile)
-    )
+    buffer.append(render_current_user_message(request, prompt_profile=conversation.prompt_profile))
     if post_decision_context:
         buffer.append(post_decision_context)
     messages.append(LLMMessage(role="user", content=_join(buffer)))

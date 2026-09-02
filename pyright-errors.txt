@@ -1,0 +1,96 @@
+﻿d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:36:9 - error: Type of "player_id" is unknown (reportUnknownVariableType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:36:20 - error: Type of "player" is unknown (reportUnknownVariableType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:39:9 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:41:34 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:42:25 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:43:29 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:44:35 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:44:35 - error: Argument type is unknown
+    Argument corresponds to parameter "obj" in function "len" (reportUnknownArgumentType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:45:34 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:45:34 - error: Argument type is unknown
+    Argument corresponds to parameter "o" in function "__new__" (reportUnknownArgumentType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:46:35 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:51:20 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:52:26 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:54:26 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:150:12 - error: Return type, "dict[Unknown, Unknown]", is partially unknown (reportUnknownVariableType)
+  d:\python\python_projects\Monopoly-Agent-Battle\src\monopoly_agent_battle\reporting\single_game.py:164:28 - error: Argument type is partially unknown
+    Argument corresponds to parameter "object" in function "append"
+    Argument type is "dict[Unknown, Unknown]" (reportUnknownArgumentType)
+d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_resume_random_game.py
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_resume_random_game.py:9:44 - error: "_random_baseline_rng" is private and used outside of the module in which it is declared (reportPrivateUsage)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_resume_random_game.py:25:24 - error: Type of parameter "request" is unknown (reportUnknownParameterType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_resume_random_game.py:25:24 - error: Type annotation is missing for parameter "request" (reportMissingParameterType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_resume_random_game.py:25:33 - error: Type of parameter "feedback" is partially unknown
+    Parameter type is "Unknown | None" (reportUnknownParameterType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_resume_random_game.py:25:33 - error: Type annotation is missing for parameter "feedback" (reportMissingParameterType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_resume_random_game.py:29:32 - error: Argument type is unknown
+    Argument corresponds to parameter "request" in function "__call__" (reportUnknownArgumentType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_resume_random_game.py:29:41 - error: Argument type is partially unknown
+    Argument corresponds to parameter "feedback" in function "__call__"
+    Argument type is "Unknown | None" (reportUnknownArgumentType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_resume_random_game.py:58:31 - error: Argument type is partially unknown
+    Argument corresponds to parameter "controllers" in function "__init__"
+    Argument type is "dict[Unknown, Unknown]" (reportUnknownArgumentType)
+d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_stage6_golden_replay.py
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_stage6_golden_replay.py:69:47 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_stage6_golden_replay.py:70:42 - error: Argument type is partially unknown
+    Argument corresponds to parameter "map" in function "__init__"
+    Argument type is "dict[Unknown, Unknown]" (reportUnknownArgumentType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_stage6_golden_replay.py:72:13 - error: Argument type is unknown
+    Argument corresponds to parameter "iterable" in function "sorted" (reportUnknownArgumentType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_stage6_golden_replay.py:73:17 - error: Argument type is partially unknown
+    Argument corresponds to parameter "key" in function "sorted"
+    Argument type is "(call: Unknown) -> str" (reportUnknownArgumentType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_stage6_golden_replay.py:73:24 - error: Type of parameter "call" is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_stage6_golden_replay.py:84:5 - error: Type of "update" is partially unknown
+    Type of "update" is "Overload[(m: SupportsKeysAndGetItem[Unknown, Unknown], /) -> None, (m: SupportsKeysAndGetItem[str, Unknown], /, **kwargs: Unknown) -> None, (m: Iterable[tuple[Unknown, Unknown]], /) -> None, (m: Iterable[tuple[str, Unknown]], /, **kwargs: Unknown) -> None, (**kwargs: Unknown) -> None]" (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_stage6_golden_replay.py:118:9 - error: Type of "volatile" is partially unknown
+    Type of "volatile" is "frozenset[str] | frozenset[Unknown]" (reportUnknownVariableType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\integration\test_stage6_golden_replay.py:124:29 - error: Argument type is partially unknown
+    Argument corresponds to parameter "volatile_fields" in function "canonical_jsonl"
+    Argument type is "frozenset[str] | frozenset[Unknown]" (reportUnknownArgumentType)
+d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:119:5 - error: Argument type is partially unknown
+    Argument corresponds to parameter "argvalues" in function "__call__"
+    Argument type is "list[tuple[(document: Unknown) -> Unknown, Literal['unsupported checkpoint schema']] | tuple[(document: Unknown) -> Unknown, Literal['checkpoint state must be an object']] | tuple[(document: Unknown) -> Unknown, Literal['checkpoint players do not match configuration']] | tuple[(document: Unknown) -> Unknown, Literal['checkpoint contains invalid state']] | tuple[(document: Unknown) -> Unknown, Literal['invalid rng_state']]]" (reportUnknownArgumentType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:120:17 - error: Type of parameter "document" is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:120:27 - error: Type of "update" is unknown (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:120:27 - error: Return type of lambda is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:121:17 - error: Type of parameter "document" is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:121:27 - error: Type of "pop" is unknown (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:121:27 - error: Return type of lambda is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:123:20 - error: Type of parameter "document" is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:123:30 - error: Type of "pop" is unknown (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:123:30 - error: Return type of lambda is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:127:20 - error: Type of parameter "document" is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:127:30 - error: Type of "pop" is unknown (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:127:30 - error: Return type of lambda is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:131:20 - error: Type of parameter "document" is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:131:30 - error: Type of "update" is unknown (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:131:30 - error: Return type of lambda is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:134:17 - error: Type of parameter "document" is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:134:27 - error: Type of "update" is unknown (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:134:27 - error: Return type of lambda is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:135:17 - error: Type of parameter "document" is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:135:27 - error: Type of "update" is unknown (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:135:27 - error: Return type of lambda is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:136:17 - error: Type of parameter "document" is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:136:27 - error: Type of "update" is unknown (reportUnknownMemberType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:136:27 - error: Return type of lambda is unknown (reportUnknownLambdaType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:139:65 - error: Type of parameter "mutate" is unknown (reportUnknownParameterType)
+  d:\python\python_projects\Monopoly-Agent-Battle\tests\unit\game\test_state_codec.py:139:65 - error: Type annotation is missing for parameter "mutate" (reportMissingParameterType)
+59 errors, 0 warnings, 0 informations

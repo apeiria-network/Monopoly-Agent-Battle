@@ -6,10 +6,17 @@ from pathlib import Path
 import pytest
 
 from monopoly_agent_battle.agents.random_baseline import RandomBaselineController
-from monopoly_agent_battle.cli.main import _random_baseline_rng
+from monopoly_agent_battle.cli.main import (
+    _random_baseline_rng,  # pyright: ignore[reportPrivateUsage]
+)
 from monopoly_agent_battle.config.loader import config_hash
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
-from monopoly_agent_battle.decision.runner import DispatchController, run_decision_game
+from monopoly_agent_battle.decision.models import DecisionRequest
+from monopoly_agent_battle.decision.runner import (
+    DispatchController,
+    RawDecisionController,
+    run_decision_game,
+)
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.resume import ResumeError, resume_random_game
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
@@ -22,7 +29,7 @@ class InterruptAfter:
         self.controller = controller
         self.remaining = remaining
 
-    def __call__(self, request, feedback=None):
+    def __call__(self, request: DecisionRequest, feedback: str | None = None) -> str:
         if self.remaining == 0:
             raise RuntimeError("simulated process interruption")
         self.remaining -= 1
@@ -46,8 +53,8 @@ def config(output: Path, game_id: str) -> GameConfig:
     )
 
 
-def controllers(value: GameConfig, interrupt: int | None = None):
-    result = {}
+def controllers(value: GameConfig, interrupt: int | None = None) -> DispatchController:
+    result: dict[str, RawDecisionController] = {}
     for player in value.players:
         controller = RandomBaselineController(
             _random_baseline_rng(value.seed, player.seat, player.player_id)

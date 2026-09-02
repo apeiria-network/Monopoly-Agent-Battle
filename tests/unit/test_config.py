@@ -450,3 +450,27 @@ def test_config_rejects_unknown_prompt_profile() -> None:
 
     with pytest.raises(ValidationError, match="prompt_profile"):
         GameConfig.model_validate(data)
+
+
+def test_config_rejects_output_directory_with_parent_escape() -> None:
+    data = config_data()
+    data["output_directory"] = "../outside/runs"
+
+    with pytest.raises(ValidationError, match=r"\.\."):
+        GameConfig.model_validate(data)
+
+
+def test_config_accepts_relative_output_directory() -> None:
+    data = config_data()
+    data["output_directory"] = "test-runs/nested"
+
+    config = GameConfig.model_validate(data)
+    assert config.output_directory == Path("test-runs/nested")
+
+
+def test_config_accepts_absolute_output_directory(tmp_path: Path) -> None:
+    data = config_data()
+    data["output_directory"] = str(tmp_path)
+
+    config = GameConfig.model_validate(data)
+    assert config.output_directory == tmp_path
