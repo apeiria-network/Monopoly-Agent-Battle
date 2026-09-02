@@ -120,7 +120,7 @@ def run_full_four_player_game(output_directory: Path) -> Path:
 def _canonical_artifact(run_directory: Path, filename: str) -> object:
     """Normalize known wall-clock fields and unordered parallel records."""
     if filename.endswith(".jsonl"):
-        volatile = (
+        volatile: frozenset[str] = (
             frozenset({"duration_ms", "call_id"}) if filename == "llm_calls.jsonl" else frozenset()
         )
         unordered = filename == "llm_calls.jsonl"

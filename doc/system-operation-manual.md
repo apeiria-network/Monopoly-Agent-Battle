@@ -105,7 +105,7 @@ $env:MONOPOLY_TANG_EMPEROR_API_KEY = "临时Key"
 - 仅 `provider: openai_compatible` 需要凭据；`mock` 和 `fake` 均为本地、无网络、无凭据。
 - 若 `api_key_env` 指向的变量未设置，创建 OpenAI 兼容客户端时会失败——先确认变量已注入且命令在根目录执行。
 
-> 生产级日志脱敏、响应摘要保留、运行产物访问权限与日志保留周期尚待负责人确认策略，本手册暂不规定。当前实现已保证真实密钥不进入 `config.json`、`llm_calls.jsonl` 或错误信息。
+> 已确认的运行产物策略：`llm_calls.jsonl` 的响应摘要**保留原长、不脱敏**（真实密钥本就不进入 `config.json`、`llm_calls.jsonl` 或错误信息）；`output_directory` 拒绝含 `..` 的路径穿越，允许相对与绝对路径；**日志保留周期由人工管理，系统不做程序化自动清理**；并发运行时同名目录冲突由 `mkdir(exist_ok=False)` 天然拒绝，不覆盖既有产物。
 
 ---
 
@@ -150,7 +150,8 @@ CLI 提供四个子命令（`cli/main.py`）：`demo`、`play`、`report`、`res
 | `config.json` | 冻结配置 + `config_hash` + 规则/提示词版本 |
 | `events.jsonl` | 每条已执行命令及其领域事件，`event_id` 单调递增 |
 | `decisions.jsonl` | 决策请求、候选、响应校验、回退与实际命令 |
-| `llm_calls.jsonl` | 每次 LLM 调用（含失败）：角色、模型、token、耗时、错误。**纯随机局不生成** |
+| `llm_calls.jsonl` | 每次 LLM 调用（含失败）：角色、模型、token、耗时、错误、调用时回合号（`complete_rounds`）、原长响应摘要。**纯随机局不生成** |
+| `llm_digest.md` | 精简 LLM 回复摘要，一行一条「第 N 轮 · 发起者 · 决策：选项 · 理由（400 字符截断）」，最终决策（皇帝或 baseline 玩家）行加粗。含 LLM 调用时由 `play`/`report` 生成 |
 | `runtime.jsonl` | 重连、重试、上下文裁剪等运行时审计（不提供给 Agent） |
 | `result.json` | 终局状态、排名、有效性与计量 |
 | `performance.jsonl` | 朝廷官员绩效窗口（仅含朝廷玩家时生成） |

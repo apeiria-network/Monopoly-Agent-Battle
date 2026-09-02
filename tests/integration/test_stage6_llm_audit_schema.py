@@ -22,6 +22,7 @@ from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 
 CALL_FIELDS = {
     "call_id",
+    "complete_rounds",
     "caller_role",
     "model",
     "seed",

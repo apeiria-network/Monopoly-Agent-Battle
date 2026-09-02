@@ -37,6 +37,7 @@ from monopoly_agent_battle.llm.recording_client import RecordingLLMClient
 from monopoly_agent_battle.llm.registry import create_client, register_client_factory
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts, utc_timestamp
 from monopoly_agent_battle.performance.tracker import PerformanceTracker
+from monopoly_agent_battle.reporting.llm_digest import write_llm_digest
 from monopoly_agent_battle.reporting.single_game import write_single_game_report
 
 
@@ -84,6 +85,13 @@ def run_play(config_path: Path) -> Path:
     """Run a full game with configured mock-LLM and random non-LLM baselines."""
     config = load_game_config(config_path)
     artifacts = RunArtifacts.create(config)
+    # Build the engine first so recording clients can label each LLM call with
+    # the game's current complete-round number.
+    engine = GameEngine(config)
+
+    def _current_round() -> int:
+        return engine.state.complete_rounds
+
     controllers: dict[str, RawDecisionController] = {}
     conversations: dict[str, ConversationBinding] = {}
     needs_mock_client = any(
@@ -105,8 +113,12 @@ def run_play(config_path: Path) -> Path:
             assert isinstance(player.court_role_profiles, ShangCourtRoleProfiles)
             priest_profile = config.model_profiles[player.court_role_profiles.great_priest]
             emperor_profile = config.model_profiles[player.court_role_profiles.emperor]
-            priest_client = RecordingLLMClient(create_client(priest_profile), artifacts)
-            emperor_client = RecordingLLMClient(create_client(emperor_profile), artifacts)
+            priest_client = RecordingLLMClient(
+                create_client(priest_profile), artifacts, _current_round
+            )
+            emperor_client = RecordingLLMClient(
+                create_client(emperor_profile), artifacts, _current_round
+            )
             conversation = AgentConversation(
                 agent_id=player.player_id,
                 window_turns=config.window_turns,
@@ -129,7 +141,7 @@ def run_play(config_path: Path) -> Path:
                 for role in ("chancellor", "grand_marshal", "imperial_counsellor", "emperor")
             }
             role_clients = {
-                role: RecordingLLMClient(create_client(profile), artifacts)
+                role: RecordingLLMClient(create_client(profile), artifacts, _current_round)
                 for role, profile in roles.items()
             }
             role_conversations = {
@@ -167,7 +179,7 @@ def run_play(config_path: Path) -> Path:
                 )
             }
             role_clients = {
-                role: RecordingLLMClient(create_client(profile), artifacts)
+                role: RecordingLLMClient(create_client(profile), artifacts, _current_round)
                 for role, profile in roles.items()
             }
             role_conversations = {
@@ -200,7 +212,7 @@ def run_play(config_path: Path) -> Path:
                 for role in ("zhongshu", "menxia", "emperor")
             }
             role_clients = {
-                role: RecordingLLMClient(create_client(profile), artifacts)
+                role: RecordingLLMClient(create_client(profile), artifacts, _current_round)
                 for role, profile in roles.items()
             }
             role_conversations = {
@@ -228,7 +240,7 @@ def run_play(config_path: Path) -> Path:
             msg = f"player {player.player_id} has no model_profile"
             raise SystemExit(msg)
         profile = config.model_profiles[player.model_profile]
-        client = RecordingLLMClient(create_client(profile), artifacts)
+        client = RecordingLLMClient(create_client(profile), artifacts, _current_round)
         conversation = AgentConversation(
             agent_id=player.player_id,
             window_turns=config.window_turns,
@@ -241,7 +253,6 @@ def run_play(config_path: Path) -> Path:
             profile=profile,
             conversation=conversation,
         )
-    engine = GameEngine(config)
     court_types = {
         player.player_id: str(player.controller_type)
         for player in config.players
@@ -255,6 +266,9 @@ def run_play(config_path: Path) -> Path:
         conversations=conversations,
         performance_tracker=tracker,
     )
+    # Emit the condensed LLM reply digest when the game used any LLM controller.
+    if (artifacts.run_directory / "llm_calls.jsonl").exists():
+        write_llm_digest(artifacts.run_directory)
     return artifacts.run_directory
 
 
@@ -280,5 +294,7 @@ def main() -> None:
         print(run_play(arguments.config))
     elif arguments.command == "report":
         print(write_single_game_report(arguments.run_dir, arguments.output))
+        if (arguments.run_dir / "llm_calls.jsonl").exists():
+            print(write_llm_digest(arguments.run_dir))
     elif arguments.command == "resume":
         print(resume_random_game(arguments.run_dir))
