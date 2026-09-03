@@ -13,10 +13,30 @@ from monopoly_agent_battle.game.board_data.classic_us_40 import (
     RAILROAD_RENTS,
 )
 
-PLAYER_INSTRUCTION = """你正在代表玩家「{player_id}」（座位 {seat}）参与一局大富翁。
+# Segment-1 identity paragraphs. v1 is the legacy wording kept so old
+# prompt_profile configs keep rendering their original prompts; v2 is the
+# owner-approved rewrite (universal identity, full victory conditions,
+# engine-exact net-worth formula, explicit no-abstention rule).
+PLAYER_INSTRUCTION_V1 = """你正在代表玩家「{player_id}」（座位 {seat}）参与一局大富翁。
 你的目标：在回合上限结束时拥有最高净资产。
 净资产 = 现金 + 未抵押地产的购买价 + 所有已建成建筑的价值（房屋单价 × 建筑层数）。
 你只能从下方“合法候选操作”中选择一个，不得编造操作、修改参数、假设未提供的信息或请求隐藏信息。"""
+
+PLAYER_INSTRUCTION_V2 = """你正在一局大富翁对局中为一方玩家效力，与另外 1-3 名玩家在同一棋盘上竞争。
+你在本局代表玩家{player}
+胜负判定：当其余玩家全部破产时，最后存活者立即获胜；若直至本局回合上限仍未分出胜负，则按净资产排名，净资产相同者再比较现金。
+净资产 = 现金 + 全部地产的购买价 + 全部已建成建筑的价值（房屋单价 × 建筑层数）− 抵押中地产的购买价。
+你的每次行动都以决策完成：你将看到当前局面与全部合法候选操作，你只能从中选择一个；不得编造操作、修改参数、假设未提供的信息或请求隐藏信息；候选均不理想时也必须选出相对最优的一个，不得弃权。"""
+
+
+def _paragraph_version(prompt_profile: str) -> str:
+    """Map a prompt profile to its segment-1 paragraph version."""
+    if prompt_profile in ("full-v1", "cache-first-v1"):
+        return "v1"
+    if prompt_profile in ("full-v2", "cache-first-v2"):
+        return "v2"
+    raise AssertionError(f"unknown prompt profile: {prompt_profile}")
+
 
 _SPACE_KIND_CN = {
     "go": "起点",
@@ -44,12 +64,20 @@ _OUTPUT_GUIDE = (
 )
 
 
-def render_role(request: DecisionRequest, role_instruction: str | None = None) -> str:
+def render_role(
+    request: DecisionRequest,
+    role_instruction: str | None = None,
+    *,
+    prompt_profile: str = "full-v2",
+) -> str:
     """Segment 1: player identity, goal, and an optional court-role instruction."""
-    role = PLAYER_INSTRUCTION.format(
-        player_id=request.player_id,
-        seat=cast(dict[str, Any], request.visible_state)["your_state"]["seat"],
-    )
+    if _paragraph_version(prompt_profile) == "v1":
+        role = PLAYER_INSTRUCTION_V1.format(
+            player_id=request.player_id,
+            seat=cast(dict[str, Any], request.visible_state)["your_state"]["seat"],
+        )
+    else:
+        role = PLAYER_INSTRUCTION_V2.format(player=request.player_id)
     return role if role_instruction is None else role + "\n\n" + role_instruction
 
 
@@ -68,21 +96,21 @@ def render_system_prompt(
     *,
     role_instruction: str | None = None,
     output_guide: str | None = None,
-    prompt_profile: str = "full-v1",
+    prompt_profile: str = "full-v2",
 ) -> str:
     """Render fixed prompt segments using the selected compatible layout."""
     output_section = output_guide or ("## 输出要求\n" + _OUTPUT_GUIDE)
-    if prompt_profile == "cache-first-v1":
+    if prompt_profile.startswith("cache-first"):
         return "\n\n".join(
             (
                 _compact_fixed_markdown(render_rules()),
-                render_role(request, role_instruction),
+                render_role(request, role_instruction, prompt_profile=prompt_profile),
                 output_section,
             )
         )
     return "\n\n".join(
         (
-            render_role(request, role_instruction),
+            render_role(request, role_instruction, prompt_profile=prompt_profile),
             render_rules(),
             output_section,
         )
@@ -95,7 +123,7 @@ def render_situation(visible: dict[str, Any]) -> str:
 
 
 def render_decision_and_options(
-    request: DecisionRequest, *, prompt_profile: str = "full-v1"
+    request: DecisionRequest, *, prompt_profile: str = "full-v2"
 ) -> str:
     """Segments 8+9 for the current dynamic user message."""
     visible: dict[str, Any] = request.visible_state
@@ -128,7 +156,7 @@ def render_decision_question(request: DecisionRequest) -> str:
 
 
 def render_current_user_message(
-    request: DecisionRequest, *, prompt_profile: str = "full-v1"
+    request: DecisionRequest, *, prompt_profile: str = "full-v2"
 ) -> str:
     """Segments 5-9 merged for the final dynamic user message."""
     visible: dict[str, Any] = request.visible_state
@@ -139,7 +167,7 @@ def render_current_user_message(
     )
 
 
-def render_decision_prompt(request: DecisionRequest, *, prompt_profile: str = "full-v1") -> str:
+def render_decision_prompt(request: DecisionRequest, *, prompt_profile: str = "full-v2") -> str:
     """Return a compatibility single-string view of the current request.
 
     The view preserves the Stage 4C ordering: role, rules and fixed output

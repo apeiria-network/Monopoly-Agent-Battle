@@ -406,6 +406,22 @@ def test_prompt_contains_role_and_goal(tmp_path: Path) -> None:
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
+    assert "你正在一局大富翁对局中为一方玩家效力，与另外 1-3 名玩家在同一棋盘上竞争。" in prompt
+    assert "你在本局代表玩家a" in prompt
+    assert "当其余玩家全部破产时，最后存活者立即获胜" in prompt
+    assert (
+        "净资产 = 现金 + 全部地产的购买价 + 全部已建成建筑的价值（房屋单价 × 建筑层数）"
+        "− 抵押中地产的购买价。" in prompt
+    )
+    assert "候选均不理想时也必须选出相对最优的一个，不得弃权。" in prompt
+    assert "座位" not in prompt.split("## 游戏规则")[0]
+
+
+def test_prompt_v1_profile_keeps_legacy_identity(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    prompt = render_decision_prompt(build_decision_request(engine, 1), prompt_profile="full-v1")
+
     assert "你正在代表玩家「a」（座位 1）参与一局大富翁。" in prompt
     assert "你的目标：在回合上限结束时拥有最高净资产。" in prompt
     assert (
