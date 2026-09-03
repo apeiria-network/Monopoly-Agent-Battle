@@ -50,7 +50,7 @@ def test_protocol_rejects_missing_or_non_string_reason(tmp_path: Path, reason: o
     if reason is not None:
         document["reason"] = reason
     validation = parse_and_validate(json.dumps(document), request)
-    assert validation.error_category == "not_json"
+    assert validation.error_category == "missing_reason"
     assert validation.error == "reason field is missing or not a string"
 
 
@@ -106,7 +106,7 @@ def test_protocol_rejects_non_string_reason(tmp_path: Path, reason: object) -> N
     validation = parse_and_validate(
         json.dumps({"selected_option": {"option": "end_turn"}, "reason": reason}), request
     )
-    assert validation.error_category == "not_json"
+    assert validation.error_category == "missing_reason"
     assert validation.error == "reason field is missing or not a string"
 
 

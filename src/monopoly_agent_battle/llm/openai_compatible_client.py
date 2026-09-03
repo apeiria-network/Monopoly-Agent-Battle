@@ -54,7 +54,6 @@ class OpenAICompatibleClient(LLMClient):
             "messages": [
                 {"role": message.role, "content": message.content} for message in request.messages
             ],
-
             "thinking": {"type": "enabled" if self._thinking else "disabled"},
         }
         if request.temperature is not None:

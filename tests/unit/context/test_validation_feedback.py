@@ -41,6 +41,17 @@ def test_not_json_template(tmp_path: Path) -> None:
     assert build_feedback(validation, request) == "Error: 决策回复必须是一个JSON"
 
 
+def test_missing_reason_template(tmp_path: Path) -> None:
+    engine = _make_engine(tmp_path)
+    request = build_decision_request(engine, sequence=1)
+    validation = parse_and_validate('{"selected_option": {"option": "end_turn"}}', request)
+    assert validation.error_category == "missing_reason"
+    assert (
+        build_feedback(validation, request)
+        == "Error: 回复缺少必填的 reason 字段，reason 必须是字符串"
+    )
+
+
 def test_missing_option_template(tmp_path: Path) -> None:
     engine = _make_engine(tmp_path)
     request = build_decision_request(engine, sequence=1)

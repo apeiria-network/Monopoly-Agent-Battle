@@ -90,13 +90,13 @@ def strip_code_fence(raw_response: str) -> str:
 
 
 def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionValidation:
-    """Parse an untrusted controller reply into one of the five outcomes.
+    """Parse an untrusted controller reply into one of the six outcomes.
 
     Sets ``DecisionValidation.error_category`` on failure so the feedback
     renderer can pick the right template:
 
-    - ``not_json``          — JSON parsing or top-level structure is broken;
-                              includes missing/non-string ``reason``.
+    - ``not_json``          — JSON parsing or top-level structure is broken.
+    - ``missing_reason``    — ``reason`` is absent or not a string.
     - ``missing_option``    — ``selected_option`` block or its ``option`` field
                               is absent or not a string.
     - ``invalid_option``    — ``option`` value does not match any candidate.
@@ -117,7 +117,7 @@ def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionV
 
     reason = document.get("reason")
     if not isinstance(reason, str):
-        return _fail("not_json", "reason field is missing or not a string", raw_response)
+        return _fail("missing_reason", "reason field is missing or not a string", raw_response)
     reason = reason[:_MAX_REASON_CHARS]
 
     selected = document.get("selected_option")
