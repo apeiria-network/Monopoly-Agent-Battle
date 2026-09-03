@@ -215,6 +215,27 @@ def test_response_requires_one_known_option_and_reason(tmp_path: Path) -> None:
     assert extra_field_ok.valid
 
 
+def test_response_tolerates_markdown_code_fence(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].jail_status = JailStatus.ROLLING
+    request = build_decision_request(engine, 1)
+    inner = json.dumps({"selected_option": {"option": "roll_dice"}, "reason": "掷骰推进。"})
+
+    fenced_json = parse_and_validate(f"```json\n{inner}\n```", request)
+    fenced_bare = parse_and_validate(f"```\n{inner}\n```", request)
+    fenced_padded = parse_and_validate(f"  ```json\n{inner}\n```  ", request)
+    plain = parse_and_validate(inner, request)
+    # A genuinely broken reply must still fail even if it looks fenced.
+    broken = parse_and_validate("```json\nnot-json\n```", request)
+
+    assert fenced_json.valid
+    assert fenced_bare.valid
+    assert fenced_padded.valid
+    assert plain.valid
+    assert not broken.valid
+    assert broken.error_category == "not_json"
+
+
 def test_prompt_contains_request_and_fixed_response_contract(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT

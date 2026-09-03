@@ -84,6 +84,15 @@ def test_tang_agree_order_and_review_contract(tmp_path: Path) -> None:
     assert "agree" in clients["menxia"].requests[0].messages[-1].content
 
 
+def test_tang_menxia_accepts_code_fenced_review(tmp_path: Path) -> None:
+    req = request(tmp_path)
+    fenced_review = f"```json\n{review('agree')}\n```"
+    agent, clients = make(req, tmp_path, [fenced_review])
+    assert json.loads(agent(req))["reason"] == "终裁"
+    # A fenced-but-valid review is accepted on the first call: no extra round.
+    assert [len(clients[role].requests) for role in ("zhongshu", "menxia", "emperor")] == [1, 1, 1]
+
+
 def test_tang_three_disagree_has_no_fourth_round(tmp_path: Path) -> None:
     req = request(tmp_path)
     agent, clients = make(req, tmp_path, [review("disagree")] * 3)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from typing import cast
@@ -64,6 +65,30 @@ _COMMAND_FACTORIES: dict[str, CommandFactory] = {
 }
 
 
+_CODE_FENCE_RE = re.compile(
+    r"^\s*```[^\n`]*\n(?P<body>.*?)\n?```\s*$",
+    re.DOTALL,
+)
+
+
+def strip_code_fence(raw_response: str) -> str:
+    """Unwrap a single Markdown code fence around a model reply, if present.
+
+    Many models wrap their JSON in ```json ... ``` (or a bare ``` ... ```)
+    despite the prompt asking for a raw object. The output contract still says
+    "no code block", but tolerating one fence avoids a needless validation
+    failure + retry. Only an outer fence that spans the whole trimmed reply is
+    removed; text without a fence (or malformed fencing) is returned unchanged,
+    so genuinely broken replies still fail downstream JSON parsing.
+
+    Public so the dynasty sub-parsers (which parse raw model replies through
+    their own bespoke schemas rather than ``parse_and_validate``) can share the
+    exact same fence-tolerance behaviour.
+    """
+    match = _CODE_FENCE_RE.match(raw_response)
+    return match.group("body") if match is not None else raw_response
+
+
 def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionValidation:
     """Parse an untrusted controller reply into one of the five outcomes.
 
@@ -83,7 +108,7 @@ def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionV
     ``reason`` longer than ``_MAX_REASON_CHARS`` is truncated (not an error).
     """
     try:
-        document = json.loads(raw_response)
+        document = json.loads(strip_code_fence(raw_response))
     except json.JSONDecodeError:
         return _fail("not_json", "response is not valid JSON", raw_response)
     if not isinstance(document, dict):

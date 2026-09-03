@@ -14,7 +14,11 @@ from monopoly_agent_battle.context.token_guard import ContextWarning
 from monopoly_agent_battle.context.validation_feedback import build_feedback
 from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.prompts import render_decision_question
-from monopoly_agent_battle.decision.protocol import default_option_json, parse_and_validate
+from monopoly_agent_battle.decision.protocol import (
+    default_option_json,
+    parse_and_validate,
+    strip_code_fence,
+)
 from monopoly_agent_battle.llm.protocol import LLMClient, LLMMessage, LLMRequest
 
 _ZHONGSHU = "zhongshu"
@@ -451,7 +455,7 @@ def _trusted_round_context(rounds: list[_Round], start_round: int = 1) -> str:
             (_MENXIA, _REVIEW, item.review),
         ):
             try:
-                value = json.loads(raw)
+                value = json.loads(strip_code_fence(raw))
             except (json.JSONDecodeError, TypeError):
                 value = raw
             if isinstance(value, dict):
@@ -470,7 +474,7 @@ def _trusted_round_context(rounds: list[_Round], start_round: int = 1) -> str:
 
 def _parse_review(raw: str) -> tuple[str, str] | None:
     try:
-        value = json.loads(raw)
+        value = json.loads(strip_code_fence(raw))
         if not isinstance(value, dict):
             return None
         document = cast(dict[str, Any], value)
