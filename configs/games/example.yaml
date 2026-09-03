@@ -1,4 +1,4 @@
-game_id: four-courts-openai-compatible-demo
+﻿game_id: four-courts-openai-compatible-demo
 experiment_id: four-courts-openai-compatible-demo
 seed: 42
 players:
@@ -36,7 +36,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://shang-priest.example.com/v1
     api_key_env: MONOPOLY_SHANG_GREAT_PRIEST_API_KEY
-    model: shang-great-priest-model
+    model: GLM-5-Turbo
     seed: 42
     temperature: 0.2
     max_tokens: 120
@@ -44,7 +44,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://shang-emperor.example.com/v1
     api_key_env: MONOPOLY_SHANG_EMPEROR_API_KEY
-    model: shang-emperor-model
+    model: DeepSeek-V4-Flash
     seed: 42
     temperature: 0.2
     max_tokens: 320
@@ -52,7 +52,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://qin-chancellor.example.com/v1
     api_key_env: MONOPOLY_QIN_CHANCELLOR_API_KEY
-    model: qin-chancellor-model
+    model: GLM-5-Turbo
     seed: 42
     temperature: 0.2
     max_tokens: 320
@@ -60,7 +60,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://qin-grand-marshal.example.com/v1
     api_key_env: MONOPOLY_QIN_GRAND_MARSHAL_API_KEY
-    model: qin-grand-marshal-model
+    model: DeepSeek-V4-Flash
     seed: 42
     temperature: 0.2
     max_tokens: 320
@@ -68,7 +68,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://qin-counsellor.example.com/v1
     api_key_env: MONOPOLY_QIN_IMPERIAL_COUNSELLOR_API_KEY
-    model: qin-imperial-counsellor-model
+    model: DeepSeek-V4-Pro
     seed: 42
     temperature: 0.2
     max_tokens: 320
@@ -76,7 +76,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://qin-emperor.example.com/v1
     api_key_env: MONOPOLY_QIN_EMPEROR_API_KEY
-    model: qin-emperor-model
+    model: Kimi-K2.6
     seed: 42
     temperature: 0.2
     max_tokens: 320
@@ -84,7 +84,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://tang-zhongshu.example.com/v1
     api_key_env: MONOPOLY_TANG_ZHONGSHU_API_KEY
-    model: tang-zhongshu-model
+    model: Qwen3.7-Plus
     seed: 42
     temperature: 0.2
     max_tokens: 320
@@ -92,7 +92,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://tang-menxia.example.com/v1
     api_key_env: MONOPOLY_TANG_MENXIA_API_KEY
-    model: tang-menxia-model
+    model: Qwen3.8-Max
     seed: 42
     temperature: 0.2
     max_tokens: 180
@@ -100,7 +100,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://tang-emperor.example.com/v1
     api_key_env: MONOPOLY_TANG_EMPEROR_API_KEY
-    model: tang-emperor-model
+    model: Kimi-K2.6
     seed: 42
     temperature: 0.2
     max_tokens: 320
@@ -108,7 +108,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://ming-chief.example.com/v1
     api_key_env: MONOPOLY_MING_CHIEF_GRAND_SECRETARY_API_KEY
-    model: ming-chief-grand-secretary-model
+    model: DeepSeek-V4-Pro
     seed: 42
     temperature: 0.2
     max_tokens: 320
@@ -116,7 +116,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://ming-secretary-1.example.com/v1
     api_key_env: MONOPOLY_MING_GRAND_SECRETARY_1_API_KEY
-    model: ming-grand-secretary-1-model
+    model: Qwen3.7-Plus
     seed: 42
     temperature: 0.2
     max_tokens: 320
@@ -124,7 +124,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://ming-secretary-2.example.com/v1
     api_key_env: MONOPOLY_MING_GRAND_SECRETARY_2_API_KEY
-    model: ming-grand-secretary-2-model
+    model: Qwen3.8-Max
     seed: 42
     temperature: 0.2
     max_tokens: 320
@@ -132,7 +132,7 @@ model_profiles:
     provider: openai_compatible
     base_url: https://ming-emperor.example.com/v1
     api_key_env: MONOPOLY_MING_EMPEROR_API_KEY
-    model: ming-emperor-model
+    model: GLM-5-Turbo
     seed: 42
     temperature: 0.2
     max_tokens: 320

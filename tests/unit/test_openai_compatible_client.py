@@ -7,7 +7,7 @@ import urllib.error
 import urllib.request
 from email.message import Message
 from io import BytesIO
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -40,7 +40,7 @@ def profile(**overrides: object) -> ModelProfile:
         "provider": "openai_compatible",
         "base_url": "https://example.test/v1/",
         "api_key_env": "TEST_LLM_API_KEY",
-        "model": "configured-model",
+        "model": "GLM-5-Turbo",
         "temperature": 0.4,
         "max_tokens": 321,
         "timeout_seconds": 12,
@@ -111,6 +111,7 @@ def test_client_sends_independent_endpoint_credentials_and_parameters(
             "temperature": 0.3,
             "max_tokens": 123,
             "seed": 42,
+            "thinking": {"type": "disabled"},
         },
         "timeout": 7,
     }
@@ -143,6 +144,32 @@ def test_client_defaults_missing_cached_token_details_to_zero(
 
     assert usage.cached_input_tokens == 0
     assert usage.uncached_input_tokens == 10
+
+
+def test_client_sends_enabled_thinking_when_profile_opts_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_LLM_API_KEY", "secret")
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(http_request: urllib.request.Request, timeout: float) -> FakeHTTPResponse:
+        del timeout
+        raw_data = http_request.data
+        assert isinstance(raw_data, bytes)
+        captured["payload"] = json.loads(raw_data.decode("utf-8"))
+        return FakeHTTPResponse(
+            {
+                "model": "actual-model",
+                "choices": [{"message": {"content": "answer"}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 4},
+            }
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    OpenAICompatibleClient(profile(thinking=True)).complete(request())
+
+    payload = cast(dict[str, Any], captured["payload"])
+    assert payload["thinking"] == {"type": "enabled"}
 
 
 def test_client_rejects_missing_environment_credential(monkeypatch: pytest.MonkeyPatch) -> None:

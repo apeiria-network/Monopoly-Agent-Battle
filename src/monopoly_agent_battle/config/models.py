@@ -7,6 +7,17 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+SUPPORTED_REMOTE_MODELS: frozenset[str] = frozenset(
+    {
+        "GLM-5-Turbo",
+        "DeepSeek-V4-Flash",
+        "DeepSeek-V4-Pro",
+        "Qwen3.7-Plus",
+        "Qwen3.8-Max",
+        "Kimi-K2.6",
+    }
+)
+
 
 class ModelProfile(BaseModel):
     """Sampling, routing, and credential-reference settings for one AI role."""
@@ -25,6 +36,13 @@ class ModelProfile(BaseModel):
     temperature: float | None = None
     max_tokens: int | None = Field(default=None, ge=1)
     timeout_seconds: float | None = Field(default=None, gt=0)
+    thinking: bool = Field(
+        default=False,
+        description=(
+            "Enable model thinking mode; disabled by default and only "
+            "explicitly enabled takes effect"
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_provider_settings(self) -> ModelProfile:

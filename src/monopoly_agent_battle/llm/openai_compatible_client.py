@@ -45,6 +45,7 @@ class OpenAICompatibleClient(LLMClient):
         self._endpoint = f"{profile.base_url.rstrip('/')}/chat/completions"
         self._api_key = api_key
         self._default_timeout = profile.timeout_seconds or _DEFAULT_TIMEOUT_SECONDS
+        self._thinking = profile.thinking
 
     def complete(self, request: LLMRequest) -> LLMResponse:
         """Send a chat-completions request and normalize its text and usage."""
@@ -53,6 +54,8 @@ class OpenAICompatibleClient(LLMClient):
             "messages": [
                 {"role": message.role, "content": message.content} for message in request.messages
             ],
+
+            "thinking": {"type": "enabled" if self._thinking else "disabled"},
         }
         if request.temperature is not None:
             payload["temperature"] = request.temperature

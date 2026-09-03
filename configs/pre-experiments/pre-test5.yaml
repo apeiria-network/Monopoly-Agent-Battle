@@ -1,10 +1,10 @@
-game_id: pre-test5-qin-vs-baselines
+﻿game_id: pre-test5-qin-vs-baselines
 experiment_id: pre-test
 seed: 42
 # pre test5
 # Qin vs 3 * baseline AI
-# all deepseek-v4-flash
-# total rounds: 50
+# all DeepSeek-V4-Flash
+# total rounds: 3
 
 players:
   - player_id: qin-court
@@ -33,74 +33,74 @@ model_profiles:
     provider: openai_compatible
     base_url: https://llmapi.paratera.com/
     api_key_env: MONOPOLY_API_KEY2
-    model: deepseek-v4-flash
+    model: DeepSeek-V4-Flash
     seed: 42
     temperature: 0.2
-    dmax_tokens: 500
+    max_tokens: 500
     timeout_seconds: 60
 
   qin-grand-marshal:
     provider: openai_compatible
     base_url: https://llmapi.paratera.com/
     api_key_env: MONOPOLY_API_KEY2
-    model: deepseek-v4-flash
+    model: DeepSeek-V4-Flash
     seed: 42
     temperature: 0.2
-    dmax_tokens: 500
+    max_tokens: 500
     timeout_seconds: 60
 
   qin-imperial-counsellor:
     provider: openai_compatible
     base_url: https://llmapi.paratera.com/
     api_key_env: MONOPOLY_API_KEY2
-    model: deepseek-v4-flash
+    model: DeepSeek-V4-Flash
     seed: 42
     temperature: 0.2
-    dmax_tokens: 500
+    max_tokens: 500
     timeout_seconds: 60
 
   qin-emperor:
     provider: openai_compatible
     base_url: https://llmapi.paratera.com/
     api_key_env: MONOPOLY_API_KEY2
-    model: deepseek-v4-flash
+    model: DeepSeek-V4-Flash
     seed: 42
     temperature: 0.2
-    dmax_tokens: 500
+    max_tokens: 500
     timeout_seconds: 60
 
   baseline-model-1:
     provider: openai_compatible
     base_url: https://llmapi.paratera.com/
     api_key_env: MONOPOLY_API_KEY2
-    model: deepseek-v4-flash
+    model: DeepSeek-V4-Flash
     seed: 42
     temperature: 0.2
-    dmax_tokens: 500
+    max_tokens: 500
     timeout_seconds: 60
 
   baseline-model-2:
     provider: openai_compatible
     base_url: https://llmapi.paratera.com/
     api_key_env: MONOPOLY_API_KEY2
-    model: deepseek-v4-flash
+    model: DeepSeek-V4-Flash
     seed: 42
     temperature: 0.2
-    dmax_tokens: 500
+    max_tokens: 500
     timeout_seconds: 60
 
   baseline-model-3:
     provider: openai_compatible
     base_url: https://llmapi.paratera.com/
     api_key_env: MONOPOLY_API_KEY2
-    model: deepseek-v4-flash
+    model: DeepSeek-V4-Flash
     seed: 42
     temperature: 0.2
-    dmax_tokens: 500
+    max_tokens: 500
     timeout_seconds: 60
 
 initial_cash: 1500
-max_complete_rounds: 50
+max_complete_rounds: 3
 rules_version: classic-level0-v1
 rules_level: 0
 board_data_version: classic-us-40-v1
