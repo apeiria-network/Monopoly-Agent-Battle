@@ -1,10 +1,10 @@
-﻿game_id: pre-test6-qin-vs-baselines
+﻿game_id: pre-test7-qin-vs-baselines
 experiment_id: pre-test
 seed: 42
-# pre test6
+# pre test7
 # Qin vs 3 * baseline AI
 # all DeepSeek-V4-Flash
-# total rounds: 5
+# total rounds: 50
 
 players:
   - player_id: qin-court
@@ -100,7 +100,7 @@ model_profiles:
     timeout_seconds: 60
 
 initial_cash: 1500
-max_complete_rounds: 5
+max_complete_rounds: 50
 initial_chance_cards: 2
 rules_version: classic-level0-v1
 rules_level: 0

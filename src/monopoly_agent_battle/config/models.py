@@ -150,6 +150,7 @@ class GameConfig(BaseModel):
     seed: int
     players: tuple[PlayerConfig, ...]
     initial_cash: int = Field(default=1500, ge=0)
+    initial_chance_cards: int = Field(default=0, ge=0, le=4)
     max_complete_rounds: int = Field(default=50, ge=1)
     rules_version: str = Field(min_length=1)
     rules_level: int = Field(default=0, ge=0, le=2)

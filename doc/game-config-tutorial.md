@@ -68,12 +68,15 @@ output_directory: runs
 | `seed` | 是 | 游戏随机种子，影响骰子、卡牌洗牌和随机玩家行为。 |
 | `players` | 是 | 玩家列表，必须包含 2 至 4 名玩家。 |
 | `initial_cash` | 否 | 初始现金，默认 `1500`。 |
+| `initial_chance_cards` | 否 | 开局每位玩家从洗好的机会牌堆获得的机会卡张数，默认 `0`（不发牌）。允许 `0` 至 `4`。 |
 | `max_complete_rounds` | 否 | 最大完整回合数，默认 `50`。 |
 | `rules_version` | 是 | 当前填写 `classic-level0-v1`。 |
 | `rules_level` | 是 | 当前必须填写 `0`。 |
 | `board_data_version` | 是 | 当前填写 `classic-us-40-v1`。 |
 | `card_data_version` | 是 | 当前填写 `classic-cards-v1`。 |
 | `output_directory` | 否 | 运行结果根目录，默认 `runs`。 |
+
+`initial_chance_cards` 大于 `0` 时，引擎开局按座位顺序从洗好的机会牌堆顶部为每位玩家发卡；发牌不产生事件、不播报，发出的卡立即进入该玩家的手牌并可在其首个出牌阶段打出。相同 `seed` 下发牌结果确定；省略或填 `0` 时行为与旧版一致。
 
 ## 4. 玩家配置
 

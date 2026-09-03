@@ -75,6 +75,7 @@ python -m venv .venv
 - **模型白名单**：`openai_compatible` 只接受六个实测支持思考开关的模型——`GLM-5-Turbo`、`DeepSeek-V4-Flash`、`DeepSeek-V4-Pro`、`Qwen3.7-Plus`、`Qwen3.8-Max`、`Kimi-K2.6`；范围外模型在 YAML 加载时报错（全局生效，不区分 URL）。白名单定义在 `config/models.py::SUPPORTED_REMOTE_MODELS`，校验在 `config/loader.py`；校验置于 loader 层而非 profile 层，因此旧对局（含非白名单模型）的回放不受影响。
 - **思考模式默认关闭**：每个 profile 可独立设置 `thinking`（布尔，默认 `false`）；客户端统一注入思考开关参数，仅显式 `thinking: true` 时启用。开启后思考 token 计入输出，`max_tokens` 需调大。字段参与 `config_hash`。详见[配置教程](game-config-tutorial.md) 7.1/7.2 节。
 - LLM 运行参数（`validation_retries`、`window_turns`、`prompt_profile`、`context_token_cap` 等）也会冻结进 `config.json`，参与 `config_hash`。
+- **开局发牌（可选）**：`initial_chance_cards`（整数，默认 `0`，上限 `4`）控制开局按座位顺序为每位玩家从洗好的机会牌堆顶部发放的卡数。发牌不产生事件与播报，手牌内容遵守信息隔离；相同 `seed` 下发牌确定。填 `0` 或省略时行为与旧版完全一致，旧对局回放不受影响；字段参与 `config_hash`，详见[配置教程](game-config-tutorial.md) 第 3 节。
 
 修改任何配置后**必须更换 `experiment_id` 或 `game_id`**，程序不会覆盖已有运行目录。
 

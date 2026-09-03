@@ -162,3 +162,30 @@ def test_replay_rejects_nonsequential_event_ids(tmp_path: Path) -> None:
 
     with pytest.raises(ReplayVerificationError, match="expected event_id 2"):
         verify_run(artifacts.run_directory)
+
+
+def test_replay_tolerates_card_discarded_without_reason_field(tmp_path: Path) -> None:
+    config = make_config(tmp_path).model_copy(update={"seed": 7, "max_complete_rounds": 2})
+    artifacts = RunArtifacts.create(config)
+    engine = make_engine(config, [1, 6])
+
+    run_scripted_game(
+        config,
+        ScriptedController([RollDice("a"), UseChanceCard("a", "chance-waiver")]),
+        artifacts,
+        engine,
+    )
+    events_path = artifacts.run_directory / "events.jsonl"
+    records = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines()]
+    stripped = False
+    for record in records:
+        if record["event_type"] == "card_discarded":
+            record["payload"].pop("reason", None)
+            stripped = True
+    assert stripped, "scenario must produce at least one card_discarded event"
+    events_path.write_text(
+        "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records),
+        encoding="utf-8",
+    )
+
+    verify_run(artifacts.run_directory)

@@ -77,6 +77,14 @@ class GameEngine:
         community_chest_draw_pile = [card.card_id for card in COMMUNITY_CHEST_CARDS]
         self.random.shuffle(chance_draw_pile)
         self.random.shuffle(community_chest_draw_pile)
+        if config.initial_chance_cards > 0:
+            seated_players = sorted(players.values(), key=lambda player: player.seat)
+            total_deal = config.initial_chance_cards * len(seated_players)
+            if total_deal > len(chance_draw_pile):
+                raise ValueError("initial chance card deal exceeds the draw pile size")
+            for _ in range(config.initial_chance_cards):
+                for player in seated_players:
+                    player.chance_cards.append(chance_draw_pile.pop())
         self.state = GameState(
             players=players,
             properties={space.position: PropertyState() for space in BOARD if space.is_property},

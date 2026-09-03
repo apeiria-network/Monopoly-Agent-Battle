@@ -83,9 +83,22 @@ def verify_run(run_directory: Path) -> None:
 
 def _canonical_events(events: list[GameEvent]) -> list[tuple[str, str]]:
     return [
-        (event.event_type, json.dumps(event.payload, ensure_ascii=False, sort_keys=True))
-        for event in events
+        (event.event_type, _canonical_payload(event.event_type, event.payload)) for event in events
     ]
+
+
+def _canonical_payload(event_type: str, payload: dict[str, object]) -> str:
+    """Serialize one event payload, dropping provenance-only fields.
+
+    ``card_discarded.reason`` marks why a card left the player's hand
+    (played / hand_limit / bankruptcy); runs recorded before the field
+    existed lack it. It never influences engine state, so replay
+    verification ignores it on both sides.
+    """
+    normalized = dict(payload)
+    if event_type == "card_discarded":
+        normalized.pop("reason", None)
+    return json.dumps(normalized, ensure_ascii=False, sort_keys=True)
 
 
 def _command_from_record(payload: dict[str, Any]):

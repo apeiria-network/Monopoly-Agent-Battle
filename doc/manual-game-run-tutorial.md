@@ -189,6 +189,7 @@ output_directory: runs
 | `seed` | 是 | 任意整数。相同配置和种子可复现骰子、牌堆和随机玩家选择；修改它可得到另一局随机过程。 |
 | `players` | 是 | 2 至 4 名玩家的列表；每名玩家的 `seat` 必须唯一。 |
 | `initial_cash` | 否 | 每名玩家初始现金；默认 `1500`，可设为不小于 `0` 的整数。 |
+| `initial_chance_cards` | 否 | 开局每位玩家从洗好的机会牌堆获得的机会卡张数；默认 `0`（不发牌），可设 `0` 至 `4`。发牌不产生事件播报。 |
 | `max_complete_rounds` | 否 | 最多完成多少完整回合；默认 `50`，必须至少为 `1`。 |
 | `rules_version` | 是 | 当前使用 `classic-level0-v1`。 |
 | `rules_level` | 否 | 当前必须为 `0`。Level 1 和 Level 2 配置会被拒绝。 |

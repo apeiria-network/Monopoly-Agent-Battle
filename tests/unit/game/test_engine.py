@@ -8,7 +8,13 @@ from monopoly_agent_battle.domain.models import JailStatus, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine, GameRuleError
 
 
-def make_engine(tmp_path: Path, *, seed: int = 1, cash: int = 1500) -> GameEngine:
+def make_engine(
+    tmp_path: Path,
+    *,
+    seed: int = 1,
+    cash: int = 1500,
+    initial_chance_cards: int = 0,
+) -> GameEngine:
     return GameEngine(
         GameConfig(
             game_id="game",
@@ -16,6 +22,7 @@ def make_engine(tmp_path: Path, *, seed: int = 1, cash: int = 1500) -> GameEngin
             seed=seed,
             players=(PlayerConfig(player_id="a", seat=1), PlayerConfig(player_id="b", seat=2)),
             initial_cash=cash,
+            initial_chance_cards=initial_chance_cards,
             max_complete_rounds=2,
             rules_version="classic-level0-v1",
             board_data_version="classic-us-40-v1",
@@ -105,3 +112,33 @@ def test_redeem_mortgage_charges_ten_percent_interest(tmp_path: Path) -> None:
 
     assert engine.state.players["a"].cash == 1494
     assert not engine.state.properties[1].mortgaged
+
+
+def test_initial_chance_cards_deal_from_shuffled_pile(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path, initial_chance_cards=2)
+
+    held = [player.chance_cards for player in engine.state.players.values()]
+    assert all(len(cards) == 2 for cards in held)
+    assert sum(len(cards) for cards in held) == 4
+    dealt = {card for cards in held for card in cards}
+    assert len(dealt) == 4
+    assert len(engine.state.chance_draw_pile) == 12
+    for cards in held:
+        assert all(card not in engine.state.chance_draw_pile for card in cards)
+
+
+def test_initial_chance_cards_deterministic_per_seed(tmp_path: Path) -> None:
+    first = make_engine(tmp_path, seed=7, initial_chance_cards=2)
+    second = make_engine(tmp_path, seed=7, initial_chance_cards=2)
+    other = make_engine(tmp_path, seed=8, initial_chance_cards=2)
+
+    assert first.state.players == second.state.players
+    assert first.state.chance_draw_pile == second.state.chance_draw_pile
+    assert first.state.players != other.state.players
+
+
+def test_initial_chance_cards_default_deals_nothing(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+
+    assert all(player.chance_cards == [] for player in engine.state.players.values())
+    assert len(engine.state.chance_draw_pile) == 16
