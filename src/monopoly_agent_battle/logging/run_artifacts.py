@@ -55,18 +55,6 @@ class RunArtifacts:
         """Return the next event identifier without advancing it."""
         return self._next_event_id
 
-    def write_checkpoint(self, checkpoint: dict[str, Any]) -> None:
-        """Atomically replace the resumable checkpoint document."""
-        temporary = self.run_directory / "checkpoint.json.tmp"
-        document = dict(checkpoint)
-        document["last_event_id"] = self._next_event_id - 1
-        self.write_json("checkpoint.json.tmp", document)
-        temporary.replace(self.run_directory / "checkpoint.json")
-
-    def read_checkpoint(self) -> dict[str, Any]:
-        """Read the latest checkpoint document."""
-        return json.loads((self.run_directory / "checkpoint.json").read_text(encoding="utf-8"))
-
     def append_event(self, event_type: str, payload: dict[str, Any]) -> None:
         """Append one sequenced event to the immutable event stream."""
         self.append_jsonl(

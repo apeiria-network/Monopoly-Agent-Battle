@@ -382,55 +382,45 @@ runs/local-mixed-test/mixed-game-001/
 | `runtime.jsonl` | 重试、上下文裁剪等运行时审计记录。 | 排查 LLM 链路和运行时告警。 |
 | `llm_calls.jsonl` | 每次 LLM 客户端调用，包括失败调用。 | 普通 LLM 玩家或朝廷 Agent 对局生成；纯随机局没有该文件。 |
 
-## 5. 断点保存与续跑
+## 5. 批量运行多局对局
 
-当前断点续跑功能的行为是：**断点保存自动进行，断点续跑需要手动执行命令**。
+单局运行仍使用 `play --config <配置文件路径>`。需要按顺序运行多个独立 YAML 时，另使用一份批次清单。
 
-### 5.1 自动保存断点
+### 5.1 单独运行一个 YAML
 
-对局运行过程中，程序会在每条命令执行完成后自动更新运行目录中的：
-
-```text
-checkpoint.json
-```
-
-例如：
-
-```text
-runs/quickstart-001/quickstart-random/checkpoint.json
-```
-
-如果进程被关闭、终端中断或发生异常，只要该运行目录和其中的产物仍然完整，就可以尝试续跑。无需手动创建或复制 checkpoint 文件。
-
-### 5.2 手动续跑
-
-当前仅支持**全随机 `random_baseline` 对局**续跑。使用原运行目录执行：
+每局可以直接使用自己的 YAML 文件运行，不需要创建批次清单：
 
 ```powershell
-.\.venv\Scripts\monopoly-agent-battle.exe resume `
-  --run-dir runs/<experiment_id>/<game_id>
+.\.venv\Scripts\monopoly-agent-battle.exe play `
+  --config configs/games/your-game.yaml
 ```
 
-例如：
+该局仍按照 YAML 中的 `output_directory`、`experiment_id` 和 `game_id` 生成运行产物：
+
+```text
+<output_directory>/<experiment_id>/<game_id>/
+```
+
+单局结果查看、过程检查和回放验证沿用本教程前面的快速开始流程。
+
+### 5.2 批量运行多个 YAML
+
+批次清单示例：
+
+```yaml
+games:
+  - game_a.yaml
+  - game_b.yaml
+```
+
+清单中的相对路径以清单文件所在目录为基准。每个对局 YAML 仍使用自身的 `output_directory`、`experiment_id` 和 `game_id`，各局产物继续写入各自的运行目录。
 
 ```powershell
-.\.venv\Scripts\monopoly-agent-battle.exe resume `
-  --run-dir runs/quickstart-001/quickstart-random
+.\.venv\Scripts\monopoly-agent-battle.exe experiment run `
+  --batch configs/experiments/preexperiment_demo/batch.yaml
 ```
 
-续跑时不需要重新指定 YAML。程序会从最近一次完整命令边界恢复游戏状态、引擎随机数和随机玩家决策序列，并继续写入原运行目录。续跑完成后会自动执行回放验证。
-
-### 5.3 续跑限制与拒绝情况
-
-以下情况不能使用当前 `resume` 命令：
-
-- 对局包含普通 LLM 玩家或商、秦、唐、明朝廷 Agent；
-- 对局已经正常完成；
-- 缺少或损坏 `checkpoint.json`；
-- 配置哈希、事件编号或历史随机决策记录不一致；
-- 手动修改了运行目录中的审计产物。
-
-如果程序拒绝续跑，请保留错误信息和原运行目录，不要删除或覆盖其中的 `events.jsonl`、`decisions.jsonl`、`config.json` 或 `checkpoint.json`。
+程序先检查全部清单文件、配置有效性和 `game_id` 是否重复；预检查失败时不启动任何对局。检查通过后按清单顺序执行，单局异常记录为 `failed` 并继续后续对局。批次状态写入清单同目录的 `tasks.jsonl`，不替代各局原有运行产物。
 
 ## 6. 查看结果和过程
 

@@ -53,7 +53,7 @@ python -m venv .venv
 | 绩效 | 净资产窗口、一致性统计、差评判定 | `performance/` |
 | 运行产物 | 冻结配置、JSONL 审计、结果快照、回放 | `logging/run_artifacts.py`、`game/replay.py` |
 | 报告 | 从产物生成安全可读的单局报告 | `reporting/single_game.py` |
-| CLI | `demo` / `play` / `report` / `resume` 入口 | `cli/main.py` |
+| CLI | `demo` / `play` / `report` / `experiment run` 入口 | `cli/main.py` |
 
 ### 2.1 关键设计约束（运行时须知）
 
@@ -111,7 +111,7 @@ $env:MONOPOLY_TANG_EMPEROR_API_KEY = "临时Key"
 
 ## 5. 单局运行
 
-CLI 提供四个子命令（`cli/main.py`）：`demo`、`play`、`report`、`resume`。
+CLI 提供四类入口（`cli/main.py`）：`demo`、`play`、`report`、`experiment run`。
 
 ### 5.1 `play`：运行完整对局
 
@@ -157,7 +157,7 @@ Start-Process -FilePath ".\.venv\Scripts\monopoly-agent-battle.exe" `
 
 - `-PassThru` 会返回进程对象，记下其 `Id`（PID）以便后续管理。
 - 事后查看进度：`Get-Content runs\你的-stdout.log -Wait`（实时跟随）或直接读运行目录下的产物。
-- 需要停止：`Stop-Process -Id <PID>`。**注意：中途停止会产生不完整的废局**，LLM/朝廷局不支持断点续跑，需改 `game_id` 或 `experiment_id` 后重跑。
+- 需要停止：`Stop-Process -Id <PID>`。**注意：中途停止会产生不完整的废局**，需改 `game_id` 或 `experiment_id` 后重新运行。
 - 凭据仍从仓库根目录的 `.env.local` 读取（CLI 进程启动时自行加载）；若改用会话级 `$env:` 临时变量，须在同一 PowerShell 会话内 `Start-Process`。
 
 无论前台还是后台，真实 LLM 局都可能耗时较长并产生费用；系统不做限时或预算上限（属未实现的阶段 7）。
@@ -184,7 +184,6 @@ Start-Process -FilePath ".\.venv\Scripts\monopoly-agent-battle.exe" `
 | `runtime.jsonl` | 重连、重试、上下文裁剪等运行时审计（不提供给 Agent） |
 | `result.json` | 终局状态、排名、有效性与计量 |
 | `performance.jsonl` | 朝廷官员绩效窗口（仅含朝廷玩家时生成） |
-| `checkpoint.json` | 每条命令后自动更新的断点快照 |
 
 `result.json` 关注字段：
 
@@ -199,6 +198,25 @@ Start-Process -FilePath ".\.venv\Scripts\monopoly-agent-battle.exe" `
 | `decision_fallbacks` | 因无效响应或重连耗尽而使用默认候选的次数 |
 
 **有效性判定：** 当 LLM 触发的默认回退次数达到全部 LLM 调用数的 **10%** 时，`validity_status=invalid`（`decision/runner.py::_validity_status`）。重连或重试后成功得到合法回复不计入该分子。无效局仍完整保留全部日志，仅不计入正式排名与积分。
+
+### 5.4 批量运行多局对局
+
+单局运行仍使用前述 `play --config <配置文件路径>`。需要按顺序运行多个独立 YAML 时，另使用一份批次清单：
+
+```yaml
+games:
+  - game_a.yaml
+  - game_b.yaml
+```
+
+清单中的相对路径以清单文件所在目录为基准。每个对局 YAML 仍使用自身的 `output_directory`、`experiment_id` 和 `game_id`，各局产物继续写入各自的 `<output_directory>/<experiment_id>/<game_id>/` 目录。
+
+```powershell
+.\.venv\Scripts\monopoly-agent-battle.exe experiment run `
+  --batch configs/experiments/preexperiment_demo/batch.yaml
+```
+
+程序先检查全部清单文件、配置有效性和 `game_id` 是否重复；预检查失败时不启动任何对局。检查通过后按清单顺序执行，单局异常记录为 `failed` 并继续后续对局。批次状态写入清单同目录的 `tasks.jsonl`，不替代各局原有运行产物。
 
 ---
 
