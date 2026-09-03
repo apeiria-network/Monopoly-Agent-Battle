@@ -265,6 +265,7 @@ def run_decision_game(
                 "decision_fallbacks": decision_fallbacks,
                 "llm_fallbacks": llm_fallbacks,
                 "validity_status": _validity_status(llm_calls, llm_fallbacks),
+                "llm_token_stats": _llm_token_stats(artifacts, llm_calls, llm_fallbacks),
             }
         )
         artifacts.write_result(result)
@@ -520,3 +521,120 @@ def _validity_status(llm_calls: int, decision_fallbacks: int) -> str:
     if llm_calls > 0 and decision_fallbacks * 10 >= llm_calls:
         return "invalid"
     return "valid"
+
+
+def _round4(value: float) -> float:
+    return round(value, 4)
+
+
+def _llm_token_stats(
+    artifacts: RunArtifacts, llm_calls: int, llm_fallbacks: int
+) -> dict[str, object]:
+    """Aggregate per-player token usage from the persisted call & decision logs.
+
+    Reads the already-flushed ``llm_calls.jsonl`` and ``decisions.jsonl`` (never
+    touches the live LLM data path), grouped by ``caller_role`` player id.
+
+    Two families of averages are reported per player:
+
+    - Per successful *call* (``avg_*_tokens``): mean over calls with no
+      ``error`` (failed calls carry 0 tokens and are excluded so they cannot
+      drag these means down); ``successful_calls`` is that denominator.
+    - Per *decision* (``per_decision.*``): the player's total token spend across
+      **every** physical request for its decisions — including retries and, for
+      a court player, all officers' calls — divided by the player's decision
+      count from ``decisions.jsonl``. This captures "what one decision costs".
+      Failed requests contribute 0 tokens but are counted in
+      ``avg_requests_per_decision``.
+
+    ``fallback_rate`` uses the same denominator as ``validity_status``:
+    ``llm_fallbacks / llm_calls`` over every physical request.
+    """
+    log_path = artifacts.run_directory / "llm_calls.jsonl"
+    groups: dict[str, dict[str, int]] = {}
+
+    def _bucket(player_id: str) -> dict[str, int]:
+        return groups.setdefault(
+            player_id,
+            {
+                "successful_calls": 0,
+                "cached": 0,
+                "uncached": 0,
+                "output": 0,
+                "total_calls": 0,
+                "total_cached": 0,
+                "total_uncached": 0,
+                "total_output": 0,
+                "decisions": 0,
+            },
+        )
+
+    if log_path.exists():
+        for line in log_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            record = cast(dict[str, object], json.loads(line))
+            raw_role = record.get("caller_role")
+            role = raw_role if isinstance(raw_role, str) else ""
+            # ``player.role`` for court officers → group under the player id.
+            bucket = _bucket(role.split(".", 1)[0])
+            cached = int(cast(int, record.get("cached_input_tokens", 0) or 0))
+            uncached = int(cast(int, record.get("uncached_input_tokens", 0) or 0))
+            output = int(cast(int, record.get("output_tokens", 0) or 0))
+            # Per-decision totals include every physical request (retries + all
+            # officers); failed requests contribute 0 tokens but still count.
+            bucket["total_calls"] += 1
+            bucket["total_cached"] += cached
+            bucket["total_uncached"] += uncached
+            bucket["total_output"] += output
+            if record.get("error") is not None:
+                continue
+            bucket["successful_calls"] += 1
+            bucket["cached"] += cached
+            bucket["uncached"] += uncached
+            bucket["output"] += output
+
+    decisions_path = artifacts.run_directory / "decisions.jsonl"
+    if decisions_path.exists():
+        for line in decisions_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            record = cast(dict[str, object], json.loads(line))
+            request = record.get("request")
+            player_id = (
+                cast(dict[str, object], request).get("player_id")
+                if isinstance(request, dict)
+                else None
+            )
+            if isinstance(player_id, str):
+                _bucket(player_id)["decisions"] += 1
+
+    per_player: dict[str, object] = {}
+    for player_id, bucket in sorted(groups.items()):
+        count = bucket["successful_calls"]
+        decisions = bucket["decisions"]
+        per_player[player_id] = {
+            "successful_calls": count,
+            "avg_cached_input_tokens": _round4(bucket["cached"] / count) if count else 0.0,
+            "avg_uncached_input_tokens": _round4(bucket["uncached"] / count) if count else 0.0,
+            "avg_output_tokens": _round4(bucket["output"] / count) if count else 0.0,
+            "per_decision": {
+                "decisions": decisions,
+                "avg_requests_per_decision": (
+                    _round4(bucket["total_calls"] / decisions) if decisions else 0.0
+                ),
+                "avg_cached_input_tokens": (
+                    _round4(bucket["total_cached"] / decisions) if decisions else 0.0
+                ),
+                "avg_uncached_input_tokens": (
+                    _round4(bucket["total_uncached"] / decisions) if decisions else 0.0
+                ),
+                "avg_output_tokens": (
+                    _round4(bucket["total_output"] / decisions) if decisions else 0.0
+                ),
+            },
+        }
+    return {
+        "fallback_rate": _round4(llm_fallbacks / llm_calls) if llm_calls > 0 else 0.0,
+        "per_player": per_player,
+    }

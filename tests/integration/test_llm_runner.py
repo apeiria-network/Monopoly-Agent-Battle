@@ -116,6 +116,25 @@ def test_mock_baseline_completes_full_game_with_audit(tmp_path: Path) -> None:
         estimate_tokens("\n".join(conversation.segment3_sentences)) <= 500
         for conversation in conversations.values()
     )
+    stats = result_document["llm_token_stats"]
+    assert 0.0 <= stats["fallback_rate"] <= 1.0
+    per_player = stats["per_player"]
+    # One group per baseline player id, keyed by caller_role's player component.
+    assert set(per_player) == {"a", "b", "c", "d"}
+    total_successful = sum(group["successful_calls"] for group in per_player.values())
+    assert total_successful == sum(1 for record in llm_calls if record["error"] is None)
+    for group in per_player.values():
+        assert group["successful_calls"] >= 1
+        assert group["avg_cached_input_tokens"] >= 0.0
+        assert group["avg_uncached_input_tokens"] >= 0.0
+        assert group["avg_output_tokens"] >= 0.0
+        per_decision = group["per_decision"]
+        assert per_decision["decisions"] >= 1
+        # Every decision needs at least one physical request.
+        assert per_decision["avg_requests_per_decision"] >= 1.0
+        assert per_decision["avg_cached_input_tokens"] >= 0.0
+        assert per_decision["avg_uncached_input_tokens"] >= 0.0
+        assert per_decision["avg_output_tokens"] >= 0.0
     verify_run(artifacts.run_directory)
 
 
