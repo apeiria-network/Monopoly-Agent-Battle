@@ -117,7 +117,7 @@ def render_single_game_report(report: dict[str, Any]) -> str:
             ),
             (
                 f"- LLM 调用：{llm['calls']}，输入 token：{llm['input_tokens']}，"
-                f"输出 token：{llm['output_tokens']}，思考 token：{llm['reasoning_tokens']}"
+                f"输出 token：{llm['output_tokens']}，思考 token：{llm['thinking_tokens']}"
             ),
             (
                 f"- LLM 错误：{llm['errors']}，工具调用：{llm['tool_calls']}，"
@@ -175,7 +175,7 @@ def _llm_stats(records: list[dict[str, Any]]) -> dict[str, int]:
         "calls": len(records),
         "input_tokens": sum(_number(record, "input_tokens") for record in records),
         "output_tokens": sum(_number(record, "output_tokens") for record in records),
-        "reasoning_tokens": sum(_number(record, "reasoning_tokens") for record in records),
+        "thinking_tokens": sum(_number(record, "thinking_tokens") for record in records),
         "duration_ms": sum(_number(record, "duration_ms") for record in records),
         "tool_calls": sum(_number(record, "tool_calls") for record in records),
         "tool_failures": sum(_number(record, "tool_failures") for record in records),

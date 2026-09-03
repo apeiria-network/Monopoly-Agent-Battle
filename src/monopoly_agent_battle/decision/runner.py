@@ -264,7 +264,7 @@ def run_decision_game(
                 "decision_fallbacks": decision_fallbacks,
                 "llm_fallbacks": llm_fallbacks,
                 "validity_status": _validity_status(llm_calls, llm_fallbacks),
-                "llm_token_stats": _llm_token_stats(artifacts, llm_calls, llm_fallbacks),
+                "llm_token_stats": llm_token_stats(artifacts, llm_calls, llm_fallbacks),
             }
         )
         artifacts.write_result(result)
@@ -525,31 +525,21 @@ def _round4(value: float) -> float:
     return round(value, 4)
 
 
-def _llm_token_stats(
+def llm_token_stats(
     artifacts: RunArtifacts, llm_calls: int, llm_fallbacks: int
 ) -> dict[str, object]:
-    """Aggregate per-player token usage from the persisted call & decision logs.
-
-    Reads the already-flushed ``llm_calls.jsonl`` and ``decisions.jsonl`` (never
-    touches the live LLM data path), grouped by ``caller_role`` player id.
-
-    Two families of averages are reported per player:
-
-    - Per successful *call* (``avg_*_tokens``): mean over calls with no
-      ``error`` (failed calls carry 0 tokens and are excluded so they cannot
-      drag these means down); ``successful_calls`` is that denominator.
-    - Per *decision* (``per_decision.*``): the player's total token spend across
-      **every** physical request for its decisions — including retries and, for
-      a court player, all officers' calls — divided by the player's decision
-      count from ``decisions.jsonl``. This captures "what one decision costs".
-      Failed requests contribute 0 tokens but are counted in
-      ``avg_requests_per_decision``.
-
-    ``fallback_rate`` uses the same denominator as ``validity_status``:
-    ``llm_fallbacks / llm_calls`` over every physical request.
-    """
+    """Aggregate game-level totals and per-player token usage from persisted logs."""
     log_path = artifacts.run_directory / "llm_calls.jsonl"
     groups: dict[str, dict[str, int]] = {}
+    totals: dict[str, int] = {
+        "llm_calls": 0,
+        "successful_calls": 0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "uncached_input_tokens": 0,
+        "thinking_tokens": 0,
+        "output_tokens": 0,
+    }
 
     def _bucket(player_id: str) -> dict[str, int]:
         return groups.setdefault(
@@ -558,10 +548,12 @@ def _llm_token_stats(
                 "successful_calls": 0,
                 "cached": 0,
                 "uncached": 0,
+                "thinking": 0,
                 "output": 0,
                 "total_calls": 0,
                 "total_cached": 0,
                 "total_uncached": 0,
+                "total_thinking": 0,
                 "total_output": 0,
                 "decisions": 0,
             },
@@ -574,22 +566,30 @@ def _llm_token_stats(
             record = cast(dict[str, object], json.loads(line))
             raw_role = record.get("caller_role")
             role = raw_role if isinstance(raw_role, str) else ""
-            # ``player.role`` for court officers → group under the player id.
-            bucket = _bucket(role.split(".", 1)[0])
+            player_id = role.split(".", 1)[0]
+            bucket = _bucket(player_id)
             cached = int(cast(int, record.get("cached_input_tokens", 0) or 0))
             uncached = int(cast(int, record.get("uncached_input_tokens", 0) or 0))
+            thinking = int(cast(int, record.get("thinking_tokens", 0) or 0))
             output = int(cast(int, record.get("output_tokens", 0) or 0))
-            # Per-decision totals include every physical request (retries + all
-            # officers); failed requests contribute 0 tokens but still count.
             bucket["total_calls"] += 1
             bucket["total_cached"] += cached
             bucket["total_uncached"] += uncached
+            bucket["total_thinking"] += thinking
             bucket["total_output"] += output
+            totals["llm_calls"] += 1
+            totals["input_tokens"] += cached + uncached
+            totals["cached_input_tokens"] += cached
+            totals["uncached_input_tokens"] += uncached
+            totals["thinking_tokens"] += thinking
+            totals["output_tokens"] += output
             if record.get("error") is not None:
                 continue
+            totals["successful_calls"] += 1
             bucket["successful_calls"] += 1
             bucket["cached"] += cached
             bucket["uncached"] += uncached
+            bucket["thinking"] += thinking
             bucket["output"] += output
 
     decisions_path = artifacts.run_directory / "decisions.jsonl"
@@ -615,6 +615,7 @@ def _llm_token_stats(
             "successful_calls": count,
             "avg_cached_input_tokens": _round4(bucket["cached"] / count) if count else 0.0,
             "avg_uncached_input_tokens": _round4(bucket["uncached"] / count) if count else 0.0,
+            "avg_thinking_tokens": _round4(bucket["thinking"] / count) if count else 0.0,
             "avg_output_tokens": _round4(bucket["output"] / count) if count else 0.0,
             "per_decision": {
                 "decisions": decisions,
@@ -627,12 +628,17 @@ def _llm_token_stats(
                 "avg_uncached_input_tokens": (
                     _round4(bucket["total_uncached"] / decisions) if decisions else 0.0
                 ),
+                "avg_thinking_tokens": (
+                    _round4(bucket["total_thinking"] / decisions) if decisions else 0.0
+                ),
                 "avg_output_tokens": (
                     _round4(bucket["total_output"] / decisions) if decisions else 0.0
                 ),
             },
         }
+    totals["failed_calls"] = totals["llm_calls"] - totals["successful_calls"]
     return {
         "fallback_rate": _round4(llm_fallbacks / llm_calls) if llm_calls > 0 else 0.0,
+        "totals": totals,
         "per_player": per_player,
     }

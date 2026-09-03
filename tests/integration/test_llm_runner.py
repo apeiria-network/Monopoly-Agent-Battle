@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from monopoly_agent_battle.agents.baseline import BaselineAgent
 from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
@@ -14,6 +14,7 @@ from monopoly_agent_battle.decision.prompts import options_from_prompt
 from monopoly_agent_battle.decision.runner import (
     DispatchController,
     RawDecisionController,
+    llm_token_stats,
     run_decision_game,
 )
 from monopoly_agent_battle.game.engine import GameEngine
@@ -118,6 +119,20 @@ def test_mock_baseline_completes_full_game_with_audit(tmp_path: Path) -> None:
     )
     stats = result_document["llm_token_stats"]
     assert 0.0 <= stats["fallback_rate"] <= 1.0
+    totals = stats["totals"]
+    assert totals["llm_calls"] == len(llm_calls)
+    assert totals["successful_calls"] == sum(1 for record in llm_calls if record["error"] is None)
+    assert totals["failed_calls"] == sum(1 for record in llm_calls if record["error"] is not None)
+    assert totals["input_tokens"] == sum(record["input_tokens"] for record in llm_calls)
+    assert totals["cached_input_tokens"] == sum(
+        record["cached_input_tokens"] for record in llm_calls
+    )
+    assert totals["uncached_input_tokens"] == sum(
+        record["uncached_input_tokens"] for record in llm_calls
+    )
+    assert totals["uncached_input_tokens"] == totals["input_tokens"] - totals["cached_input_tokens"]
+    assert totals["thinking_tokens"] == sum(record["thinking_tokens"] for record in llm_calls)
+    assert totals["output_tokens"] == sum(record["output_tokens"] for record in llm_calls)
     per_player = stats["per_player"]
     # One group per baseline player id, keyed by caller_role's player component.
     assert set(per_player) == {"a", "b", "c", "d"}
@@ -127,6 +142,7 @@ def test_mock_baseline_completes_full_game_with_audit(tmp_path: Path) -> None:
         assert group["successful_calls"] >= 1
         assert group["avg_cached_input_tokens"] >= 0.0
         assert group["avg_uncached_input_tokens"] >= 0.0
+        assert group["avg_thinking_tokens"] >= 0.0
         assert group["avg_output_tokens"] >= 0.0
         per_decision = group["per_decision"]
         assert per_decision["decisions"] >= 1
@@ -134,8 +150,70 @@ def test_mock_baseline_completes_full_game_with_audit(tmp_path: Path) -> None:
         assert per_decision["avg_requests_per_decision"] >= 1.0
         assert per_decision["avg_cached_input_tokens"] >= 0.0
         assert per_decision["avg_uncached_input_tokens"] >= 0.0
+        assert per_decision["avg_thinking_tokens"] >= 0.0
         assert per_decision["avg_output_tokens"] >= 0.0
     verify_run(artifacts.run_directory)
+
+
+def test_llm_token_stats_totals_and_thinking_accounting(tmp_path: Path) -> None:
+    """Token stats aggregate thinking/output independently with exact math.
+
+    Mock clients never emit thinking tokens, so this test handcrafts the
+    persisted ``llm_calls.jsonl`` / ``decisions.jsonl`` records (including one
+    failed call carrying zero tokens) and checks the aggregation directly.
+    """
+    config = make_config(tmp_path / "token-stats")
+    artifacts = RunArtifacts.create(config)
+
+    def call(
+        caller_role: str,
+        *,
+        cached: int,
+        uncached: int,
+        thinking: int,
+        output: int,
+        error: str | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "caller_role": caller_role,
+            "input_tokens": cached + uncached,
+            "cached_input_tokens": cached,
+            "uncached_input_tokens": uncached,
+            "thinking_tokens": thinking,
+            "output_tokens": output,
+            "error": error,
+        }
+
+    artifacts.append_llm_call(call("a", cached=40, uncached=60, thinking=30, output=70))
+    artifacts.append_llm_call(call("a.chancellor", cached=60, uncached=60, thinking=50, output=90))
+    artifacts.append_llm_call(
+        call("a", cached=0, uncached=0, thinking=0, output=0, error="connection failed")
+    )
+    artifacts.append_decision({"request": {"player_id": "a", "decision_id": "d1"}})
+
+    stats = llm_token_stats(artifacts, llm_calls=3, llm_fallbacks=1)
+
+    assert stats["totals"] == {
+        "llm_calls": 3,
+        "successful_calls": 2,
+        "failed_calls": 1,
+        "input_tokens": 220,
+        "cached_input_tokens": 100,
+        "uncached_input_tokens": 120,
+        "thinking_tokens": 80,
+        "output_tokens": 160,
+    }
+    per_player = cast(dict[str, Any], stats["per_player"])
+    player = cast(dict[str, Any], per_player["a"])
+    assert player["successful_calls"] == 2
+    assert player["avg_thinking_tokens"] == 40.0
+    assert player["avg_output_tokens"] == 80.0
+    per_decision = cast(dict[str, Any], player["per_decision"])
+    assert per_decision["decisions"] == 1
+    assert per_decision["avg_requests_per_decision"] == 3.0
+    assert per_decision["avg_thinking_tokens"] == 80.0
+    assert per_decision["avg_output_tokens"] == 160.0
+    assert stats["fallback_rate"] == round(1 / 3, 4)
 
 
 def test_successful_reconnect_does_not_mark_game_invalid(tmp_path: Path) -> None:
