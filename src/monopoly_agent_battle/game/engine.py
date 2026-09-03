@@ -532,7 +532,12 @@ class GameEngine:
         return [
             GameEvent(
                 "card_discarded",
-                {"player_id": player.player_id, "card_id": card_id, "deck": CardDeck.CHANCE.value},
+                {
+                    "player_id": player.player_id,
+                    "card_id": card_id,
+                    "deck": CardDeck.CHANCE.value,
+                    "reason": "hand_limit",
+                },
             )
         ]
 
@@ -554,6 +559,7 @@ class GameEngine:
                     "player_id": player.player_id,
                     "card_id": card_id,
                     "deck": CardDeck.COMMUNITY_CHEST.value,
+                    "reason": "played",
                 },
             ),
             GameEvent("jail_released", {"player_id": player.player_id, "method": "card"}),
@@ -596,6 +602,7 @@ class GameEngine:
                     "player_id": player.player_id,
                     "card_id": theft_card_id,
                     "deck": CardDeck.CHANCE.value,
+                    "reason": "played",
                 },
             ),
         ]
@@ -894,6 +901,7 @@ class GameEngine:
                     "player_id": player.player_id,
                     "card_id": card.card_id,
                     "deck": CardDeck.CHANCE.value,
+                    "reason": "played",
                 },
             )
         )
@@ -1294,6 +1302,7 @@ class GameEngine:
                     "player_id": operation.player_id,
                     "card_id": card.card_id,
                     "deck": operation.deck.value,
+                    "reason": "played",
                 },
             )
         )
@@ -1529,6 +1538,7 @@ class GameEngine:
                             "player_id": player.player_id,
                             "card_id": card_id,
                             "deck": CardDeck.CHANCE.value,
+                            "reason": "bankruptcy",
                         },
                     )
                 )
@@ -1543,6 +1553,7 @@ class GameEngine:
                             "player_id": player.player_id,
                             "card_id": card_id,
                             "deck": CardDeck.COMMUNITY_CHEST.value,
+                            "reason": "bankruptcy",
                         },
                     )
                 )
