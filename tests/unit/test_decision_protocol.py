@@ -215,6 +215,27 @@ def test_response_requires_one_known_option_and_reason(tmp_path: Path) -> None:
     assert extra_field_ok.valid
 
 
+def test_response_tolerates_markdown_code_fence(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].jail_status = JailStatus.ROLLING
+    request = build_decision_request(engine, 1)
+    inner = json.dumps({"selected_option": {"option": "roll_dice"}, "reason": "掷骰推进。"})
+
+    fenced_json = parse_and_validate(f"```json\n{inner}\n```", request)
+    fenced_bare = parse_and_validate(f"```\n{inner}\n```", request)
+    fenced_padded = parse_and_validate(f"  ```json\n{inner}\n```  ", request)
+    plain = parse_and_validate(inner, request)
+    # A genuinely broken reply must still fail even if it looks fenced.
+    broken = parse_and_validate("```json\nnot-json\n```", request)
+
+    assert fenced_json.valid
+    assert fenced_bare.valid
+    assert fenced_padded.valid
+    assert plain.valid
+    assert not broken.valid
+    assert broken.error_category == "not_json"
+
+
 def test_prompt_contains_request_and_fixed_response_contract(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
@@ -344,23 +365,23 @@ def test_asset_management_keeps_cards_separate_and_folds_each_card_targets(tmp_p
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.FORCED_DISCARD
     engine.state.players["a"].chance_cards.extend(
-        ["chance-waiver", "chance-build", "chance-tax", "chance-steal", "chance-jail"]
+        ["chance-waiver", "chance-build", "chance-tax", "chance-steal"]
     )
 
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
-    assert "当前持有 5 张机会卡，超过 4 张上限" in prompt
-    assert "必须弃置到 4 张后才能结束回合。" in prompt
+    assert "当前持有 4 张机会卡，超过 3 张上限" in prompt
+    assert "必须弃置到 3 张后才能结束回合。" in prompt
     candidates = cast(list[dict[str, Any]], options_from_prompt(prompt))
     discard_candidates = [
         candidate
         for candidate in candidates
         if candidate["option_id"].startswith("discard_chance_card-")
     ]
-    assert len(discard_candidates) == 5
+    assert len(discard_candidates) == 4
     for candidate, card_id in zip(
         discard_candidates,
-        ["chance-waiver", "chance-build", "chance-tax", "chance-steal", "chance-jail"],
+        ["chance-waiver", "chance-build", "chance-tax", "chance-steal"],
         strict=True,
     ):
         assert set(candidate) == {"option_id", "title", "preview", "response_format"}
@@ -384,6 +405,22 @@ def test_prompt_contains_role_and_goal(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
     prompt = render_decision_prompt(build_decision_request(engine, 1))
+
+    assert "你正在一局大富翁对局中为一方玩家效力，与另外 1-3 名玩家在同一棋盘上竞争。" in prompt
+    assert "你在本局代表玩家a" in prompt
+    assert "当其余玩家全部破产时，最后存活者立即获胜" in prompt
+    assert (
+        "净资产 = 现金 + 全部地产的购买价 + 全部已建成建筑的价值（房屋单价 × 建筑层数）"
+        "− 抵押中地产的购买价。" in prompt
+    )
+    assert "候选均不理想时也必须选出相对最优的一个，不得弃权。" in prompt
+    assert "座位" not in prompt.split("## 游戏规则")[0]
+
+
+def test_prompt_v1_profile_keeps_legacy_identity(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    prompt = render_decision_prompt(build_decision_request(engine, 1), prompt_profile="full-v1")
 
     assert "你正在代表玩家「a」（座位 1）参与一局大富翁。" in prompt
     assert "你的目标：在回合上限结束时拥有最高净资产。" in prompt

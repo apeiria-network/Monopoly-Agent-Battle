@@ -26,7 +26,6 @@ from monopoly_agent_battle.domain.commands import EndTurn, GameCommand, RollDice
 from monopoly_agent_battle.domain.models import GameEvent, JailStatus, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.runner import ScriptedRunResult, state_snapshot
-from monopoly_agent_battle.game.state_codec import encode_checkpoint
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 from monopoly_agent_battle.performance.scoring import PerformanceWindowResult
 from monopoly_agent_battle.performance.tracker import PerformanceTracker, evidence_from_trace
@@ -265,6 +264,7 @@ def run_decision_game(
                 "decision_fallbacks": decision_fallbacks,
                 "llm_fallbacks": llm_fallbacks,
                 "validity_status": _validity_status(llm_calls, llm_fallbacks),
+                "llm_token_stats": llm_token_stats(artifacts, llm_calls, llm_fallbacks),
             }
         )
         artifacts.write_result(result)
@@ -431,7 +431,6 @@ def _execute_and_audit(
             if event.event_type == "game_finished":
                 event_round = round_after
             artifacts.append_game_broadcast(event, event_round)
-        artifacts.write_checkpoint(encode_checkpoint(engine.state, engine.random))
     return command_events
 
 
@@ -520,3 +519,126 @@ def _validity_status(llm_calls: int, decision_fallbacks: int) -> str:
     if llm_calls > 0 and decision_fallbacks * 10 >= llm_calls:
         return "invalid"
     return "valid"
+
+
+def _round4(value: float) -> float:
+    return round(value, 4)
+
+
+def llm_token_stats(
+    artifacts: RunArtifacts, llm_calls: int, llm_fallbacks: int
+) -> dict[str, object]:
+    """Aggregate game-level totals and per-player token usage from persisted logs."""
+    log_path = artifacts.run_directory / "llm_calls.jsonl"
+    groups: dict[str, dict[str, int]] = {}
+    totals: dict[str, int] = {
+        "llm_calls": 0,
+        "successful_calls": 0,
+        "input_tokens": 0,
+        "cached_input_tokens": 0,
+        "uncached_input_tokens": 0,
+        "thinking_tokens": 0,
+        "output_tokens": 0,
+    }
+
+    def _bucket(player_id: str) -> dict[str, int]:
+        return groups.setdefault(
+            player_id,
+            {
+                "successful_calls": 0,
+                "cached": 0,
+                "uncached": 0,
+                "thinking": 0,
+                "output": 0,
+                "total_calls": 0,
+                "total_cached": 0,
+                "total_uncached": 0,
+                "total_thinking": 0,
+                "total_output": 0,
+                "decisions": 0,
+            },
+        )
+
+    if log_path.exists():
+        for line in log_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            record = cast(dict[str, object], json.loads(line))
+            raw_role = record.get("caller_role")
+            role = raw_role if isinstance(raw_role, str) else ""
+            player_id = role.split(".", 1)[0]
+            bucket = _bucket(player_id)
+            cached = int(cast(int, record.get("cached_input_tokens", 0) or 0))
+            uncached = int(cast(int, record.get("uncached_input_tokens", 0) or 0))
+            thinking = int(cast(int, record.get("thinking_tokens", 0) or 0))
+            output = int(cast(int, record.get("output_tokens", 0) or 0))
+            bucket["total_calls"] += 1
+            bucket["total_cached"] += cached
+            bucket["total_uncached"] += uncached
+            bucket["total_thinking"] += thinking
+            bucket["total_output"] += output
+            totals["llm_calls"] += 1
+            totals["input_tokens"] += cached + uncached
+            totals["cached_input_tokens"] += cached
+            totals["uncached_input_tokens"] += uncached
+            totals["thinking_tokens"] += thinking
+            totals["output_tokens"] += output
+            if record.get("error") is not None:
+                continue
+            totals["successful_calls"] += 1
+            bucket["successful_calls"] += 1
+            bucket["cached"] += cached
+            bucket["uncached"] += uncached
+            bucket["thinking"] += thinking
+            bucket["output"] += output
+
+    decisions_path = artifacts.run_directory / "decisions.jsonl"
+    if decisions_path.exists():
+        for line in decisions_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            record = cast(dict[str, object], json.loads(line))
+            request = record.get("request")
+            player_id = (
+                cast(dict[str, object], request).get("player_id")
+                if isinstance(request, dict)
+                else None
+            )
+            if isinstance(player_id, str):
+                _bucket(player_id)["decisions"] += 1
+
+    per_player: dict[str, object] = {}
+    for player_id, bucket in sorted(groups.items()):
+        count = bucket["successful_calls"]
+        decisions = bucket["decisions"]
+        per_player[player_id] = {
+            "successful_calls": count,
+            "avg_cached_input_tokens": _round4(bucket["cached"] / count) if count else 0.0,
+            "avg_uncached_input_tokens": _round4(bucket["uncached"] / count) if count else 0.0,
+            "avg_thinking_tokens": _round4(bucket["thinking"] / count) if count else 0.0,
+            "avg_output_tokens": _round4(bucket["output"] / count) if count else 0.0,
+            "per_decision": {
+                "decisions": decisions,
+                "avg_requests_per_decision": (
+                    _round4(bucket["total_calls"] / decisions) if decisions else 0.0
+                ),
+                "avg_cached_input_tokens": (
+                    _round4(bucket["total_cached"] / decisions) if decisions else 0.0
+                ),
+                "avg_uncached_input_tokens": (
+                    _round4(bucket["total_uncached"] / decisions) if decisions else 0.0
+                ),
+                "avg_thinking_tokens": (
+                    _round4(bucket["total_thinking"] / decisions) if decisions else 0.0
+                ),
+                "avg_output_tokens": (
+                    _round4(bucket["total_output"] / decisions) if decisions else 0.0
+                ),
+            },
+        }
+    totals["failed_calls"] = totals["llm_calls"] - totals["successful_calls"]
+    return {
+        "fallback_rate": _round4(llm_fallbacks / llm_calls) if llm_calls > 0 else 0.0,
+        "totals": totals,
+        "per_player": per_player,
+    }

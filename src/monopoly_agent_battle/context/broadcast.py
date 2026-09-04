@@ -198,7 +198,11 @@ def render_event(event: GameEvent, viewer_id: str | None) -> str | None:
         card_id = str(payload["card_id"])
         deck = str(payload["deck"])
         deck_label = "机会" if deck == CardDeck.CHANCE.value else "公益基金"
-
+        if payload.get("reason") == "played":
+            return None
+        reason = str(payload.get("reason", "hand_limit"))
+        if reason == "bankruptcy":
+            return f"玩家{player_id}破产，{deck_label}卡「{card_id}」进入弃牌堆。"
         if viewer_id == player_id:
             card_name = _CARD_NAMES.get(card_id, card_id)
             return f"玩家{player_id}弃置了{deck_label}卡「{card_name}」。"

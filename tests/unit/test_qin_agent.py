@@ -218,6 +218,29 @@ def test_qin_counsellor_retry_replays_validation_feedback(tmp_path: Path) -> Non
     assert "御史大夫评价结构非法" in retry_text
 
 
+def test_qin_counsellor_accepts_code_fenced_assessments(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    fenced_comment = f"```json\n{_comment()}\n```"
+    clients = {
+        "chancellor": StubClient([_choice(request)]),
+        "grand_marshal": StubClient([_choice(request)]),
+        "imperial_counsellor": StubClient([fenced_comment]),
+        "emperor": StubClient([_choice(request)]),
+    }
+    agent = _agent(request, clients)
+
+    agent(request)
+
+    # A fenced-but-valid reply must be accepted on the first call: no retry.
+    assert len(clients["imperial_counsellor"].requests) == 1
+    trace = agent.court_trace()
+    calls = cast(list[dict[str, Any]], trace["calls"])
+    assert not any(
+        call["role"] == "imperial_counsellor" and call["outcome"] == "validation_error"
+        for call in calls
+    )
+
+
 def test_qin_adviser_retries_before_defaulting(tmp_path: Path) -> None:
     request = _request(tmp_path)
     clients = {

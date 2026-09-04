@@ -77,6 +77,14 @@ class GameEngine:
         community_chest_draw_pile = [card.card_id for card in COMMUNITY_CHEST_CARDS]
         self.random.shuffle(chance_draw_pile)
         self.random.shuffle(community_chest_draw_pile)
+        if config.initial_chance_cards > 0:
+            seated_players = sorted(players.values(), key=lambda player: player.seat)
+            total_deal = config.initial_chance_cards * len(seated_players)
+            if total_deal > len(chance_draw_pile):
+                raise ValueError("initial chance card deal exceeds the draw pile size")
+            for _ in range(config.initial_chance_cards):
+                for player in seated_players:
+                    player.chance_cards.append(chance_draw_pile.pop())
         self.state = GameState(
             players=players,
             properties={space.position: PropertyState() for space in BOARD if space.is_property},
@@ -123,7 +131,7 @@ class GameEngine:
         elif isinstance(command, EndTurn):
             if self.state.turn_phase not in {TurnPhase.ASSET_MANAGEMENT, TurnPhase.TURN_COMPLETE}:
                 raise GameRuleError("turn cannot end during the current phase")
-            if len(player.chance_cards) > 4:
+            if len(player.chance_cards) > 3:
                 self.state.turn_phase = TurnPhase.FORCED_DISCARD
                 events = [
                     GameEvent(
@@ -165,7 +173,7 @@ class GameEngine:
                     "chance cards can only be discarded after an over-limit end turn"
                 )
             events = self._discard_held_chance_card(player, command.card_id)
-            if len(player.chance_cards) <= 4:
+            if len(player.chance_cards) <= 3:
                 self.state.turn_phase = TurnPhase.TURN_COMPLETE
                 events.append(
                     GameEvent("chance_card_hand_limit_resolved", {"player_id": player.player_id})
@@ -532,7 +540,12 @@ class GameEngine:
         return [
             GameEvent(
                 "card_discarded",
-                {"player_id": player.player_id, "card_id": card_id, "deck": CardDeck.CHANCE.value},
+                {
+                    "player_id": player.player_id,
+                    "card_id": card_id,
+                    "deck": CardDeck.CHANCE.value,
+                    "reason": "hand_limit",
+                },
             )
         ]
 
@@ -554,6 +567,7 @@ class GameEngine:
                     "player_id": player.player_id,
                     "card_id": card_id,
                     "deck": CardDeck.COMMUNITY_CHEST.value,
+                    "reason": "played",
                 },
             ),
             GameEvent("jail_released", {"player_id": player.player_id, "method": "card"}),
@@ -596,6 +610,7 @@ class GameEngine:
                     "player_id": player.player_id,
                     "card_id": theft_card_id,
                     "deck": CardDeck.CHANCE.value,
+                    "reason": "played",
                 },
             ),
         ]
@@ -732,7 +747,11 @@ class GameEngine:
             )
             for position in COLOR_GROUPS[color_group]:
                 property_state = self.state.properties[position]
-                if property_state.owner_id is not None and property_state.building_level < 5:
+                if (
+                    property_state.owner_id is not None
+                    and not property_state.mortgaged
+                    and property_state.building_level < 5
+                ):
                     property_state.building_level += 1
                     events.append(
                         GameEvent(
@@ -839,6 +858,10 @@ class GameEngine:
                 raise GameRuleError("building swap requires two different streets")
             target_state = self.state.properties[target_position]
             own_state = self.state.properties[own_position]
+            if target_state.owner_id is None:
+                raise GameRuleError("building swap requires an owned target street")
+            if target_state.mortgaged or own_state.mortgaged:
+                raise GameRuleError("building swap requires unmortgaged streets")
             target_level, own_level = target_state.building_level, own_state.building_level
             target_state.building_level, own_state.building_level = own_level, target_level
             events.append(
@@ -894,6 +917,7 @@ class GameEngine:
                     "player_id": player.player_id,
                     "card_id": card.card_id,
                     "deck": CardDeck.CHANCE.value,
+                    "reason": "played",
                 },
             )
         )
@@ -1159,7 +1183,7 @@ class GameEngine:
             )
         )
 
-    def _draw_card(self, deck: CardDeck) -> str:
+    def _draw_card(self, deck: CardDeck) -> str | None:
         if deck is CardDeck.CHANCE:
             draw_pile = self.state.chance_draw_pile
             discard_pile = self.state.chance_discard_pile
@@ -1171,7 +1195,7 @@ class GameEngine:
             draw_pile.extend(discard_pile)
             discard_pile.clear()
         if not draw_pile:
-            raise AssertionError("card deck has no drawable cards")
+            return None
         return draw_pile.pop()
 
     def _discard_card(self, card_id: str, deck: CardDeck) -> None:
@@ -1184,6 +1208,8 @@ class GameEngine:
         if operation.deck is None:
             raise AssertionError("card draw operation has no deck")
         card_id = self._draw_card(operation.deck)
+        if card_id is None:
+            return
         card = CARDS_BY_ID[card_id]
         events.append(
             GameEvent(
@@ -1294,6 +1320,7 @@ class GameEngine:
                     "player_id": operation.player_id,
                     "card_id": card.card_id,
                     "deck": operation.deck.value,
+                    "reason": "played",
                 },
             )
         )
@@ -1529,6 +1556,7 @@ class GameEngine:
                             "player_id": player.player_id,
                             "card_id": card_id,
                             "deck": CardDeck.CHANCE.value,
+                            "reason": "bankruptcy",
                         },
                     )
                 )
@@ -1543,6 +1571,7 @@ class GameEngine:
                             "player_id": player.player_id,
                             "card_id": card_id,
                             "deck": CardDeck.COMMUNITY_CHEST.value,
+                            "reason": "bankruptcy",
                         },
                     )
                 )

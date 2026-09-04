@@ -618,6 +618,55 @@ def test_swap_buildings_rejects_non_street_atomically(tmp_path: Path) -> None:
     )
 
 
+def test_swap_buildings_rejects_unowned_target_atomically(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 18
+    assign_street(engine, "a", 18, level=1)
+    give_card(engine, "chance-swap-buildings")
+
+    assert_rejected_atomically(
+        engine,
+        UseChanceCard(
+            "a", "chance-swap-buildings", target_position=19, secondary_target_position=18
+        ),
+        match="building swap requires an owned target street",
+    )
+    assert engine.state.properties[19].building_level == 0
+    assert engine.state.properties[19].owner_id is None
+
+
+def test_swap_buildings_rejects_mortgaged_sides_atomically(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    assign_street(engine, "a", 9, level=1)
+    assign_street(engine, "b", 11, level=2)
+    engine.state.properties[11].mortgaged = True
+    give_card(engine, "chance-swap-buildings")
+
+    assert_rejected_atomically(
+        engine,
+        UseChanceCard(
+            "a", "chance-swap-buildings", target_position=11, secondary_target_position=9
+        ),
+        match="building swap requires unmortgaged streets",
+    )
+
+
+def test_angel_skips_mortgaged_streets_in_group(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 18
+    assign_street(engine, "a", 18)
+    assign_street(engine, "a", 19)
+    engine.state.properties[18].mortgaged = True
+    give_card(engine, "chance-angel")
+
+    engine.execute(UseChanceCard("a", "chance-angel", target_color_group="orange"))
+
+    assert engine.state.properties[18].building_level == 0
+    assert engine.state.properties[18].mortgaged
+    assert engine.state.properties[19].building_level == 1
+
+
 def test_buy_property_acceptance_price_and_range_rejection(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.players["a"].position = 10
@@ -820,6 +869,23 @@ def land_on(
     return engine.execute(RollDice(player_id))
 
 
+def test_empty_chance_decks_draw_nothing_and_pass(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].chance_cards = ["chance-build", "chance-buy", "chance-jail"]
+    engine.state.chance_draw_pile = []
+    engine.state.chance_discard_pile = []
+
+    events = land_on(engine, "a", 7, (3, 4))
+
+    assert engine.state.players["a"].chance_cards == [
+        "chance-build",
+        "chance-buy",
+        "chance-jail",
+    ]
+    assert not any(event.event_type == "card_drawn" for event in events)
+    assert engine.state.turn_phase is TurnPhase.ASSET_MANAGEMENT
+
+
 def test_rent_waivers_are_used_automatically(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     assign_street(engine, "b", 3)
@@ -933,20 +999,19 @@ def test_hand_limit_requires_explicit_discard_before_turn_end(tmp_path: Path) ->
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
     engine.state.players["a"].chance_cards.extend(
-        ["chance-build", "chance-buy", "chance-jail", "chance-tax", "chance-waiver"]
+        ["chance-build", "chance-buy", "chance-jail", "chance-tax"]
     )
 
     events = engine.execute(EndTurn("a"))
 
     assert engine.state.turn_phase is TurnPhase.FORCED_DISCARD
     assert {event.event_type for event in events} == {"chance_card_discard_required"}
-    engine.execute(DiscardChanceCard("a", "chance-waiver"))
+    engine.execute(DiscardChanceCard("a", "chance-tax"))
 
     assert engine.state.players["a"].chance_cards == [
         "chance-build",
         "chance-buy",
         "chance-jail",
-        "chance-tax",
     ]
-    assert engine.state.chance_discard_pile == ["chance-waiver"]
+    assert engine.state.chance_discard_pile == ["chance-tax"]
     assert engine.state.turn_phase is TurnPhase.TURN_COMPLETE

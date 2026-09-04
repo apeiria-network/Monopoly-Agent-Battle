@@ -1,0 +1,12 @@
+# Pre-experiment batch manifest.
+#
+# Lists the game YAML files to run once each, in order. Relative paths resolve
+# against this manifest file's own directory. Each game keeps the
+# `output_directory` defined in its own YAML. Run with:
+#
+#   monopoly-agent-battle experiment run --batch <this file>
+#
+# The per-game outcome listing is written to tasks.jsonl next to this file.
+games:
+  - game_a.yaml
+  - game_b.yaml

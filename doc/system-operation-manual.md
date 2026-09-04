@@ -53,7 +53,7 @@ python -m venv .venv
 | 绩效 | 净资产窗口、一致性统计、差评判定 | `performance/` |
 | 运行产物 | 冻结配置、JSONL 审计、结果快照、回放 | `logging/run_artifacts.py`、`game/replay.py` |
 | 报告 | 从产物生成安全可读的单局报告 | `reporting/single_game.py` |
-| CLI | `demo` / `play` / `report` / `resume` 入口 | `cli/main.py` |
+| CLI | `demo` / `play` / `report` / `experiment run` 入口 | `cli/main.py` |
 
 ### 2.1 关键设计约束（运行时须知）
 
@@ -72,7 +72,10 @@ python -m venv .venv
 - 玩家 2–4 名，`seat` 取 1–4 且唯一。`controller_type` ∈ `random_baseline` / `llm_baseline` / `shang_court` / `qin_court` / `tang_court` / `ming_court`。
 - `random_baseline` 禁止 `model_profile`；`llm_baseline` 必须引用一个 `model_profile`；朝廷玩家必须为每名官员填写 `court_role_profiles`。
 - 每个 `model_profile` 可独立配置 `provider`、`base_url`、`api_key_env`、`model`、`seed`、采样参数与超时；真实密钥绝不写入 YAML。
+- **模型白名单**：`openai_compatible` 只接受六个实测支持思考开关的模型——`GLM-5-Turbo`、`DeepSeek-V4-Flash`、`DeepSeek-V4-Pro`、`Qwen3.7-Plus`、`Qwen3.8-Max`、`Kimi-K2.6`；范围外模型在 YAML 加载时报错（全局生效，不区分 URL）。白名单定义在 `config/models.py::SUPPORTED_REMOTE_MODELS`，校验在 `config/loader.py`；校验置于 loader 层而非 profile 层，因此旧对局（含非白名单模型）的回放不受影响。
+- **思考模式默认关闭**：每个 profile 可独立设置 `thinking`（布尔，默认 `false`）；客户端统一注入思考开关参数，仅显式 `thinking: true` 时启用。开启后思考 token 计入输出，`max_tokens` 需调大。字段参与 `config_hash`。详见[配置教程](game-config-tutorial.md) 7.1/7.2 节。
 - LLM 运行参数（`validation_retries`、`window_turns`、`prompt_profile`、`context_token_cap` 等）也会冻结进 `config.json`，参与 `config_hash`。
+- **开局发牌（可选）**：`initial_chance_cards`（整数，默认 `0`，上限 `3`，与机会卡手牌上限一致）控制开局按座位顺序为每位玩家从洗好的机会牌堆顶部发放的卡数。发牌不产生事件与播报，手牌内容遵守信息隔离；相同 `seed` 下发牌确定。填 `0` 或省略时行为与旧版完全一致，旧对局回放不受影响；字段参与 `config_hash`，详见[配置教程](game-config-tutorial.md) 第 3 节。
 
 修改任何配置后**必须更换 `experiment_id` 或 `game_id`**，程序不会覆盖已有运行目录。
 
@@ -111,7 +114,7 @@ $env:MONOPOLY_TANG_EMPEROR_API_KEY = "临时Key"
 
 ## 5. 单局运行
 
-CLI 提供四个子命令（`cli/main.py`）：`demo`、`play`、`report`、`resume`。
+CLI 提供四类入口（`cli/main.py`）：`demo`、`play`、`report`、`experiment run`。
 
 ### 5.1 `play`：运行完整对局
 
@@ -157,7 +160,7 @@ Start-Process -FilePath ".\.venv\Scripts\monopoly-agent-battle.exe" `
 
 - `-PassThru` 会返回进程对象，记下其 `Id`（PID）以便后续管理。
 - 事后查看进度：`Get-Content runs\你的-stdout.log -Wait`（实时跟随）或直接读运行目录下的产物。
-- 需要停止：`Stop-Process -Id <PID>`。**注意：中途停止会产生不完整的废局**，LLM/朝廷局不支持断点续跑，需改 `game_id` 或 `experiment_id` 后重跑。
+- 需要停止：`Stop-Process -Id <PID>`。**注意：中途停止会产生不完整的废局**，需改 `game_id` 或 `experiment_id` 后重新运行。
 - 凭据仍从仓库根目录的 `.env.local` 读取（CLI 进程启动时自行加载）；若改用会话级 `$env:` 临时变量，须在同一 PowerShell 会话内 `Start-Process`。
 
 无论前台还是后台，真实 LLM 局都可能耗时较长并产生费用；系统不做限时或预算上限（属未实现的阶段 7）。
@@ -184,7 +187,6 @@ Start-Process -FilePath ".\.venv\Scripts\monopoly-agent-battle.exe" `
 | `runtime.jsonl` | 重连、重试、上下文裁剪等运行时审计（不提供给 Agent） |
 | `result.json` | 终局状态、排名、有效性与计量 |
 | `performance.jsonl` | 朝廷官员绩效窗口（仅含朝廷玩家时生成） |
-| `checkpoint.json` | 每条命令后自动更新的断点快照 |
 
 `result.json` 关注字段：
 
@@ -197,8 +199,28 @@ Start-Process -FilePath ".\.venv\Scripts\monopoly-agent-battle.exe" `
 | `validity_status` | 有效性：`valid` 或 `invalid` |
 | `llm_calls` | LLM 调用次数；纯随机局为 `0` |
 | `decision_fallbacks` | 因无效响应或重连耗尽而使用默认候选的次数 |
+| `llm_token_stats` | token 统计：`totals`（全对局调用数与输入/缓存/未缓存/思考/输出 token 总量）、`per_player`（人均与每决策均值；思考与输出独立统计） |
 
 **有效性判定：** 当 LLM 触发的默认回退次数达到全部 LLM 调用数的 **10%** 时，`validity_status=invalid`（`decision/runner.py::_validity_status`）。重连或重试后成功得到合法回复不计入该分子。无效局仍完整保留全部日志，仅不计入正式排名与积分。
+
+### 5.4 批量运行多局对局
+
+单局运行仍使用前述 `play --config <配置文件路径>`。需要按顺序运行多个独立 YAML 时，另使用一份批次清单：
+
+```yaml
+games:
+  - game_a.yaml
+  - game_b.yaml
+```
+
+清单中的相对路径以清单文件所在目录为基准。每个对局 YAML 仍使用自身的 `output_directory`、`experiment_id` 和 `game_id`，各局产物继续写入各自的 `<output_directory>/<experiment_id>/<game_id>/` 目录。
+
+```powershell
+.\.venv\Scripts\monopoly-agent-battle.exe experiment run `
+  --batch configs/experiments/preexperiment_demo/batch.yaml
+```
+
+程序先检查全部清单文件、配置有效性和 `game_id` 是否重复；预检查失败时不启动任何对局。检查通过后按清单顺序执行，单局异常记录为 `failed` 并继续后续对局。批次状态写入清单同目录的 `tasks.jsonl`，不替代各局原有运行产物。
 
 ---
 
@@ -259,6 +281,7 @@ Select-String -Path runs/<experiment_id>/<game_id>/events.jsonl -Pattern 'proper
 | `... requires court_role_profiles` | 为朝廷玩家填全部官员 profile。 |
 | `player model_profile not defined` | 在 `model_profiles` 中补充或修正引用名。 |
 | `no client factory registered for provider: ...` | `provider` 只能是 `mock` / `fake` / `openai_compatible`。 |
+| `unsupported model '...' for provider openai_compatible` | `model` 必须是白名单六模型之一（见第 3 节），错误信息会列出全部可选值。 |
 | 拒绝 Level 1/2 或未支持版本 | 当前只支持 Level 0 与受支持的规则/数据版本。 |
 
 ### 8.2 凭据与网络

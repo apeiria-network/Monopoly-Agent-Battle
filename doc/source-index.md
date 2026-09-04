@@ -15,6 +15,9 @@
 | `configs/games/tang_court_mock_demo.yaml` | 唐代三角色朝廷的无凭据短局配置：一名 `tang_court` 玩家分别绑定中书省、门下省与皇帝的 Mock 模型，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/ming_court_mock_demo.yaml` | 明代四角色朝廷的无凭据短局配置：一名 `ming_court` 玩家绑定首辅、两名共用模型的大学士和皇帝，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/random_baseline_demo.yaml` | 四玩家完全随机、非 LLM 的 Level 0 示例配置；显式使用 `controller_type: random_baseline`，不含 `model_profiles`。 | 作为 `monopoly-agent-battle play --config` 的输入；不产生 LLM 调用产物。 |
+| `configs/experiments/preexperiment_demo/batch.yaml` | 预实验批次清单，按顺序列出需要执行的独立对局 YAML；相对路径以清单文件所在目录为基准。 | 作为 `monopoly-agent-battle experiment run --batch` 的输入。 |
+| `configs/experiments/preexperiment_demo/game_a.yaml` / `game_b.yaml` | 两局 Level 0 完全随机、非 LLM 的预实验示例配置。 | 由 `batch.yaml` 按顺序调用；也可作为独立 `play --config` 配置。 |
+| `configs/fake_agent_batch_test/generate_configs.py` | 生成 4 批 × 20 局、50 回合的四朝廷 fake 对局配置及批次清单；种子互异，开局发 3 张机会卡，生成时逐份预校验。 | `.venv/Scripts/python.exe configs/fake_agent_batch_test/generate_configs.py`；批次用 `experiment run --batch configs/fake_agent_batch_test/batchN/batch.yaml` 执行。 |
 | `src/monopoly_agent_battle/config/models.py` | 定义并校验单局配置、控制器及模型绑定；每个玩家或官员的 profile 可独立配置 URL、API Key 环境变量、模型、LLM seed 和调用参数。 | 由配置加载器和对局入口调用；真实 API Key 不进入配置。 |
 | `src/monopoly_agent_battle/config/loader.py` | 加载 YAML 配置，生成规范 JSON 及 SHA-256 `config_hash`。 | 由 CLI 或实验编排调用。 |
 | `.env.example` | 本地凭据模板（占位值），列出通用 `MONOPOLY_API_KEY` 及 `example.yaml` 中 13 名官员的 `api_key_env` 变量名。 | `Copy-Item .env.example .env.local` 后填入真实 API Key；禁止提交真实密钥。 |
@@ -113,14 +116,20 @@
 | `context/validation_feedback.py` | Stage 4C 校验失败用户可见反馈模板；依据 `DecisionValidation.error_category` 选择模板。 | `build_feedback(validation, request) -> str`。 |
 | `MonopolyAgentBattle_developer_docs/history_context_supplement.md` | Stage 4 历史上下文规范及 4C-remake 确认设计：system/user 消息归属、段 3 独立严格 500-token 裁剪、事件换行、运行时告警隔离和校验反馈生命周期。 | 作为 4C-remake 的实现与人工审核依据；4D 开发前应先查阅。 |
 
+## 预实验编排（`src/monopoly_agent_battle/experiments/`）
+
+| 路径 | 用途 | 使用方式 |
+|---|---|---|
+| `experiments/tasks.py` | 定义批次任务模型及状态：`pending`、`running`、`completed`、`invalid`、`failed`。 | 由批量运行器创建并写入 `tasks.jsonl`。 |
+| `experiments/state_machine.py` | 校验批次任务状态迁移：`pending → running → completed \| invalid \| failed`。 | 由批量运行器调用。 |
+| `experiments/runner.py` | 读取批次清单，预先加载并校验全部对局配置及 `game_id` 唯一性；预检查通过后按顺序执行各局，隔离单局运行异常，并将任务状态写入清单同目录的 `tasks.jsonl`。 | 调用 `run_batch(manifest_path, game_runner=...)`；CLI 使用 `experiment run --batch <batch.yaml>`。 |
+
 ## 运行产物与 CLI（`src/monopoly_agent_battle/logging/`、`cli/`）
 
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
-| `logging/run_artifacts.py` | 创建或重新打开单局运行目录，持久化冻结配置和各类审计产物；checkpoint 原子替换并绑定最后完整事件 ID，已有 JSONL 序号必须连续。 | 由单局运行器及断点恢复流程调用。 |
-| `game/state_codec.py` | 以版本化纯 JSON 编解码完整可变游戏状态和引擎 RNG，用于安全 checkpoint 恢复。 | `encode_checkpoint(state, rng)`；`restore_checkpoint(document, state, rng)`。 |
-| `game/resume.py` | 在原目录从完整命令边界恢复全随机 baseline 对局；校验配置、checkpoint、事件流和历史随机决策，并在完成后执行回放验证。 | `resume_random_game(run_directory)`；CLI 使用 `resume --run-dir`。 |
-| `cli/main.py` | 提供 `demo`、完整对局 `play`、单局 `report` 和全随机未完成对局 `resume`；按配置组装随机、普通 LLM、商、秦、唐、明控制器。 | `.venv/Scripts/monopoly-agent-battle.exe resume --run-dir <运行目录>`。 |
+| `logging/run_artifacts.py` | 创建单局运行目录，持久化冻结配置及各类 JSONL、JSON、文本审计产物；维护事件、调用和运行日志的连续编号。 | 由单局运行器、决策运行器和预实验批量运行器调用。 |
+| `cli/main.py` | 提供 `demo`、完整对局 `play`、单局 `report` 以及预实验批量执行命令；按配置组装随机、普通 LLM、商、秦、唐、明控制器。 | 使用 `.venv/Scripts/monopoly-agent-battle.exe experiment run --batch <批次清单>` 按清单顺序执行多局对局。 |
 | `reporting/single_game.py` | 从单局运行产物生成不包含私有 payload 的安全汇总报告，并渲染 Markdown。 | 调用 `build_single_game_report(run_directory)` 和 `render_single_game_report(report)`。 |
 | `reporting/llm_digest.py` | 从 `llm_calls.jsonl` 生成一行一条的精简 LLM 回复 Markdown（回合·发起者·选项·理由，理由 400 字符截断，最终决策行加粗）。 | 调用 `write_llm_digest(run_directory)`；`play`/`report` 在含 LLM 调用时自动生成 `llm_digest.md`。 |
 
@@ -166,8 +175,6 @@
 | `tests/integration/test_cli_demo.py` | CLI 创建可审计运行目录的端到端闭环。 | `python -m pytest tests/integration/test_cli_demo.py` |
 | `tests/unit/test_single_game_report.py` | 可读单局报告的安全聚合、Markdown 渲染及缺失结果拒绝。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_single_game_report.py` |
 | `tests/unit/test_llm_digest.py` | 精简 LLM 回复摘要：最终决策加粗、中间官员不加粗、400 字符截断、非 JSON 神谕回复、失败调用、目标渲染、缺回合号与默认落盘。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_llm_digest.py` |
-| `tests/unit/game/test_state_codec.py` | 完整非默认游戏状态与 RNG 的纯 JSON checkpoint 往返，以及 schema、state、玩家、字段、枚举和 RNG 损坏拒绝。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/game/test_state_codec.py` |
-| `tests/integration/test_resume_random_game.py` | 全随机对局中断续跑与连续运行一致性；覆盖已完成/非随机/配置篡改拒绝、事件日志连续性、checkpoint 边界和随机决策审计损坏。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/integration/test_resume_random_game.py` |
 
 ## 常用质量检查
 

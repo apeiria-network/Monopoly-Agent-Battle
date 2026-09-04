@@ -28,8 +28,8 @@ from monopoly_agent_battle.decision.runner import (
     RawDecisionController,
     run_decision_game,
 )
+from monopoly_agent_battle.experiments.runner import render_batch_summary, run_batch
 from monopoly_agent_battle.game.engine import GameEngine
-from monopoly_agent_battle.game.resume import resume_random_game
 from monopoly_agent_battle.llm.fake_client import FakeLLMClient
 from monopoly_agent_battle.llm.mock_client import MockLLMClient
 from monopoly_agent_battle.llm.openai_compatible_client import OpenAICompatibleClient
@@ -55,8 +55,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     report_parser.add_argument("--run-dir", required=True, type=Path, help="run artifact directory")
     report_parser.add_argument("--output", type=Path, help="optional Markdown output path")
-    resume_parser = subparsers.add_parser("resume", help="resume an unfinished all-random run")
-    resume_parser.add_argument("--run-dir", required=True, type=Path, help="run artifact directory")
+    experiment_parser = subparsers.add_parser("experiment", help="pre-experiment batch commands")
+    experiment_sub = experiment_parser.add_subparsers(dest="experiment_command", required=True)
+    experiment_run = experiment_sub.add_parser(
+        "run", help="run every game listed in a batch manifest, in order"
+    )
+    experiment_run.add_argument(
+        "--batch", required=True, type=Path, help="path to a batch manifest YAML"
+    )
     return parser
 
 
@@ -296,5 +302,7 @@ def main() -> None:
         print(write_single_game_report(arguments.run_dir, arguments.output))
         if (arguments.run_dir / "llm_calls.jsonl").exists():
             print(write_llm_digest(arguments.run_dir))
-    elif arguments.command == "resume":
-        print(resume_random_game(arguments.run_dir))
+    elif arguments.command == "experiment":
+        if arguments.experiment_command == "run":
+            tasks = run_batch(arguments.batch, game_runner=run_play)
+            print(render_batch_summary(tasks))

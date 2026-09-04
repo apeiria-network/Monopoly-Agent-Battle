@@ -7,7 +7,7 @@ import urllib.error
 import urllib.request
 from email.message import Message
 from io import BytesIO
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -40,7 +40,7 @@ def profile(**overrides: object) -> ModelProfile:
         "provider": "openai_compatible",
         "base_url": "https://example.test/v1/",
         "api_key_env": "TEST_LLM_API_KEY",
-        "model": "configured-model",
+        "model": "GLM-5-Turbo",
         "temperature": 0.4,
         "max_tokens": 321,
         "timeout_seconds": 12,
@@ -73,6 +73,7 @@ def test_client_sends_independent_endpoint_credentials_and_parameters(
     def fake_urlopen(http_request: urllib.request.Request, timeout: float) -> FakeHTTPResponse:
         captured["url"] = http_request.full_url
         captured["authorization"] = http_request.headers["Authorization"]
+        captured["user_agent"] = http_request.headers.get("User-agent")
         raw_data = http_request.data
         assert isinstance(raw_data, bytes)
         captured["payload"] = json.loads(raw_data.decode("utf-8"))
@@ -97,6 +98,10 @@ def test_client_sends_independent_endpoint_credentials_and_parameters(
     assert captured == {
         "url": "https://example.test/v1/chat/completions",
         "authorization": "Bearer top-secret-key",
+        "user_agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        ),
         "payload": {
             "model": "request-model",
             "messages": [
@@ -106,6 +111,7 @@ def test_client_sends_independent_endpoint_credentials_and_parameters(
             "temperature": 0.3,
             "max_tokens": 123,
             "seed": 42,
+            "thinking": {"type": "disabled"},
         },
         "timeout": 7,
     }
@@ -138,6 +144,32 @@ def test_client_defaults_missing_cached_token_details_to_zero(
 
     assert usage.cached_input_tokens == 0
     assert usage.uncached_input_tokens == 10
+
+
+def test_client_sends_enabled_thinking_when_profile_opts_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_LLM_API_KEY", "secret")
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(http_request: urllib.request.Request, timeout: float) -> FakeHTTPResponse:
+        del timeout
+        raw_data = http_request.data
+        assert isinstance(raw_data, bytes)
+        captured["payload"] = json.loads(raw_data.decode("utf-8"))
+        return FakeHTTPResponse(
+            {
+                "model": "actual-model",
+                "choices": [{"message": {"content": "answer"}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 4},
+            }
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    OpenAICompatibleClient(profile(thinking=True)).complete(request())
+
+    payload = cast(dict[str, Any], captured["payload"])
+    assert payload["thinking"] == {"type": "enabled"}
 
 
 def test_client_rejects_missing_environment_credential(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -184,3 +216,34 @@ def test_client_rejects_invalid_response_schema(monkeypatch: pytest.MonkeyPatch)
 
     with pytest.raises(LLMCallError, match="invalid response schema"):
         OpenAICompatibleClient(profile()).complete(request())
+
+
+class FakeRawHTTPResponse:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def __enter__(self) -> FakeRawHTTPResponse:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._payload
+
+
+def test_client_classifies_invalid_json_as_retryable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_LLM_API_KEY", "secret-must-not-leak")
+
+    def fake_urlopen(_request: urllib.request.Request, timeout: float) -> FakeRawHTTPResponse:
+        del timeout
+        # A 2xx body that is empty/truncated/non-JSON (e.g. an unstable upstream
+        # channel or gateway hiccup) must be retryable, not a permanent error.
+        return FakeRawHTTPResponse(b"<html>502 Bad Gateway</html>")
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    with pytest.raises(LLMConnectionError) as exc_info:
+        OpenAICompatibleClient(profile()).complete(request())
+    assert "invalid JSON" in str(exc_info.value)
+    assert "secret-must-not-leak" not in str(exc_info.value)

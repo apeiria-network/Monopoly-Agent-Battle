@@ -68,12 +68,15 @@ output_directory: runs
 | `seed` | 是 | 游戏随机种子，影响骰子、卡牌洗牌和随机玩家行为。 |
 | `players` | 是 | 玩家列表，必须包含 2 至 4 名玩家。 |
 | `initial_cash` | 否 | 初始现金，默认 `1500`。 |
+| `initial_chance_cards` | 否 | 开局每位玩家从洗好的机会牌堆获得的机会卡张数，默认 `0`（不发牌）。允许 `0` 至 `3`，与机会卡手牌上限一致。 |
 | `max_complete_rounds` | 否 | 最大完整回合数，默认 `50`。 |
 | `rules_version` | 是 | 当前填写 `classic-level0-v1`。 |
 | `rules_level` | 是 | 当前必须填写 `0`。 |
 | `board_data_version` | 是 | 当前填写 `classic-us-40-v1`。 |
 | `card_data_version` | 是 | 当前填写 `classic-cards-v1`。 |
 | `output_directory` | 否 | 运行结果根目录，默认 `runs`。 |
+
+`initial_chance_cards` 大于 `0` 时，引擎开局按座位顺序从洗好的机会牌堆顶部为每位玩家发卡；发牌不产生事件、不播报，发出的卡立即进入该玩家的手牌并可在其首个出牌阶段打出。相同 `seed` 下发牌结果确定；省略或填 `0` 时行为与旧版一致。
 
 ## 4. 玩家配置
 
@@ -245,13 +248,49 @@ api_key: sk-真实密钥
 | `provider` | 真实接口使用 `openai_compatible`；无网络模拟测试使用 `fake`；固定策略和脚本测试使用 `mock`。 |
 | `base_url` | OpenAI 兼容 API 的基地址，程序会请求其 `/chat/completions` 路径。 |
 | `api_key_env` | API Key 环境变量名称。 |
-| `model` | 供应商使用的模型名称。 |
+| `model` | 供应商使用的模型名称；`openai_compatible` 只接受白名单模型（见 7.1）。 |
 | `seed` | LLM 随机种子；当前示例统一为 `42`。 |
 | `temperature` | 可选采样参数；省略时不发送，由供应商决定默认值。 |
 | `max_tokens` | 可选最大输出 token 数；省略时不发送。 |
 | `timeout_seconds` | 可选请求超时时间；省略时使用客户端默认值。 |
+| `thinking` | 可选思考模式开关，默认 `false`（见 7.2）。 |
 
 `seed` 只能帮助部分模型提高可重复性，不能保证所有供应商完全返回相同文本。
+
+### 7.1 模型白名单
+
+`provider: openai_compatible` 的 `model` 只接受以下六个模型，配置其他模型名会在加载时直接报错（不区分 `base_url`，对所有地址统一生效）：
+
+```text
+GLM-5-Turbo
+DeepSeek-V4-Flash
+DeepSeek-V4-Pro
+Qwen3.7-Plus
+Qwen3.8-Max
+Kimi-K2.6
+```
+
+`mock` 和 `fake` 的模型名不受白名单限制。
+
+### 7.2 思考模式开关
+
+每个 `model_profile` 可独立控制思考模式：
+
+```yaml
+model_profiles:
+  player-model:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY
+    model: DeepSeek-V4-Flash
+    thinking: true
+```
+
+- **默认关闭**：不写 `thinking` 或写 `false` 时，请求会显式携带关闭思考的参数，模型不产生思考输出；六个白名单模型均实测支持。
+- **显式启用**：写 `thinking: true` 才开启思考模式。
+- 开启思考后，思考 token 计入输出 token；`max_tokens` 需要相应调大，否则正文可能被思考挤占导致回复截断。
+- 思考 token 用量会记入 `llm_calls.jsonl` 与 `result.json` 的 token 统计。
+- `mock` 和 `fake` 不涉及思考模式，该字段无效果。
 
 ## 8. 完整四朝廷示例
 
@@ -281,6 +320,7 @@ configs/games/four_courts_fake_demo.yaml
 - 控制器类型与所需字段；
 - profile 是否存在；
 - OpenAI 兼容 profile 是否包含 `base_url` 和 `api_key_env`；
+- OpenAI 兼容 profile 的模型是否在白名单内（见 7.1）；
 - 是否误写明文 `api_key`；
 - 规则和数据版本是否受支持。
 
@@ -313,4 +353,5 @@ runs/<experiment_id>/<game_id>/
 | `requires court_role_profiles` | 为朝廷玩家填写全部官员 profile。 |
 | API Key 环境变量未设置 | 在项目根目录的 `.env.local` 中填写 YAML 的 `api_key_env` 对应变量，或在当前 PowerShell 中设置该变量。 |
 | `no client factory registered for provider` | 检查 `provider` 是否为 `openai_compatible`、`fake` 或 `mock`。 |
+| `unsupported model '...' for provider openai_compatible` | `model` 只能使用 7.1 节列出的六个白名单模型。 |
 | 输出目录已存在 | 修改 `game_id` 或 `experiment_id`。 |

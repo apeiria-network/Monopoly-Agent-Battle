@@ -23,6 +23,8 @@ def build_feedback(validation: DecisionValidation, request: DecisionRequest) -> 
     category = validation.error_category
     if category == "not_json":
         return "Error: 决策回复必须是一个JSON"
+    if category == "missing_reason":
+        return "Error: 回复缺少必填的 reason 字段，reason 必须是字符串"
     if category == "missing_option":
         return "Error: 未设定决策选项id"
     if category == "invalid_option":

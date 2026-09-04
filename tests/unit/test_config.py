@@ -77,6 +77,87 @@ card_data_version: classic-cards-v1
     assert load_game_config(config_path).game_id == "game-001"
 
 
+def test_load_game_config_rejects_unsupported_remote_model(tmp_path: Path) -> None:
+    config_path = tmp_path / "game.yaml"
+    config_path.write_text(
+        """game_id: game-001
+experiment_id: experiment-001
+seed: 42
+players:
+  - player_id: a
+    seat: 1
+    controller_type: llm_baseline
+    model_profile: remote
+  - player_id: b
+    seat: 2
+    controller_type: random_baseline
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+model_profiles:
+  remote:
+    provider: openai_compatible
+    base_url: https://example.com/v1
+    api_key_env: REMOTE_API_KEY
+    model: claude-haiku-4-5
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="unsupported model 'claude-haiku-4-5'"):
+        load_game_config(config_path)
+
+
+def test_load_game_config_accepts_supported_remote_models(tmp_path: Path) -> None:
+    config_path = tmp_path / "game.yaml"
+    config_path.write_text(
+        """game_id: game-001
+experiment_id: experiment-001
+seed: 42
+players:
+  - player_id: a
+    seat: 1
+    controller_type: llm_baseline
+    model_profile: remote
+  - player_id: b
+    seat: 2
+    controller_type: random_baseline
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+model_profiles:
+  remote:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/v1
+    api_key_env: REMOTE_API_KEY
+    model: DeepSeek-V4-Flash
+    thinking: true
+""",
+        encoding="utf-8",
+    )
+
+    config = load_game_config(config_path)
+    assert config.model_profiles["remote"].model == "DeepSeek-V4-Flash"
+    assert config.model_profiles["remote"].thinking is True
+
+
+def test_config_thinking_defaults_off_and_changes_hash() -> None:
+    data = config_data()
+    data["model_profiles"] = {"mock": {"provider": "mock", "model": "mock-baseline-v1"}}
+    default = GameConfig.model_validate(data)
+    enabled_data = config_data()
+    enabled_data["model_profiles"] = {
+        "mock": {"provider": "mock", "model": "mock-baseline-v1", "thinking": True}
+    }
+    enabled = GameConfig.model_validate(enabled_data)
+
+    assert default.model_profiles["mock"].thinking is False
+    assert enabled.model_profiles["mock"].thinking is True
+    assert config_hash(default) != config_hash(enabled)
+
+
 def test_config_accepts_model_profiles_and_player_binding() -> None:
     data = config_data()
     data["model_profiles"] = {"mock": {"provider": "mock", "model": "mock-baseline-v1"}}
@@ -429,7 +510,7 @@ def test_config_has_stage4_context_defaults() -> None:
     config = GameConfig.model_validate(config_data())
     assert config.validation_retries == 2
     assert config.window_turns == 1
-    assert config.prompt_profile == "full-v1"
+    assert config.prompt_profile == "full-v2"
     assert config.sentence_template_version is None
     assert config.context_token_cap is None
 
@@ -442,6 +523,22 @@ def test_config_accepts_cache_first_prompt_profile_and_hashes_it() -> None:
 
     assert cache_first.prompt_profile == "cache-first-v1"
     assert config_hash(default) != config_hash(cache_first)
+
+
+def test_config_accepts_v2_and_v1_prompt_profiles_and_hashes_them() -> None:
+    full_v2 = GameConfig.model_validate(config_data())
+    data = config_data()
+    data["prompt_profile"] = "cache-first-v2"
+    cache_first_v2 = GameConfig.model_validate(data)
+    data = config_data()
+    data["prompt_profile"] = "full-v1"
+    full_v1 = GameConfig.model_validate(data)
+
+    assert full_v2.prompt_profile == "full-v2"
+    assert cache_first_v2.prompt_profile == "cache-first-v2"
+    assert full_v1.prompt_profile == "full-v1"
+    assert config_hash(full_v2) != config_hash(cache_first_v2)
+    assert config_hash(full_v2) != config_hash(full_v1)
 
 
 def test_config_rejects_unknown_prompt_profile() -> None:

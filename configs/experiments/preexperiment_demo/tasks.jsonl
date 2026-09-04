@@ -1,0 +1,2 @@
+{"game_id":"preexp-random-a","experiment_id":"preexperiment-demo","config_path":"configs\\experiments\\preexperiment_demo\\game_a.yaml","status":"completed","reason":null,"run_directory":"runs\\preexperiment-demo\\preexp-random-a"}
+{"game_id":"preexp-random-b","experiment_id":"preexperiment-demo","config_path":"configs\\experiments\\preexperiment_demo\\game_b.yaml","status":"completed","reason":null,"run_directory":"runs\\preexperiment-demo\\preexp-random-b"}

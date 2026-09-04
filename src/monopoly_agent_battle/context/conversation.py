@@ -131,7 +131,7 @@ class AgentConversation:
 
     agent_id: str
     window_turns: int = 1
-    prompt_profile: Literal["full-v1", "cache-first-v1"] = "full-v1"
+    prompt_profile: Literal["full-v1", "cache-first-v1", "full-v2", "cache-first-v2"] = "full-v2"
     completed_turns: list[TurnRecord] = field(default_factory=lambda: [])
     current_turn: TurnRecord | None = None
     _segment3_cache: tuple[str, ...] | None = None

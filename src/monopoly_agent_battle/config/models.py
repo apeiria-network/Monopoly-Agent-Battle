@@ -7,6 +7,17 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+SUPPORTED_REMOTE_MODELS: frozenset[str] = frozenset(
+    {
+        "GLM-5-Turbo",
+        "DeepSeek-V4-Flash",
+        "DeepSeek-V4-Pro",
+        "Qwen3.7-Plus",
+        "Qwen3.8-Max",
+        "Kimi-K2.6",
+    }
+)
+
 
 class ModelProfile(BaseModel):
     """Sampling, routing, and credential-reference settings for one AI role."""
@@ -25,6 +36,13 @@ class ModelProfile(BaseModel):
     temperature: float | None = None
     max_tokens: int | None = Field(default=None, ge=1)
     timeout_seconds: float | None = Field(default=None, gt=0)
+    thinking: bool = Field(
+        default=False,
+        description=(
+            "Enable model thinking mode; disabled by default and only "
+            "explicitly enabled takes effect"
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_provider_settings(self) -> ModelProfile:
@@ -132,6 +150,7 @@ class GameConfig(BaseModel):
     seed: int
     players: tuple[PlayerConfig, ...]
     initial_cash: int = Field(default=1500, ge=0)
+    initial_chance_cards: int = Field(default=0, ge=0, le=3)
     max_complete_rounds: int = Field(default=50, ge=1)
     rules_version: str = Field(min_length=1)
     rules_level: int = Field(default=0, ge=0, le=2)
@@ -140,7 +159,7 @@ class GameConfig(BaseModel):
     model_profiles: dict[str, ModelProfile] = Field(default_factory=dict)
     validation_retries: int = Field(default=2, ge=0)
     window_turns: int = Field(default=1, ge=1)
-    prompt_profile: Literal["full-v1", "cache-first-v1"] = "full-v1"
+    prompt_profile: Literal["full-v1", "cache-first-v1", "full-v2", "cache-first-v2"] = "full-v2"
     sentence_template_version: str | None = None
     context_token_cap: int | None = Field(default=None, ge=1)
     output_directory: Path = Path("runs")

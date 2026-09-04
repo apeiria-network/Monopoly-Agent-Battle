@@ -26,7 +26,11 @@ from monopoly_agent_battle.context.token_guard import ContextWarning
 from monopoly_agent_battle.context.validation_feedback import build_feedback
 from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.prompts import render_decision_question
-from monopoly_agent_battle.decision.protocol import default_option_json, parse_and_validate
+from monopoly_agent_battle.decision.protocol import (
+    default_option_json,
+    parse_and_validate,
+    strip_code_fence,
+)
 from monopoly_agent_battle.llm.protocol import LLMClient, LLMMessage, LLMRequest
 
 _CHANCELLOR = "chancellor"
@@ -448,7 +452,7 @@ def _truncate(value: str) -> str:
 
 def _parse_counsellor(raw: str) -> str | None:
     try:
-        document_value: object = json.loads(raw)
+        document_value: object = json.loads(strip_code_fence(raw))
         if not isinstance(document_value, dict):
             return None
         document = cast(dict[str, Any], document_value)

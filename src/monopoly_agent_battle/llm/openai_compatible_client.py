@@ -20,6 +20,13 @@ from monopoly_agent_battle.llm.protocol import (
 
 _DEFAULT_TIMEOUT_SECONDS = 60.0
 _RETRYABLE_HTTP_STATUS = {408, 409, 429, 500, 502, 503, 504}
+# A browser-style User-Agent so requests are not blocked by CDN/bot filters
+# (e.g. Cloudflare error 1010) that reject the default urllib signature. This
+# header carries no credentials and does not change request semantics.
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+)
 
 
 class OpenAICompatibleClient(LLMClient):
@@ -38,6 +45,7 @@ class OpenAICompatibleClient(LLMClient):
         self._endpoint = f"{profile.base_url.rstrip('/')}/chat/completions"
         self._api_key = api_key
         self._default_timeout = profile.timeout_seconds or _DEFAULT_TIMEOUT_SECONDS
+        self._thinking = profile.thinking
 
     def complete(self, request: LLMRequest) -> LLMResponse:
         """Send a chat-completions request and normalize its text and usage."""
@@ -46,6 +54,7 @@ class OpenAICompatibleClient(LLMClient):
             "messages": [
                 {"role": message.role, "content": message.content} for message in request.messages
             ],
+            "thinking": {"type": "enabled" if self._thinking else "disabled"},
         }
         if request.temperature is not None:
             payload["temperature"] = request.temperature
@@ -60,6 +69,8 @@ class OpenAICompatibleClient(LLMClient):
             headers={
                 "Authorization": f"Bearer {self._api_key}",
                 "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": _USER_AGENT,
             },
             method="POST",
         )
@@ -82,7 +93,10 @@ class OpenAICompatibleClient(LLMClient):
                 f"OpenAI-compatible endpoint connection failed: {type(exc).__name__}"
             ) from None
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise LLMCallError(
+            # A 2xx response whose body is empty, truncated, or non-JSON is a
+            # transport/gateway hiccup (e.g. an unstable upstream channel), not a
+            # permanent call error. Treat it as retryable so the runner can retry.
+            raise LLMConnectionError(
                 f"OpenAI-compatible endpoint returned invalid JSON: {type(exc).__name__}"
             ) from None
 

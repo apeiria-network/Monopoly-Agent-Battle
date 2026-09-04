@@ -158,6 +158,43 @@ def test_card_discarded_observer_hides_card_name() -> None:
     assert self_result == "玩家a弃置了机会卡「免费卡」。"
 
 
+def test_card_discarded_played_returns_none() -> None:
+    """card_discarded with reason=played (card resolved into the pile) is silent."""
+    event = GameEvent(
+        "card_discarded",
+        {"player_id": "a", "card_id": "chance-angel", "deck": "chance", "reason": "played"},
+    )
+
+    assert render_event(event, "a") is None
+    assert render_event(event, "b") is None
+    assert render_event(event, None) is None
+
+
+def test_card_discarded_hand_limit_reason_broadcasts() -> None:
+    """card_discarded with reason=hand_limit still broadcasts for both viewers."""
+    event = GameEvent(
+        "card_discarded",
+        {"player_id": "a", "card_id": "chance-waiver", "deck": "chance", "reason": "hand_limit"},
+    )
+
+    observer_result = _rendered(event, "b")
+    assert observer_result == "玩家a弃置一张机会卡。"
+
+    self_result = _rendered(event, "a")
+    assert self_result == "玩家a弃置了机会卡「免费卡」。"
+
+
+def test_card_discarded_bankruptcy_reason_broadcasts() -> None:
+    """card_discarded with reason=bankruptcy reports the pile entry, not a discard."""
+    event = GameEvent(
+        "card_discarded",
+        {"player_id": "a", "card_id": "chance-waiver", "deck": "chance", "reason": "bankruptcy"},
+    )
+
+    result = _rendered(event, "b")
+    assert result == "玩家a破产，机会卡「chance-waiver」进入弃牌堆。"
+
+
 def test_chance_card_stolen_observer_hides_card_name() -> None:
     """chance_card_stolen: observer sees generic, thief/victim see card name."""
     event = GameEvent(

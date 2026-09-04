@@ -33,12 +33,27 @@ class ReplayVerificationError(ValueError):
 
 
 _NON_STATE_RESULT_KEYS = frozenset(
-    {"llm_calls", "reconnect_events", "decision_fallbacks", "llm_fallbacks", "validity_status"}
+    {
+        "llm_calls",
+        "reconnect_events",
+        "decision_fallbacks",
+        "llm_fallbacks",
+        "validity_status",
+        "llm_token_stats",
+    }
 )
 
 
 def verify_run(run_directory: Path) -> None:
-    """Replay persisted commands and compare their events and state snapshot."""
+    """Replay persisted commands and compare their events and state snapshot.
+
+    Two dice disciplines exist. Live runs roll dice on the engine's seeded RNG
+    stream, interleaved with discard-pile reshuffles, so replay first re-executes
+    the commands on that same stream. Test harnesses may instead inject fixed
+    dice without touching the stream; for those runs the recorded dice are
+    force-fed on a second attempt. Recorded dice results are always verified
+    through the event comparison.
+    """
     config_document = _read_json(run_directory / "config.json")
     result = _read_json(run_directory / "result.json")
     records = _read_events(run_directory / "events.jsonl")
@@ -49,18 +64,35 @@ def verify_run(run_directory: Path) -> None:
         for record in records
         if record["event_type"] != "command_executed"
     ]
+    for feed_dice in (False, True):
+        try:
+            _replay_and_compare(config_document, commands, expected_events, result, feed_dice)
+            return
+        except Exception:  # noqa: BLE001 - retry with the other dice discipline
+            if feed_dice:
+                raise
+
+
+def _replay_and_compare(
+    config_document: dict[str, Any],
+    commands: list[dict[str, Any]],
+    expected_events: list[GameEvent],
+    result: dict[str, Any],
+    feed_dice: bool,
+) -> None:
     engine = GameEngine(GameConfig.model_validate(config_document["config"]))
-    dice = deque(
-        value
-        for event in expected_events
-        if event.event_type in {"dice_rolled", "card_die_rolled"}
-        for value in (
-            cast(tuple[int, int], event.payload["dice"])
-            if event.event_type == "dice_rolled"
-            else (cast(int, event.payload["die"]),)
+    if feed_dice:
+        dice = deque(
+            value
+            for event in expected_events
+            if event.event_type in {"dice_rolled", "card_die_rolled"}
+            for value in (
+                cast(tuple[int, int], event.payload["dice"])
+                if event.event_type == "dice_rolled"
+                else (cast(int, event.payload["die"]),)
+            )
         )
-    )
-    engine.random.randint = lambda _low, _high: dice.popleft()  # type: ignore[method-assign]
+        engine.random.randint = lambda _low, _high: dice.popleft()  # type: ignore[method-assign]
     replayed: list[GameEvent] = []
     for record in commands:
         replayed.extend(engine.execute(_command_from_record(record["payload"])))
@@ -76,9 +108,22 @@ def verify_run(run_directory: Path) -> None:
 
 def _canonical_events(events: list[GameEvent]) -> list[tuple[str, str]]:
     return [
-        (event.event_type, json.dumps(event.payload, ensure_ascii=False, sort_keys=True))
-        for event in events
+        (event.event_type, _canonical_payload(event.event_type, event.payload)) for event in events
     ]
+
+
+def _canonical_payload(event_type: str, payload: dict[str, object]) -> str:
+    """Serialize one event payload, dropping provenance-only fields.
+
+    ``card_discarded.reason`` marks why a card left the player's hand
+    (played / hand_limit / bankruptcy); runs recorded before the field
+    existed lack it. It never influences engine state, so replay
+    verification ignores it on both sides.
+    """
+    normalized = dict(payload)
+    if event_type == "card_discarded":
+        normalized.pop("reason", None)
+    return json.dumps(normalized, ensure_ascii=False, sort_keys=True)
 
 
 def _command_from_record(payload: dict[str, Any]):

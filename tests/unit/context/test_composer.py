@@ -87,7 +87,7 @@ def test_cache_first_uses_stable_rules_prefix_and_compact_options(tmp_path: Path
 
     system = first[0].content
     assert system == second[0].content
-    role = render_role(request, role_instruction)
+    role = render_role(request, role_instruction, prompt_profile="cache-first-v1")
     suffix = f"\n\n{role}\n\n{output_guide}"
     assert system.endswith(suffix)
     compact_rules = system[: -len(suffix)]
@@ -108,10 +108,11 @@ def test_full_prompt_profile_preserves_existing_rendering(tmp_path: Path) -> Non
 
     implicit, _warning = compose_prompt(AgentConversation(agent_id="a"), request)
     explicit, _warning = compose_prompt(
-        AgentConversation(agent_id="a", prompt_profile="full-v1"), request
+        AgentConversation(agent_id="a", prompt_profile="full-v2"), request
     )
 
     assert implicit == explicit
+    assert "你在本局代表玩家a" in implicit[0].content
 
 
 def test_adjacent_events_share_one_event_block_with_single_newlines(tmp_path: Path) -> None:

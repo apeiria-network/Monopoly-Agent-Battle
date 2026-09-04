@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from typing import cast
@@ -64,14 +65,38 @@ _COMMAND_FACTORIES: dict[str, CommandFactory] = {
 }
 
 
+_CODE_FENCE_RE = re.compile(
+    r"^\s*```[^\n`]*\n(?P<body>.*?)\n?```\s*$",
+    re.DOTALL,
+)
+
+
+def strip_code_fence(raw_response: str) -> str:
+    """Unwrap a single Markdown code fence around a model reply, if present.
+
+    Many models wrap their JSON in ```json ... ``` (or a bare ``` ... ```)
+    despite the prompt asking for a raw object. The output contract still says
+    "no code block", but tolerating one fence avoids a needless validation
+    failure + retry. Only an outer fence that spans the whole trimmed reply is
+    removed; text without a fence (or malformed fencing) is returned unchanged,
+    so genuinely broken replies still fail downstream JSON parsing.
+
+    Public so the dynasty sub-parsers (which parse raw model replies through
+    their own bespoke schemas rather than ``parse_and_validate``) can share the
+    exact same fence-tolerance behaviour.
+    """
+    match = _CODE_FENCE_RE.match(raw_response)
+    return match.group("body") if match is not None else raw_response
+
+
 def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionValidation:
-    """Parse an untrusted controller reply into one of the five outcomes.
+    """Parse an untrusted controller reply into one of the six outcomes.
 
     Sets ``DecisionValidation.error_category`` on failure so the feedback
     renderer can pick the right template:
 
-    - ``not_json``          — JSON parsing or top-level structure is broken;
-                              includes missing/non-string ``reason``.
+    - ``not_json``          — JSON parsing or top-level structure is broken.
+    - ``missing_reason``    — ``reason`` is absent or not a string.
     - ``missing_option``    — ``selected_option`` block or its ``option`` field
                               is absent or not a string.
     - ``invalid_option``    — ``option`` value does not match any candidate.
@@ -83,7 +108,7 @@ def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionV
     ``reason`` longer than ``_MAX_REASON_CHARS`` is truncated (not an error).
     """
     try:
-        document = json.loads(raw_response)
+        document = json.loads(strip_code_fence(raw_response))
     except json.JSONDecodeError:
         return _fail("not_json", "response is not valid JSON", raw_response)
     if not isinstance(document, dict):
@@ -92,7 +117,7 @@ def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionV
 
     reason = document.get("reason")
     if not isinstance(reason, str):
-        return _fail("not_json", "reason field is missing or not a string", raw_response)
+        return _fail("missing_reason", "reason field is missing or not a string", raw_response)
     reason = reason[:_MAX_REASON_CHARS]
 
     selected = document.get("selected_option")
