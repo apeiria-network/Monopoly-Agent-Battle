@@ -105,7 +105,7 @@ def test_rent_waiver_cards_stack_and_reject_other_players_turn(tmp_path: Path) -
 def test_get_out_of_jail_card_releases_player_and_is_discarded(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     player = engine.state.players["a"]
-    player.jail_status = JailStatus.WAITING
+    player.jail_status = JailStatus.ROLLING
     player.community_get_out_of_jail_cards.append("community-jail-free")
 
     events = engine.execute(UseCommunityGetOutOfJailCard("a", "community-jail-free"))

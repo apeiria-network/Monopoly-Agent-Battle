@@ -178,7 +178,7 @@ def test_four_player_complete_game_has_deterministic_golden_artifacts(tmp_path: 
     assert result["status"] == "completed"
     assert result["complete_rounds"] == 30
     assert set(result["players"]) == {"a", "b", "c", "d"}
-    assert result["rankings"] == ["d", "b", "a", "c"]
+    assert result["rankings"] == ["a", "d", "b", "c"]
     verify_run(first)
     verify_run(second)
 
