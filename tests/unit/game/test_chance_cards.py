@@ -105,7 +105,7 @@ def test_rent_waiver_cards_stack_and_reject_other_players_turn(tmp_path: Path) -
 def test_get_out_of_jail_card_releases_player_and_is_discarded(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     player = engine.state.players["a"]
-    player.jail_status = JailStatus.WAITING
+    player.jail_status = JailStatus.ROLLING
     player.community_get_out_of_jail_cards.append("community-jail-free")
 
     events = engine.execute(UseCommunityGetOutOfJailCard("a", "community-jail-free"))
@@ -794,12 +794,11 @@ def test_build_card_rejects_hotel_without_consuming_card(tmp_path: Path) -> None
     assert engine.state.players["a"].chance_cards == ["chance-build"]
 
 
-def test_steal_card_requires_selection_after_a_successful_die(tmp_path: Path) -> None:
+def test_steal_card_requires_selection_directly(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.players["b"].position = 6
     engine.state.players["b"].chance_cards.append("chance-build")
     give_card(engine, "chance-steal")
-    engine.random.randint = lambda _low, _high: 4  # type: ignore[method-assign]
 
     events = engine.execute(UseChanceCard("a", "chance-steal", target_player_id="b"))
 
@@ -807,10 +806,8 @@ def test_steal_card_requires_selection_after_a_successful_die(tmp_path: Path) ->
     assert engine.state.players["b"].chance_cards == ["chance-build"]
     assert engine.state.chance_discard_pile == []
     assert engine.state.turn_phase is TurnPhase.THEFT_CARD_SELECTION
-    assert {event.event_type for event in events} >= {
-        "card_die_rolled",
-        "chance_card_theft_selection_required",
-    }
+    assert {event.event_type for event in events} >= {"chance_card_theft_selection_required"}
+    assert not any(event.event_type == "card_die_rolled" for event in events)
 
     events = engine.execute(SelectStolenChanceCard("a", "chance-build"))
 
@@ -819,20 +816,6 @@ def test_steal_card_requires_selection_after_a_successful_die(tmp_path: Path) ->
     assert engine.state.chance_discard_pile == ["chance-steal"]
     assert engine.state.turn_phase is TurnPhase.ASSET_MANAGEMENT
     assert {event.event_type for event in events} >= {"chance_card_stolen", "card_discarded"}
-
-
-def test_steal_card_failure_keeps_the_card_in_hand(tmp_path: Path) -> None:
-    engine = make_engine(tmp_path)
-    engine.state.players["b"].position = 6
-    engine.state.players["b"].chance_cards.append("chance-build")
-    give_card(engine, "chance-steal")
-    engine.random.randint = lambda _low, _high: 3  # type: ignore[method-assign]
-
-    engine.execute(UseChanceCard("a", "chance-steal", target_player_id="b"))
-
-    assert engine.state.players["a"].chance_cards == ["chance-steal"]
-    assert engine.state.players["b"].chance_cards == ["chance-build"]
-    assert engine.state.chance_discard_pile == []
 
 
 def test_ongoing_color_effects_reset_and_expire_after_source_turns(tmp_path: Path) -> None:

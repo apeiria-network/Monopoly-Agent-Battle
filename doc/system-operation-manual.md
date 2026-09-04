@@ -183,7 +183,7 @@ Start-Process -FilePath ".\.venv\Scripts\monopoly-agent-battle.exe" `
 | `events.jsonl` | 每条已执行命令及其领域事件，`event_id` 单调递增 |
 | `decisions.jsonl` | 决策请求、候选、响应校验、回退与实际命令 |
 | `llm_calls.jsonl` | 每次 LLM 调用（含失败）：角色、模型、token、耗时、错误、调用时回合号（`complete_rounds`）、原长响应摘要。**纯随机局不生成** |
-| `llm_digest.md` | 精简 LLM 回复摘要，一行一条「第 N 轮 · 发起者 · 决策：选项 · 理由（400 字符截断）」，最终决策（皇帝或 baseline 玩家）行加粗。含 LLM 调用时由 `play`/`report` 生成 |
+| `llm_digest.csv` | LLM 回复摘要表（UTF-8 带 BOM，Excel 可直接打开），一次 LLM 调用一行，列：轮次、玩家、发言者、reason、选项、target（回复中原样字段值）、最终执行命令、当前玩家净资产、当前玩家持有机会卡数、是否是最终决策者、是否报错回复（布尔列为 True/False）。含 LLM 调用时由 `play`/`report` 生成 |
 | `runtime.jsonl` | 重连、重试、上下文裁剪等运行时审计（不提供给 Agent） |
 | `result.json` | 终局状态、排名、有效性与计量 |
 | `performance.jsonl` | 朝廷官员绩效窗口（仅含朝廷玩家时生成） |

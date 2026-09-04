@@ -131,7 +131,7 @@
 | `logging/run_artifacts.py` | 创建单局运行目录，持久化冻结配置及各类 JSONL、JSON、文本审计产物；维护事件、调用和运行日志的连续编号。 | 由单局运行器、决策运行器和预实验批量运行器调用。 |
 | `cli/main.py` | 提供 `demo`、完整对局 `play`、单局 `report` 以及预实验批量执行命令；按配置组装随机、普通 LLM、商、秦、唐、明控制器。 | 使用 `.venv/Scripts/monopoly-agent-battle.exe experiment run --batch <批次清单>` 按清单顺序执行多局对局。 |
 | `reporting/single_game.py` | 从单局运行产物生成不包含私有 payload 的安全汇总报告，并渲染 Markdown。 | 调用 `build_single_game_report(run_directory)` 和 `render_single_game_report(report)`。 |
-| `reporting/llm_digest.py` | 从 `llm_calls.jsonl` 生成一行一条的精简 LLM 回复 Markdown（回合·发起者·选项·理由，理由 400 字符截断，最终决策行加粗）。 | 调用 `write_llm_digest(run_directory)`；`play`/`report` 在含 LLM 调用时自动生成 `llm_digest.md`。 |
+| `reporting/llm_digest.py` | 从 `decisions.jsonl`（朝廷 trace 与状态快照）+ `llm_calls.jsonl`（基线逐次调用）生成一次调用一行的 LLM 回复摘要 CSV（轮次·玩家·发言者·reason·选项·target·最终执行命令·净资产·机会卡数·是否最终决策者·是否报错回复）。 | 调用 `write_llm_digest(run_directory)`；`play`/`report` 在含 LLM 调用时自动生成 `llm_digest.csv`。 |
 
 ## 自动化测试（`tests/`）
 
@@ -174,7 +174,7 @@
 | `tests/integration/test_scripted_runner.py` | 覆盖终局审计产物、固定序列回放、机会卡抽取/使用、双地产目标及事件编号篡改拒绝；所有调用 `verify_run()` 的场景均由冻结配置、固定随机结果和正式命令重建，不依赖测试前隐藏状态注入。 | `python -m pytest tests/integration/test_scripted_runner.py` |
 | `tests/integration/test_cli_demo.py` | CLI 创建可审计运行目录的端到端闭环。 | `python -m pytest tests/integration/test_cli_demo.py` |
 | `tests/unit/test_single_game_report.py` | 可读单局报告的安全聚合、Markdown 渲染及缺失结果拒绝。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_single_game_report.py` |
-| `tests/unit/test_llm_digest.py` | 精简 LLM 回复摘要：最终决策加粗、中间官员不加粗、400 字符截断、非 JSON 神谕回复、失败调用、目标渲染、缺回合号与默认落盘。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_llm_digest.py` |
+| `tests/unit/test_llm_digest.py` | LLM 回复摘要 CSV：基线逐次调用对位、朝廷 trace 行与最终决策标记、校验拒绝/回退/连接失败标记、净资产与机会卡列、围栏与自由文本解析、CSV 转义与 BOM 落盘。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_llm_digest.py` |
 
 ## 常用质量检查
 

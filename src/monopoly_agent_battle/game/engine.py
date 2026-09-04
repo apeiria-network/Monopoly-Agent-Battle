@@ -231,6 +231,10 @@ class GameEngine:
         return GameResult(self.state.end_reason, self.state.rankings, self.state.complete_rounds)
 
     def _roll(self, player: PlayerState) -> list[GameEvent]:
+        if player.jail_status is JailStatus.WAITING:
+            player.jail_status = JailStatus.ROLLING
+            self.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+            return [GameEvent("jail_wait_completed", {"player_id": player.player_id})]
         first, second = self.random.randint(1, 6), self.random.randint(1, 6)
         total = first + second
         events = [
@@ -251,10 +255,6 @@ class GameEngine:
                 ]
         else:
             self.state.consecutive_doubles = 0
-        if player.jail_status is JailStatus.WAITING:
-            player.jail_status = JailStatus.ROLLING
-            self.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
-            return events + [GameEvent("jail_wait_completed", {"player_id": player.player_id})]
         released_from_jail = False
         if player.jail_status is JailStatus.ROLLING:
             player.jail_roll_attempts += 1
@@ -554,6 +554,8 @@ class GameEngine:
     ) -> list[GameEvent]:
         if player.jail_status is JailStatus.FREE:
             raise GameRuleError("get-out-of-jail card is unavailable while free")
+        if player.jail_status is JailStatus.WAITING:
+            raise GameRuleError("get-out-of-jail card is unavailable during the wait turn")
         if card_id not in player.community_get_out_of_jail_cards:
             raise GameRuleError("player does not hold the selected get-out-of-jail card")
         player.community_get_out_of_jail_cards.remove(card_id)
@@ -637,15 +639,6 @@ class GameEngine:
             target = self._player_target(player, command.target_player_id, card.range or 0)
             if not target.chance_cards:
                 raise GameRuleError("target does not hold a chance card")
-            die = self.random.randint(1, 6)
-            events.append(
-                GameEvent(
-                    "card_die_rolled",
-                    {"player_id": player.player_id, "card_id": card.card_id, "die": die},
-                )
-            )
-            if die < 4:
-                return events
             self.state.pending_theft_thief_id = player.player_id
             self.state.pending_theft_target_id = target.player_id
             self.state.pending_theft_source_card_id = card.card_id
@@ -1639,7 +1632,7 @@ class GameEngine:
         ]
 
     def _pay_jail_fine(self, player: PlayerState) -> list[GameEvent]:
-        if player.jail_status is JailStatus.FREE or player.cash < 50:
+        if player.jail_status is not JailStatus.ROLLING or player.cash < 50:
             raise GameRuleError("jail fine is not payable")
         player.cash -= 50
         player.jail_status = JailStatus.FREE

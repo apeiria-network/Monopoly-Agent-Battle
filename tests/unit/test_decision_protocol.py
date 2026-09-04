@@ -636,7 +636,6 @@ def test_theft_selection_reveals_target_cards_only_during_selection(tmp_path: Pa
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
     engine.state.players["a"].chance_cards.append("chance-steal")
     engine.state.players["b"].chance_cards.extend(["chance-build", "chance-tax"])
-    engine.random.randint = lambda _low, _high: 4  # type: ignore[method-assign]
 
     engine.execute(UseChanceCard("a", "chance-steal", target_player_id="b"))
     request = build_decision_request(engine, 1)

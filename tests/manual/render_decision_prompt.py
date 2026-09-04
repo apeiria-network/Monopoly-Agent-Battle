@@ -832,7 +832,7 @@ def scenario_e(buf: StringIO, directory: str) -> None:
     _write_header(
         buf,
         "E",
-        "校验失败后默认结束回合 — A 抽到第 5 张机会卡后必须弃置",
+        "校验失败后默认结束回合 — A 抽到第 4 张机会卡后必须弃置",
     )
     engine = _make_engine(directory)
     player = engine.state.players["a"]
@@ -841,7 +841,6 @@ def scenario_e(buf: StringIO, directory: str) -> None:
         "chance-build",
         "chance-buy",
         "chance-jail",
-        "chance-tax",
     ]
     engine.state.chance_draw_pile = ["chance-waiver"]
     engine.state.turn_phase = TurnPhase.ROLLING

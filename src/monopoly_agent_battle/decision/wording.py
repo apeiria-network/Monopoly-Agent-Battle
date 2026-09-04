@@ -104,8 +104,7 @@ _COMMAND_WORDING: dict[str, OptionWording] = {
 _CARD_WORDING: dict[str, OptionWording] = {
     "chance-steal": OptionWording(
         "使用机会卡「抢夺卡」",
-        "掷一枚骰子，点数不小于 4 时查看目标玩家手牌并选择获得其中一张；"
-        "否则无事发生，抢夺卡回到手牌。",
+        "查看目标玩家手牌并选择获得其中一张。",
         {
             "reason": "填写选择使用抢夺卡的理由。",
             "selected_option": {

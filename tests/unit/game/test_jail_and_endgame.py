@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.domain.commands import (
     EndTurn,
@@ -7,9 +9,10 @@ from monopoly_agent_battle.domain.commands import (
     PayJailFine,
     RollDice,
     SellBuilding,
+    UseCommunityGetOutOfJailCard,
 )
 from monopoly_agent_battle.domain.models import EndReason, JailStatus, TurnPhase
-from monopoly_agent_battle.game.engine import GameEngine
+from monopoly_agent_battle.game.engine import GameEngine, GameRuleError
 
 
 def make_engine(tmp_path: Path, *, player_count: int = 2, rounds: int = 2) -> GameEngine:
@@ -34,6 +37,31 @@ def make_engine(tmp_path: Path, *, player_count: int = 2, rounds: int = 2) -> Ga
 def set_dice(engine: GameEngine, values: list[int]) -> None:
     iterator = iter(values)
     engine.random.randint = lambda _low, _high: next(iterator)  # type: ignore[method-assign]
+
+
+def test_jail_wait_turn_consumes_no_dice(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    player = engine.state.players["p1"]
+    player.jail_status = JailStatus.WAITING
+
+    events = engine.execute(RollDice("p1"))
+
+    assert [event.event_type for event in events] == ["jail_wait_completed"]
+    assert player.jail_status is JailStatus.ROLLING
+    assert engine.state.turn_phase is TurnPhase.ASSET_MANAGEMENT
+
+
+def test_jail_wait_turn_rejects_fine_and_card(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    player = engine.state.players["p1"]
+    player.jail_status = JailStatus.WAITING
+    player.community_get_out_of_jail_cards.append("community-jail-free")
+
+    with pytest.raises(GameRuleError, match="jail fine is not payable"):
+        engine.execute(PayJailFine("p1"))
+    with pytest.raises(GameRuleError, match="wait turn"):
+        engine.execute(UseCommunityGetOutOfJailCard("p1", "community-jail-free"))
+    assert player.jail_status is JailStatus.WAITING
 
 
 def test_jail_fine_returns_player_to_rolling_phase(tmp_path: Path) -> None:
