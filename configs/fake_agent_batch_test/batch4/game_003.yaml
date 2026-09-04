@@ -1,0 +1,94 @@
+game_id: b4-game-003
+experiment_id: fake-batch-4
+seed: 403
+players:
+- player_id: shang-court
+  seat: 1
+  controller_type: shang_court
+  court_role_profiles:
+    great_priest: shang-great-priest
+    emperor: shang-emperor
+- player_id: qin-court
+  seat: 2
+  controller_type: qin_court
+  court_role_profiles:
+    chancellor: qin-chancellor
+    grand_marshal: qin-grand-marshal
+    imperial_counsellor: qin-imperial-counsellor
+    emperor: qin-emperor
+- player_id: tang-court
+  seat: 3
+  controller_type: tang_court
+  court_role_profiles:
+    zhongshu: tang-zhongshu
+    menxia: tang-menxia
+    emperor: tang-emperor
+- player_id: ming-court
+  seat: 4
+  controller_type: ming_court
+  court_role_profiles:
+    chief_grand_secretary: ming-chief-grand-secretary
+    grand_secretary_1: ming-grand-secretary-1
+    grand_secretary_2: ming-grand-secretary-2
+    emperor: ming-emperor
+model_profiles:
+  shang-great-priest:
+    provider: fake
+    model: fake-random-v1
+    seed: 40301
+  shang-emperor:
+    provider: fake
+    model: fake-random-v1
+    seed: 40302
+  qin-chancellor:
+    provider: fake
+    model: fake-random-v1
+    seed: 40303
+  qin-grand-marshal:
+    provider: fake
+    model: fake-random-v1
+    seed: 40304
+  qin-imperial-counsellor:
+    provider: fake
+    model: fake-random-v1
+    seed: 40305
+  qin-emperor:
+    provider: fake
+    model: fake-random-v1
+    seed: 40306
+  tang-zhongshu:
+    provider: fake
+    model: fake-random-v1
+    seed: 40307
+  tang-menxia:
+    provider: fake
+    model: fake-random-v1
+    seed: 40308
+  tang-emperor:
+    provider: fake
+    model: fake-random-v1
+    seed: 40309
+  ming-chief-grand-secretary:
+    provider: fake
+    model: fake-random-v1
+    seed: 40310
+  ming-grand-secretary-1:
+    provider: fake
+    model: fake-random-v1
+    seed: 40311
+  ming-grand-secretary-2:
+    provider: fake
+    model: fake-random-v1
+    seed: 40312
+  ming-emperor:
+    provider: fake
+    model: fake-random-v1
+    seed: 40313
+initial_cash: 1500
+initial_chance_cards: 4
+max_complete_rounds: 20
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs/fake_agent_batch_test
