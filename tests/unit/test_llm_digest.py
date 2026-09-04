@@ -177,6 +177,99 @@ def test_target_column_renders_raw_values(tmp_path: Path) -> None:
     assert [row["target"] for row in rows] == ["baseline-2", "6", '{"position": 5}']
 
 
+def test_random_baseline_decision_emits_row(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    decision = _decision("baseline-1", 5, executed_command="BuyProperty")
+    decision["attempted_response"] = json.dumps(
+        {
+            "selected_option": {"option": "buy_property", "target": 6},
+            "reason": "从全部合法候选中随机选择。",
+        },
+        ensure_ascii=False,
+    )
+    _write_decisions(run, [decision])
+    # Random baselines make no LLM calls; llm_calls.jsonl may not even exist.
+    rows = _rows(run)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["轮次"] == "5"
+    assert row["玩家"] == "baseline-1"
+    assert row["发言者"] == "baseline-1"
+    assert row["reason"] == "从全部合法候选中随机选择。"
+    assert row["选项"] == "buy_property"
+    assert row["target"] == "6"
+    assert row["最终执行命令"] == "BuyProperty"
+    assert row["当前玩家净资产"] == "1660"
+    assert row["是否是最终决策者"] == "True"
+    assert row["是否报错回复"] == "False"
+
+
+def test_decision_row_without_response_keeps_empty_reply_fields(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    decision = _decision("baseline-2", 7, fallback=True)
+    decision["attempted_response"] = ""
+    _write_decisions(run, [decision])
+    rows = _rows(run)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["reason"] == ""
+    assert row["选项"] == ""
+    assert row["target"] == ""
+    assert row["是否报错回复"] == "True"
+    assert row["当前玩家净资产"] == "1660"
+    assert row["最终执行命令"] == "EndTurn"
+
+
+def test_mixed_court_and_random_baseline_rows(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    court = _decision("shang-court", 1, executed_command="EndTurn")
+    court["court_trace"] = {
+        "court": "shang",
+        "decision_id": "decision-x",
+        "calls": [
+            {
+                "role": "great_priest",
+                "caller_role": "shang-court.great_priest",
+                "outcome": "success",
+                "content": "天垂象，宜守不宜攻。",
+            },
+            {
+                "role": "emperor",
+                "caller_role": "shang-court.emperor",
+                "outcome": "success",
+                "content": _reply("end_turn", "遵神谕。"),
+            },
+        ],
+    }
+    random_decision = _decision("baseline-1", 1, executed_command="RollDice")
+    random_decision["attempted_response"] = json.dumps(
+        {
+            "selected_option": {"option": "roll_dice"},
+            "reason": "从全部合法候选中随机选择。",
+        },
+        ensure_ascii=False,
+    )
+    _write_decisions(run, [court, random_decision])
+    _write_calls(
+        run,
+        [
+            {"caller_role": "shang-court.great_priest", "response_summary": "天垂象，宜守不宜攻。"},
+            {
+                "caller_role": "shang-court.emperor",
+                "response_summary": _reply("end_turn", "遵神谕。"),
+            },
+        ],
+    )
+    rows = _rows(run)
+    assert [row["发言者"] for row in rows] == [
+        "shang-court.great_priest",
+        "shang-court.emperor",
+        "baseline-1",
+    ]
+    assert rows[2]["reason"] == "从全部合法候选中随机选择。"
+    assert rows[2]["选项"] == "roll_dice"
+
+
 def test_code_fenced_reply_is_parsed(tmp_path: Path) -> None:
     run = tmp_path / "run"
     _write_decisions(run, [_decision("baseline-1", 1)])

@@ -6,7 +6,9 @@ mirror the real calls (``success`` / ``connection_error``) plus
 ``validation_error`` markers that reject the preceding call of the same role.
 Baseline players' calls come from ``llm_calls.jsonl`` and are matched to their
 decisions in order using each decision's attempt count
-(1 + validation_retries + connection_retries).
+(1 + validation_retries + connection_retries). Decisions served by no LLM call
+at all (random baselines) still emit one row parsed from their recorded
+``attempted_response``, with fields lacking a reply left empty.
 
 Columns (all values are strings):
 
@@ -122,6 +124,26 @@ def _decision_rows(record: dict[str, Any], queue: _CallQueue) -> list[list[str]]
     attempts = 1 + _count(record, "validation_retries") + _count(record, "connection_retries")
     fallback = bool(record.get("fallback"))
     calls = queue.take(player, attempts)
+    if not calls:
+        # No LLM calls serve this decision: random baselines synthesize a
+        # protocol-valid reply without any model. Emit one decision-level row
+        # from the recorded response; fields without a reply stay empty.
+        reason, option, target = _parse_reply(record.get("attempted_response"))
+        return [
+            [
+                context.round_label,
+                player,
+                player,
+                reason,
+                option,
+                target,
+                context.executed_command,
+                context.net_worth,
+                context.chance_card_count,
+                _true_false(True),
+                _true_false(fallback),
+            ]
+        ]
     rows: list[list[str]] = []
     for index, call in enumerate(calls):
         error = call.get("error")
