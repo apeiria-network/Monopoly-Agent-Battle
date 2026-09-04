@@ -122,7 +122,11 @@ class GameEngine:
         ):
             raise GameRuleError("command must be issued by the current player")
         player = self.state.players[command.player_id]
-        if player.bankrupt:
+        if player.bankrupt and not (
+            isinstance(command, EndTurn)
+            and command.player_id == self.state.current_player_id
+            and self.state.turn_phase is TurnPhase.TURN_COMPLETE
+        ):
             raise GameRuleError("bankrupt player cannot act")
         if isinstance(command, RollDice):
             if self.state.turn_phase is not TurnPhase.ROLLING:
