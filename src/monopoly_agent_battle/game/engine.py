@@ -131,7 +131,7 @@ class GameEngine:
         elif isinstance(command, EndTurn):
             if self.state.turn_phase not in {TurnPhase.ASSET_MANAGEMENT, TurnPhase.TURN_COMPLETE}:
                 raise GameRuleError("turn cannot end during the current phase")
-            if len(player.chance_cards) > 4:
+            if len(player.chance_cards) > 3:
                 self.state.turn_phase = TurnPhase.FORCED_DISCARD
                 events = [
                     GameEvent(
@@ -173,7 +173,7 @@ class GameEngine:
                     "chance cards can only be discarded after an over-limit end turn"
                 )
             events = self._discard_held_chance_card(player, command.card_id)
-            if len(player.chance_cards) <= 4:
+            if len(player.chance_cards) <= 3:
                 self.state.turn_phase = TurnPhase.TURN_COMPLETE
                 events.append(
                     GameEvent("chance_card_hand_limit_resolved", {"player_id": player.player_id})
@@ -1183,7 +1183,7 @@ class GameEngine:
             )
         )
 
-    def _draw_card(self, deck: CardDeck) -> str:
+    def _draw_card(self, deck: CardDeck) -> str | None:
         if deck is CardDeck.CHANCE:
             draw_pile = self.state.chance_draw_pile
             discard_pile = self.state.chance_discard_pile
@@ -1195,7 +1195,7 @@ class GameEngine:
             draw_pile.extend(discard_pile)
             discard_pile.clear()
         if not draw_pile:
-            raise AssertionError("card deck has no drawable cards")
+            return None
         return draw_pile.pop()
 
     def _discard_card(self, card_id: str, deck: CardDeck) -> None:
@@ -1208,6 +1208,8 @@ class GameEngine:
         if operation.deck is None:
             raise AssertionError("card draw operation has no deck")
         card_id = self._draw_card(operation.deck)
+        if card_id is None:
+            return
         card = CARDS_BY_ID[card_id]
         events.append(
             GameEvent(

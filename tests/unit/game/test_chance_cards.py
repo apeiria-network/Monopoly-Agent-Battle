@@ -869,6 +869,23 @@ def land_on(
     return engine.execute(RollDice(player_id))
 
 
+def test_empty_chance_decks_draw_nothing_and_pass(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].chance_cards = ["chance-build", "chance-buy", "chance-jail"]
+    engine.state.chance_draw_pile = []
+    engine.state.chance_discard_pile = []
+
+    events = land_on(engine, "a", 7, (3, 4))
+
+    assert engine.state.players["a"].chance_cards == [
+        "chance-build",
+        "chance-buy",
+        "chance-jail",
+    ]
+    assert not any(event.event_type == "card_drawn" for event in events)
+    assert engine.state.turn_phase is TurnPhase.ASSET_MANAGEMENT
+
+
 def test_rent_waivers_are_used_automatically(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     assign_street(engine, "b", 3)
@@ -982,20 +999,19 @@ def test_hand_limit_requires_explicit_discard_before_turn_end(tmp_path: Path) ->
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
     engine.state.players["a"].chance_cards.extend(
-        ["chance-build", "chance-buy", "chance-jail", "chance-tax", "chance-waiver"]
+        ["chance-build", "chance-buy", "chance-jail", "chance-tax"]
     )
 
     events = engine.execute(EndTurn("a"))
 
     assert engine.state.turn_phase is TurnPhase.FORCED_DISCARD
     assert {event.event_type for event in events} == {"chance_card_discard_required"}
-    engine.execute(DiscardChanceCard("a", "chance-waiver"))
+    engine.execute(DiscardChanceCard("a", "chance-tax"))
 
     assert engine.state.players["a"].chance_cards == [
         "chance-build",
         "chance-buy",
         "chance-jail",
-        "chance-tax",
     ]
-    assert engine.state.chance_discard_pile == ["chance-waiver"]
+    assert engine.state.chance_discard_pile == ["chance-tax"]
     assert engine.state.turn_phase is TurnPhase.TURN_COMPLETE

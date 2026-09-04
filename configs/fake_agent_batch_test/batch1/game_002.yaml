@@ -85,8 +85,8 @@ model_profiles:
     model: fake-random-v1
     seed: 10213
 initial_cash: 1500
-initial_chance_cards: 4
-max_complete_rounds: 20
+initial_chance_cards: 3
+max_complete_rounds: 50
 rules_version: classic-level0-v1
 rules_level: 0
 board_data_version: classic-us-40-v1

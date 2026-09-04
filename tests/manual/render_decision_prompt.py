@@ -219,8 +219,8 @@ def scenario_a(buf: StringIO, directory: str) -> None:
         raise AssertionError(
             "Scenario A candidate JSON must retain option-specific response_format"
         )
-    if "手中机会卡不得超过4张" not in system.content:
-        raise AssertionError("Scenario A system rules must state the four-card Chance limit")
+    if "手中机会卡不得超过3张" not in system.content:
+        raise AssertionError("Scenario A system rules must state the three-card Chance limit")
     _write_messages(buf, messages, warning)
 
 
@@ -853,8 +853,8 @@ def scenario_e(buf: StringIO, directory: str) -> None:
     for event in engine.execute(RollDice("a")):
         conversation.append_event(event, complete_round=engine.state.complete_rounds)
 
-    if len(player.chance_cards) != 5:
-        raise AssertionError("Scenario E requires A to draw a fifth Chance card")
+    if len(player.chance_cards) != 4:
+        raise AssertionError("Scenario E requires A to hold four chance cards after draw")
     request = build_decision_request(engine, sequence=1)
 
     bad_reply_1 = '{"selected_option": {"option": "not-a-real-option"}, "reason": "尝试1"}'

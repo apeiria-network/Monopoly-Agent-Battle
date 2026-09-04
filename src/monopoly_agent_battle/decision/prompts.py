@@ -211,7 +211,7 @@ def _render_decision(request: DecisionRequest, visible: dict[str, Any]) -> str:
         )
     if kind is DecisionKind.FORCED_DISCARD:
         count = len(visible["your_state"]["chance_cards"])
-        return f"当前持有 {count} 张机会卡，超过 4 张上限，必须弃置到 4 张后才能结束回合。"
+        return f"当前持有 {count} 张机会卡，超过 3 张上限，必须弃置到 3 张后才能结束回合。"
     if kind is DecisionKind.THEFT_CARD_SELECTION:
         theft = visible["theft_selection"]
         cards = "、".join(card["card_id"] for card in theft["target_chance_cards"])

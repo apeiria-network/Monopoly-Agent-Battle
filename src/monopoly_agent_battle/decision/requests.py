@@ -215,7 +215,7 @@ def _question(engine: GameEngine, player_id: str) -> tuple[DecisionKind, str]:
             f"你需要支付 {engine.state.settlement_operations[0].amount}；请出售建筑或抵押资产。",
         )
     if phase is TurnPhase.FORCED_DISCARD:
-        return DecisionKind.FORCED_DISCARD, "尝试结束回合后，你的机会卡超过四张；必须弃置一张。"
+        return DecisionKind.FORCED_DISCARD, "尝试结束回合后，你的机会卡超过三张；必须弃置一张。"
     if phase is TurnPhase.THEFT_CARD_SELECTION:
         return (
             DecisionKind.THEFT_CARD_SELECTION,

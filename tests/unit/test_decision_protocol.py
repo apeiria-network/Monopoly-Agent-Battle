@@ -365,23 +365,23 @@ def test_asset_management_keeps_cards_separate_and_folds_each_card_targets(tmp_p
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.FORCED_DISCARD
     engine.state.players["a"].chance_cards.extend(
-        ["chance-waiver", "chance-build", "chance-tax", "chance-steal", "chance-jail"]
+        ["chance-waiver", "chance-build", "chance-tax", "chance-steal"]
     )
 
     prompt = render_decision_prompt(build_decision_request(engine, 1))
 
-    assert "当前持有 5 张机会卡，超过 4 张上限" in prompt
-    assert "必须弃置到 4 张后才能结束回合。" in prompt
+    assert "当前持有 4 张机会卡，超过 3 张上限" in prompt
+    assert "必须弃置到 3 张后才能结束回合。" in prompt
     candidates = cast(list[dict[str, Any]], options_from_prompt(prompt))
     discard_candidates = [
         candidate
         for candidate in candidates
         if candidate["option_id"].startswith("discard_chance_card-")
     ]
-    assert len(discard_candidates) == 5
+    assert len(discard_candidates) == 4
     for candidate, card_id in zip(
         discard_candidates,
-        ["chance-waiver", "chance-build", "chance-tax", "chance-steal", "chance-jail"],
+        ["chance-waiver", "chance-build", "chance-tax", "chance-steal"],
         strict=True,
     ):
         assert set(candidate) == {"option_id", "title", "preview", "response_format"}
