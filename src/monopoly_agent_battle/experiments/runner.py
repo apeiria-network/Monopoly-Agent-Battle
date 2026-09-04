@@ -18,16 +18,18 @@ Execution has two strict phases:
    whole batch is aborted with an error and *no* game is run.
 2. **Run.** Only after the pre-check passes are games executed once each, in
    manifest order. A game that raises during execution is isolated: its failure
-   is recorded and the batch continues with the next game, so one broken game
-   never aborts a stable pass.
+   is recorded (message plus traceback tail) and the batch continues with the
+   next game, so one broken game never aborts a stable pass.
 
-There is no resume. An interrupted batch is re-run wholesale. The per-game
-outcome listing is written to ``tasks.jsonl`` next to the manifest file.
+``tasks.jsonl`` is rewritten next to the manifest after every task state
+change, so an interrupted batch still leaves the outcomes of finished games
+on disk. There is no resume: an interrupted batch is re-run wholesale.
 """
 
 from __future__ import annotations
 
 import json
+import traceback
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, cast
@@ -39,9 +41,9 @@ from monopoly_agent_battle.config.models import GameConfig
 from monopoly_agent_battle.experiments.state_machine import assert_transition
 from monopoly_agent_battle.experiments.tasks import ExperimentTask
 
-# The default game runner. Injected in tests so the batch flow can be exercised
-# without touching the real engine or LLM clients.
 GameRunner = Callable[[Path], Path]
+
+_TRACEBACK_TAIL: int = 5
 
 
 class BatchManifestError(ValueError):
@@ -114,16 +116,23 @@ def _read_validity_status(run_directory: Path) -> str:
     return value if isinstance(value, str) else "valid"
 
 
-def _run_one(task: ExperimentTask, game_runner: GameRunner) -> None:
+def _run_one(
+    task: ExperimentTask,
+    game_runner: GameRunner,
+    *,
+    persist: Callable[[list[ExperimentTask]], None],
+    tasks: list[ExperimentTask],
+) -> None:
     """Execute one task once, isolating any failure to this task."""
     assert_transition(task.status, "running")
     task.status = "running"
+    persist(tasks)
     try:
         run_directory = game_runner(Path(task.config_path))
     except Exception as error:  # noqa: BLE001 - isolate a game failure from the batch
         assert_transition(task.status, "failed")
         task.status = "failed"
-        task.reason = f"run failed: {error}"
+        task.reason = _failure_reason(error)
         return
     task.run_directory = str(run_directory)
     if _read_validity_status(run_directory) == "invalid":
@@ -135,12 +144,20 @@ def _run_one(task: ExperimentTask, game_runner: GameRunner) -> None:
         task.status = "completed"
 
 
+def _failure_reason(error: Exception) -> str:
+    """Render one failure line plus the traceback tail, newline-free for JSONL."""
+    lines = [f"run failed: {error}"]
+    for frame in traceback.extract_tb(error.__traceback__)[-_TRACEBACK_TAIL:]:
+        lines.append(f"{frame.filename}:{frame.lineno} in {frame.name}")
+    return " | ".join(lines)
+
+
 def run_batch(manifest_path: Path, *, game_runner: GameRunner) -> list[ExperimentTask]:
     """Pre-check every listed game, then run each once, in manifest order.
 
-    On success writes ``tasks.jsonl`` next to the manifest and returns the task
-    listing. Raises ``BatchManifestError`` (running nothing) if the pre-check
-    fails.
+    ``tasks.jsonl`` is persisted after every state change, so an interrupted
+    batch leaves the outcomes of finished games on disk. Raises
+    ``BatchManifestError`` (running nothing) if the pre-check fails.
     """
     manifest_path = Path(manifest_path)
     loaded = precheck(read_manifest_paths(manifest_path))
@@ -152,9 +169,14 @@ def run_batch(manifest_path: Path, *, game_runner: GameRunner) -> list[Experimen
         )
         for path, config in loaded
     ]
+    tasks_path = manifest_path.parent / "tasks.jsonl"
+
+    def persist(task_listing: list[ExperimentTask]) -> None:
+        write_tasks(task_listing, tasks_path)
+
     for task in tasks:
-        _run_one(task, game_runner)
-    write_tasks(tasks, manifest_path.parent / "tasks.jsonl")
+        _run_one(task, game_runner, persist=persist, tasks=tasks)
+        persist(tasks)
     return tasks
 
 

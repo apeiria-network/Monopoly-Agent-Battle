@@ -1,0 +1,62 @@
+game_id: fake-four-courts
+experiment_id: fake-experiment
+seed: 42
+# 四朝廷对战实验（商 / 秦 / 唐 / 明）
+# 全部官员使用本地 fake random LLM：不发网络请求、无需凭据
+# 每个角色绑定独立 seed，避免各角色随机回复流相关；配置冻结后可完整复现
+# 完整轮次上限：150
+
+players:
+  - player_id: shang-court
+    seat: 1
+    controller_type: shang_court
+    court_role_profiles:
+      great_priest: shang-great-priest
+      emperor: shang-emperor
+  - player_id: qin-court
+    seat: 2
+    controller_type: qin_court
+    court_role_profiles:
+      chancellor: qin-chancellor
+      grand_marshal: qin-grand-marshal
+      imperial_counsellor: qin-imperial-counsellor
+      emperor: qin-emperor
+  - player_id: tang-court
+    seat: 3
+    controller_type: tang_court
+    court_role_profiles:
+      zhongshu: tang-zhongshu
+      menxia: tang-menxia
+      emperor: tang-emperor
+  - player_id: ming-court
+    seat: 4
+    controller_type: ming_court
+    court_role_profiles:
+      chief_grand_secretary: ming-chief-grand-secretary
+      grand_secretary_1: ming-grand-secretary-1
+      grand_secretary_2: ming-grand-secretary-2
+      emperor: ming-emperor
+
+model_profiles:
+  shang-great-priest: {provider: fake, model: fake-random-v1, seed: 101}
+  shang-emperor: {provider: fake, model: fake-random-v1, seed: 102}
+  qin-chancellor: {provider: fake, model: fake-random-v1, seed: 103}
+  qin-grand-marshal: {provider: fake, model: fake-random-v1, seed: 104}
+  qin-imperial-counsellor: {provider: fake, model: fake-random-v1, seed: 105}
+  qin-emperor: {provider: fake, model: fake-random-v1, seed: 106}
+  tang-zhongshu: {provider: fake, model: fake-random-v1, seed: 107}
+  tang-menxia: {provider: fake, model: fake-random-v1, seed: 108}
+  tang-emperor: {provider: fake, model: fake-random-v1, seed: 109}
+  ming-chief-grand-secretary: {provider: fake, model: fake-random-v1, seed: 110}
+  ming-grand-secretary-1: {provider: fake, model: fake-random-v1, seed: 111}
+  ming-grand-secretary-2: {provider: fake, model: fake-random-v1, seed: 112}
+  ming-emperor: {provider: fake, model: fake-random-v1, seed: 113}
+
+initial_cash: 1500
+initial_chance_cards: 2
+max_complete_rounds: 150
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs

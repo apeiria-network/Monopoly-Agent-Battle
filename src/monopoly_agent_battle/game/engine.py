@@ -747,7 +747,11 @@ class GameEngine:
             )
             for position in COLOR_GROUPS[color_group]:
                 property_state = self.state.properties[position]
-                if property_state.owner_id is not None and property_state.building_level < 5:
+                if (
+                    property_state.owner_id is not None
+                    and not property_state.mortgaged
+                    and property_state.building_level < 5
+                ):
                     property_state.building_level += 1
                     events.append(
                         GameEvent(
@@ -854,6 +858,10 @@ class GameEngine:
                 raise GameRuleError("building swap requires two different streets")
             target_state = self.state.properties[target_position]
             own_state = self.state.properties[own_position]
+            if target_state.owner_id is None:
+                raise GameRuleError("building swap requires an owned target street")
+            if target_state.mortgaged or own_state.mortgaged:
+                raise GameRuleError("building swap requires unmortgaged streets")
             target_level, own_level = target_state.building_level, own_state.building_level
             target_state.building_level, own_state.building_level = own_level, target_level
             events.append(

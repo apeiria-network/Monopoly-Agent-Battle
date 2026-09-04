@@ -618,6 +618,55 @@ def test_swap_buildings_rejects_non_street_atomically(tmp_path: Path) -> None:
     )
 
 
+def test_swap_buildings_rejects_unowned_target_atomically(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 18
+    assign_street(engine, "a", 18, level=1)
+    give_card(engine, "chance-swap-buildings")
+
+    assert_rejected_atomically(
+        engine,
+        UseChanceCard(
+            "a", "chance-swap-buildings", target_position=19, secondary_target_position=18
+        ),
+        match="building swap requires an owned target street",
+    )
+    assert engine.state.properties[19].building_level == 0
+    assert engine.state.properties[19].owner_id is None
+
+
+def test_swap_buildings_rejects_mortgaged_sides_atomically(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    assign_street(engine, "a", 9, level=1)
+    assign_street(engine, "b", 11, level=2)
+    engine.state.properties[11].mortgaged = True
+    give_card(engine, "chance-swap-buildings")
+
+    assert_rejected_atomically(
+        engine,
+        UseChanceCard(
+            "a", "chance-swap-buildings", target_position=11, secondary_target_position=9
+        ),
+        match="building swap requires unmortgaged streets",
+    )
+
+
+def test_angel_skips_mortgaged_streets_in_group(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 18
+    assign_street(engine, "a", 18)
+    assign_street(engine, "a", 19)
+    engine.state.properties[18].mortgaged = True
+    give_card(engine, "chance-angel")
+
+    engine.execute(UseChanceCard("a", "chance-angel", target_color_group="orange"))
+
+    assert engine.state.properties[18].building_level == 0
+    assert engine.state.properties[18].mortgaged
+    assert engine.state.properties[19].building_level == 1
+
+
 def test_buy_property_acceptance_price_and_range_rejection(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.players["a"].position = 10

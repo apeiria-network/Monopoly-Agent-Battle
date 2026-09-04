@@ -109,11 +109,52 @@ def test_single_game_failure_is_isolated(tmp_path: Path) -> None:
         return run_dir
 
     tasks = run_batch(manifest, game_runner=fake_runner)
-    # The failing game does not abort the batch: game_b still runs.
     assert ran == ["game_a.yaml", "game_b.yaml"]
     assert tasks[0].status == "failed"
     assert "boom" in (tasks[0].reason or "")
     assert tasks[1].status == "completed"
+
+
+def test_failed_task_reason_contains_traceback_location(tmp_path: Path) -> None:
+    _write_game(tmp_path, "game_a.yaml", "g-a")
+    manifest = _write_manifest(tmp_path, ["game_a.yaml"])
+
+    def fake_runner(config_path: Path) -> Path:
+        raise RuntimeError("kaboom")
+
+    tasks = run_batch(manifest, game_runner=fake_runner)
+    reason = tasks[0].reason or ""
+    assert reason.startswith("run failed: kaboom")
+    assert "test_experiment_runner.py" in reason
+    assert " in fake_runner" in reason
+
+
+def test_tasks_jsonl_persists_after_each_task(tmp_path: Path) -> None:
+    _write_game(tmp_path, "game_a.yaml", "g-a")
+    _write_game(tmp_path, "game_b.yaml", "g-b")
+    manifest = _write_manifest(tmp_path, ["game_a.yaml", "game_b.yaml"])
+
+    def fake_runner(config_path: Path) -> Path:
+        if config_path.name == "game_b.yaml":
+            raise KeyboardInterrupt
+        run_dir = tmp_path / "run-a"
+        run_dir.mkdir()
+        (run_dir / "result.json").write_text(
+            json.dumps({"validity_status": "valid"}), encoding="utf-8"
+        )
+        return run_dir
+
+    with pytest.raises(KeyboardInterrupt):
+        run_batch(manifest, game_runner=fake_runner)
+
+    lines = (tmp_path / "tasks.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    first = json.loads(lines[0])
+    second = json.loads(lines[1])
+    assert first["game_id"] == "g-a"
+    assert first["status"] == "completed"
+    assert second["game_id"] == "g-b"
+    assert second["status"] == "running"
 
 
 def test_precheck_aborts_on_missing_file(tmp_path: Path) -> None:
