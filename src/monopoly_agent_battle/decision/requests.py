@@ -219,7 +219,7 @@ def _question(engine: GameEngine, player_id: str) -> tuple[DecisionKind, str]:
     if phase is TurnPhase.THEFT_CARD_SELECTION:
         return (
             DecisionKind.THEFT_CARD_SELECTION,
-            "抢夺掷骰成功；请选择从目标玩家手中拿走的一张机会卡。",
+            "抢夺成功；请选择从目标玩家手中拿走的一张机会卡。",
         )
     if phase is TurnPhase.ASSET_MANAGEMENT:
         return DecisionKind.ASSET_MANAGEMENT, "请选择一项资产管理操作，或尝试结束本回合。"

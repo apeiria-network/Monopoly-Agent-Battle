@@ -639,15 +639,6 @@ class GameEngine:
             target = self._player_target(player, command.target_player_id, card.range or 0)
             if not target.chance_cards:
                 raise GameRuleError("target does not hold a chance card")
-            die = self.random.randint(1, 6)
-            events.append(
-                GameEvent(
-                    "card_die_rolled",
-                    {"player_id": player.player_id, "card_id": card.card_id, "die": die},
-                )
-            )
-            if die < 4:
-                return events
             self.state.pending_theft_thief_id = player.player_id
             self.state.pending_theft_target_id = target.player_id
             self.state.pending_theft_source_card_id = card.card_id

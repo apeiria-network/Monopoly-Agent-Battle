@@ -21,6 +21,7 @@ from tempfile import TemporaryDirectory
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.context.broadcast import WHITELIST, render_event
 from monopoly_agent_battle.domain.commands import (
+    DiscardChanceCard,
     EndTurn,
     Mortgage,
     PayJailFine,
@@ -149,9 +150,9 @@ def scenario_1_basic_flow(directory: str, collector: EventCollector) -> None:
         engine,
         [
             2,
-            1,  # a rolls 3, buys position 3
+            1,  # a rolls 3
             5,
-            4,  # b rolls 9, buys position 9
+            4,  # b rolls 9
             6,
             6,  # c rolls 12 (doubles), continues
             3,
@@ -160,11 +161,13 @@ def scenario_1_basic_flow(directory: str, collector: EventCollector) -> None:
             1,  # d rolls 3
             # Round 2
             6,
-            6,  # a rolls 12, passes GO
+            6,  # a rolls 12 (doubles), passes GO
+            2,
+            1,  # a rolls 3 more (doubles re-roll)
             2,
             1,  # b rolls 3
             2,
-            1,  # c rolls 3, lands on a's property (pays rent)
+            1,  # c rolls 3
         ],
     )
 
@@ -180,6 +183,7 @@ def scenario_1_basic_flow(directory: str, collector: EventCollector) -> None:
         collector.collect("Scenario 1: Basic Flow", engine.execute(EndTurn("d")), "d", engine)
         # Round 2
         collector.collect("Scenario 1: Basic Flow", engine.execute(RollDice("a")), "a", engine)
+        collector.collect("Scenario 1: Basic Flow", engine.execute(RollDice("a")), "a", engine)
         collector.collect("Scenario 1: Basic Flow", engine.execute(EndTurn("a")), "a", engine)
         collector.collect("Scenario 1: Basic Flow", engine.execute(RollDice("b")), "b", engine)
         collector.collect("Scenario 1: Basic Flow", engine.execute(EndTurn("b")), "b", engine)
@@ -190,7 +194,7 @@ def scenario_1_basic_flow(directory: str, collector: EventCollector) -> None:
 
 
 def scenario_2_jail_mechanics(directory: str, collector: EventCollector) -> None:
-    """Jail: player_jailed (third doubles), jail_roll_failed, jail_released (doubles)."""
+    """Jail: player_jailed (third doubles), wait turn, jail_roll_failed, jail_released (doubles)."""
     config = create_config("s2", directory, seed=2)
     engine = GameEngine(config)
 
@@ -214,7 +218,20 @@ def scenario_2_jail_mechanics(directory: str, collector: EventCollector) -> None
         collector.collect("Scenario 2: Jail", engine.execute(RollDice("d")), "d", engine)
         collector.collect("Scenario 2: Jail", engine.execute(EndTurn("d")), "d", engine)
 
-        # a tries to roll out (fails)
+        # a's mandatory wait turn: RollDice completes the wait without rolling dice
+        collector.collect("Scenario 2: Jail", engine.execute(RollDice("a")), "a", engine)
+        collector.collect("Scenario 2: Jail", engine.execute(EndTurn("a")), "a", engine)
+
+        # Skip b, c, d turns
+        set_dice(engine, [1, 0, 1, 0, 1, 0])
+        collector.collect("Scenario 2: Jail", engine.execute(RollDice("b")), "b", engine)
+        collector.collect("Scenario 2: Jail", engine.execute(EndTurn("b")), "b", engine)
+        collector.collect("Scenario 2: Jail", engine.execute(RollDice("c")), "c", engine)
+        collector.collect("Scenario 2: Jail", engine.execute(EndTurn("c")), "c", engine)
+        collector.collect("Scenario 2: Jail", engine.execute(RollDice("d")), "d", engine)
+        collector.collect("Scenario 2: Jail", engine.execute(EndTurn("d")), "d", engine)
+
+        # a gambles doubles and fails (attempt 1)
         set_dice(engine, [2, 3])
         collector.collect("Scenario 2: Jail", engine.execute(RollDice("a")), "a", engine)
         collector.collect("Scenario 2: Jail", engine.execute(EndTurn("a")), "a", engine)
@@ -228,9 +245,8 @@ def scenario_2_jail_mechanics(directory: str, collector: EventCollector) -> None
         collector.collect("Scenario 2: Jail", engine.execute(RollDice("d")), "d", engine)
         collector.collect("Scenario 2: Jail", engine.execute(EndTurn("d")), "d", engine)
 
-        # a rolls doubles (released)
-        set_dice(engine, [4, 4, 1, 0])
-        collector.collect("Scenario 2: Jail", engine.execute(RollDice("a")), "a", engine)
+        # a rolls doubles (released) and moves by that roll
+        set_dice(engine, [4, 4])
         collector.collect("Scenario 2: Jail", engine.execute(RollDice("a")), "a", engine)
         collector.collect("Scenario 2: Jail", engine.execute(EndTurn("a")), "a", engine)
     except Exception as e:
@@ -304,7 +320,7 @@ def scenario_4_building_ops(directory: str, collector: EventCollector) -> None:
 
 
 def scenario_5_chance_steal_tax(directory: str, collector: EventCollector) -> None:
-    """Chance cards: card_die_rolled, chance_card_stolen, cash_tax_transferred."""
+    """Chance cards: theft selection, chance_card_stolen, cash_tax_transferred."""
     config = create_config("s5", directory, seed=5)
     engine = GameEngine(config)
 
@@ -315,7 +331,6 @@ def scenario_5_chance_steal_tax(directory: str, collector: EventCollector) -> No
     engine.state.players["a"].cash = 2000
 
     give_card(engine, "a", "chance-steal")
-    engine.random.randint = lambda _low, _high: 4  # type: ignore  # Success
 
     try:
         events = engine.execute(UseChanceCard("a", "chance-steal", target_player_id="b"))
@@ -371,9 +386,8 @@ def scenario_6_chance_equalize_buy(directory: str, collector: EventCollector) ->
         collector.collect("Scenario 6: Equalize/Buy", engine.execute(RollDice("d")), "d", engine)
         collector.collect("Scenario 6: Equalize/Buy", engine.execute(EndTurn("d")), "d", engine)
 
-        # Buy card
-        assign_property(engine, "c", 6)
-        engine.state.players["a"].position = 3
+        # Buy card: b auto-purchased position 6 by landing on it, a buys it from b
+        engine.state.players["a"].position = 5
         engine.state.players["a"].cash = 300
         give_card(engine, "a", "chance-buy")
         events = engine.execute(UseChanceCard("a", "chance-buy", target_position=6))
@@ -422,11 +436,14 @@ def scenario_7_chance_waiver_nuke(directory: str, collector: EventCollector) -> 
         collector.collect("Scenario 7: Waiver/Nuke", engine.execute(RollDice("d")), "d", engine)
         collector.collect("Scenario 7: Waiver/Nuke", engine.execute(EndTurn("d")), "d", engine)
 
-        # Nuclear card
+        # Nuclear card (played twice for a 2nd card_die_rolled occurrence)
         assign_property(engine, "c", 9, level=1)
         give_card(engine, "a", "chance-nuclear")
         engine.state.players["a"].position = 1
         engine.random.randint = lambda _low, _high: 1  # type: ignore
+        events = engine.execute(UseChanceCard("a", "chance-nuclear"))
+        collector.collect("Scenario 7: Waiver/Nuke", events, "a", engine)
+        give_card(engine, "a", "chance-nuclear")
         events = engine.execute(UseChanceCard("a", "chance-nuclear"))
         collector.collect("Scenario 7: Waiver/Nuke", events, "a", engine)
     except Exception as e:
@@ -457,7 +474,8 @@ def scenario_8_chance_vacate_ongoing(directory: str, collector: EventCollector) 
         collector.collect("Scenario 8: Vacate/Ongoing", engine.execute(RollDice("d")), "d", engine)
         collector.collect("Scenario 8: Vacate/Ongoing", engine.execute(EndTurn("d")), "d", engine)
 
-        # Alliance card (ongoing effect)
+        # Alliance card (ongoing effect, range 3: b adjacent to a)
+        engine.state.players["b"].position = 14
         give_card(engine, "a", "chance-alliance")
         events = engine.execute(UseChanceCard("a", "chance-alliance", target_player_id="b"))
         collector.collect("Scenario 8: Vacate/Ongoing", events, "a", engine)
@@ -564,22 +582,24 @@ def scenario_10_card_drawn_community(directory: str, collector: EventCollector) 
     config = create_config("s10", directory, seed=10)
     engine = GameEngine(config)
 
-    # Land on community chest (position 2)
-    set_dice(engine, [1, 1, 1, 1, 1, 1])
+    # Land on community chest (position 17) with non-doubles dice
+    set_dice(engine, [1, 2, 1, 2, 1, 2])
 
     try:
-        collector.collect(
-            "Scenario 10: Community Chest", engine.execute(RollDice("a")), "a", engine
-        )
-        collector.collect("Scenario 10: Community Chest", engine.execute(EndTurn("a")), "a", engine)
-        collector.collect(
-            "Scenario 10: Community Chest", engine.execute(RollDice("b")), "b", engine
-        )
-        collector.collect("Scenario 10: Community Chest", engine.execute(EndTurn("b")), "b", engine)
-        collector.collect(
-            "Scenario 10: Community Chest", engine.execute(RollDice("c")), "c", engine
-        )
-        collector.collect("Scenario 10: Community Chest", engine.execute(EndTurn("c")), "c", engine)
+        for player_id in ("a", "b", "c"):
+            engine.state.players[player_id].position = 14
+            collector.collect(
+                "Scenario 10: Community Chest",
+                engine.execute(RollDice(player_id)),
+                player_id,
+                engine,
+            )
+            collector.collect(
+                "Scenario 10: Community Chest",
+                engine.execute(EndTurn(player_id)),
+                player_id,
+                engine,
+            )
     except Exception as e:
         print(f"  Scenario 10 error: {e}")
 
@@ -672,14 +692,15 @@ def scenario_13_repeat_coverage(directory: str, collector: EventCollector) -> No
         events = engine.execute(RollDice("a"))
         collector.collect("Scenario 13: Repeat Coverage", events, "a", engine)
 
-        # property_mortgaged - do it in ASSET_MANAGEMENT phase
+        # property_mortgaged - sell buildings first, then mortgage the bare street
         engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+        events = engine.execute(SellBuilding("a", 1))
+        collector.collect("Scenario 13: Repeat Coverage", events, "a", engine)
+        events = engine.execute(SellBuilding("a", 3))
+        collector.collect("Scenario 13: Repeat Coverage", events, "a", engine)
         events = engine.execute(Mortgage("a", 3))
         collector.collect("Scenario 13: Repeat Coverage", events, "a", engine)
 
-        # building_sold
-        events = engine.execute(SellBuilding("a", 1))
-        collector.collect("Scenario 13: Repeat Coverage", events, "a", engine)
         collector.collect("Scenario 13: Repeat Coverage", engine.execute(EndTurn("a")), "a", engine)
 
         # Cycle back
@@ -906,9 +927,9 @@ def scenario_16_buy_stolen_vacate(directory: str, collector: EventCollector) -> 
     config = create_config("s16", directory, seed=16)
     engine = GameEngine(config)
 
-    # Buy card: property_purchased_from_player (must be adjacent - within 5 spaces)
+    # Buy card: property_purchased_from_player (range 1: a adjacent to target)
     assign_property(engine, "b", 3, level=0)
-    engine.state.players["a"].position = 1
+    engine.state.players["a"].position = 2
     engine.state.players["a"].cash = 300
     give_card(engine, "a", "chance-buy")
 
@@ -945,7 +966,6 @@ def scenario_16_buy_stolen_vacate(directory: str, collector: EventCollector) -> 
         engine.state.players["a"].chance_cards.append("chance-steal")
         engine.state.current_player_id = "a"
         engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
-        engine.random.randint = lambda _low, _high: 6  # type: ignore
         events = engine.execute(UseChanceCard("a", "chance-steal", target_player_id="c"))
         collector.collect("Scenario 16: Buy/Stolen/Vacate", events, "a", engine)
         events = engine.execute(SelectStolenChanceCard("a", "chance-angel"))
@@ -976,8 +996,8 @@ def scenario_16_buy_stolen_vacate(directory: str, collector: EventCollector) -> 
             "Scenario 16: Buy/Stolen/Vacate", engine.execute(EndTurn("d")), "d", engine
         )
 
-        assign_property(engine, "d", 8, level=1)
-        engine.state.players["a"].position = 6  # Within 5 spaces of position 8
+        assign_property(engine, "d", 8, level=0)
+        engine.state.players["a"].position = 7  # Adjacent to target (range 2)
         give_card(engine, "a", "chance-vacate")
         events = engine.execute(UseChanceCard("a", "chance-vacate", target_position=8))
         collector.collect("Scenario 16: Buy/Stolen/Vacate", events, "a", engine)
@@ -1202,6 +1222,7 @@ def scenario_19_final_coverage(directory: str, collector: EventCollector) -> Non
         set_dice(engine, [2, 0])
         events = engine.execute(RollDice("a"))
         collector.collect("Scenario 19: Final Coverage", events, "a", engine)
+        collector.collect("Scenario 19: Final Coverage", engine.execute(EndTurn("a")), "a", engine)
 
         # Cycle back for card operations
         set_dice(engine, [1, 0, 1, 0, 1, 0])
@@ -1214,9 +1235,9 @@ def scenario_19_final_coverage(directory: str, collector: EventCollector) -> Non
 
         # Release a from jail for next operations
         engine.state.players["a"].jail_status = JailStatus.FREE
-        engine.state.players["a"].position = 5
+        engine.state.players["a"].position = 7
 
-        # property_purchased_from_player: buy card (within 5 spaces)
+        # property_purchased_from_player: buy card (range 1: a adjacent to target)
         assign_property(engine, "c", 8, level=0)
         engine.state.players["a"].cash = 400
         give_card(engine, "a", "chance-buy")
@@ -1233,8 +1254,8 @@ def scenario_19_final_coverage(directory: str, collector: EventCollector) -> Non
         collector.collect("Scenario 19: Final Coverage", engine.execute(RollDice("d")), "d", engine)
         collector.collect("Scenario 19: Final Coverage", engine.execute(EndTurn("d")), "d", engine)
 
-        # property_vacated: vacate card (within 5 spaces)
-        assign_property(engine, "d", 11, level=1)
+        # property_vacated: vacate card (range 2, target must be a vacant street)
+        assign_property(engine, "d", 11, level=0)
         engine.state.players["a"].position = 9
         give_card(engine, "a", "chance-vacate")
         events = engine.execute(UseChanceCard("a", "chance-vacate", target_position=11))
@@ -1255,7 +1276,6 @@ def scenario_19_final_coverage(directory: str, collector: EventCollector) -> Non
         engine.state.players["a"].chance_cards.append("chance-steal")
         engine.state.current_player_id = "a"
         engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
-        engine.random.randint = lambda _low, _high: 5  # type: ignore
         events = engine.execute(UseChanceCard("a", "chance-steal", target_player_id="b"))
         collector.collect("Scenario 19: Final Coverage", events, "a", engine)
         events = engine.execute(SelectStolenChanceCard("a", "chance-monster"))
@@ -1301,11 +1321,74 @@ def scenario_20_last_three(directory: str, collector: EventCollector) -> None:
     engine.state.players["a"].chance_cards.append("chance-steal")
     engine.state.current_player_id = "a"
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
-    engine.random.randint = lambda _low, _high: 4  # type: ignore
     events = engine.execute(UseChanceCard("a", "chance-steal", target_player_id="c"))
     collector.collect("Scenario 20: Last Three", events, "a", engine)
     events = engine.execute(SelectStolenChanceCard("a", "chance-waiver"))
     collector.collect("Scenario 20: Last Three", events, "a", engine)
+
+
+def scenario_21_hand_limit_discard(directory: str, collector: EventCollector) -> None:
+    """Hand limit: card_discarded (hand_limit reason) forced discards."""
+    config = create_config("s21", directory, seed=21)
+    engine = GameEngine(config)
+
+    engine.state.players["a"].chance_cards = ["chance-build", "chance-buy", "chance-jail"]
+
+    try:
+        # a lands on the chance space (position 7) and draws a 4th card
+        engine.state.players["a"].position = 6
+        set_dice(engine, [1, 0])
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(RollDice("a")), "a", engine
+        )
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(EndTurn("a")), "a", engine
+        )
+        discarded = engine.state.players["a"].chance_cards[0]
+        events = engine.execute(DiscardChanceCard("a", discarded))
+        collector.collect("Scenario 21: Hand Limit Discard", events, "a", engine)
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(EndTurn("a")), "a", engine
+        )
+
+        # Cycle b, c, d
+        set_dice(engine, [1, 0, 1, 0, 1, 0])
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(RollDice("b")), "b", engine
+        )
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(EndTurn("b")), "b", engine
+        )
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(RollDice("c")), "c", engine
+        )
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(EndTurn("c")), "c", engine
+        )
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(RollDice("d")), "d", engine
+        )
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(EndTurn("d")), "d", engine
+        )
+
+        # Second forced discard
+        engine.state.players["a"].position = 6
+        set_dice(engine, [1, 0])
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(RollDice("a")), "a", engine
+        )
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(EndTurn("a")), "a", engine
+        )
+        discarded = engine.state.players["a"].chance_cards[0]
+        events = engine.execute(DiscardChanceCard("a", discarded))
+        collector.collect("Scenario 21: Hand Limit Discard", events, "a", engine)
+        collector.collect(
+            "Scenario 21: Hand Limit Discard", engine.execute(EndTurn("a")), "a", engine
+        )
+    except Exception as e:
+        print(f"  Scenario 21 error: {e}")
 
 
 def main() -> None:
@@ -1338,6 +1421,7 @@ def main() -> None:
             ("Scenario 18: Game Finish", scenario_18_game_finish),
             ("Scenario 19: Final Coverage", scenario_19_final_coverage),
             ("Scenario 20: Last Three", scenario_20_last_three),
+            ("Scenario 21: Hand Limit Discard", scenario_21_hand_limit_discard),
         ]
 
         for name, func in scenarios:
