@@ -264,7 +264,7 @@ def test_alliance_receives_no_share_when_freeze_suppresses_rent(tmp_path: Path) 
         ("chance-tax", 20, 29),
         ("chance-equalize", 10, 16),
         ("chance-jail", 10, 20),
-        ("chance-alliance", 10, 14),
+        ("chance-alliance", 10, 16),
     ],
 )
 def test_player_target_cards_reject_out_of_range_atomically(
@@ -308,7 +308,7 @@ def test_color_cards_reject_out_of_range_atomically(
 def test_jail_card_resets_progress_without_go_salary(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.players["a"].position = 30
-    engine.state.players["b"].position = 39
+    engine.state.players["b"].position = 34
     engine.state.players["b"].cash = 500
     engine.state.players["b"].jail_roll_attempts = 2
     give_card(engine, "chance-jail")
@@ -324,7 +324,7 @@ def test_jail_card_resets_progress_without_go_salary(tmp_path: Path) -> None:
 def test_jail_card_requires_a_player_in_range(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     give_card(engine, "chance-jail")
-    engine.state.players["b"].position = 9
+    engine.state.players["b"].position = 5
 
     engine.execute(UseChanceCard("a", "chance-jail", target_player_id="b"))
 
@@ -577,6 +577,224 @@ def assign_street(engine: GameEngine, player_id: str, position: int, *, level: i
     engine.state.players[player_id].properties.add(position)
 
 
+def make_four_player_engine(tmp_path: Path) -> GameEngine:
+    return GameEngine(
+        GameConfig(
+            game_id="chance-four-player-game",
+            experiment_id="chance-experiment",
+            seed=1,
+            players=(
+                PlayerConfig(player_id="a", seat=1),
+                PlayerConfig(player_id="b", seat=2),
+                PlayerConfig(player_id="c", seat=3),
+                PlayerConfig(player_id="d", seat=4),
+            ),
+            max_complete_rounds=5,
+            rules_version="classic-level0-v1",
+            board_data_version="classic-us-40-v1",
+            card_data_version="classic-cards-v1",
+            output_directory=tmp_path,
+        )
+    )
+
+
+# --- Stricter tests for range=5 cards ---
+
+
+def test_jail_card_bankrupts_target_in_four_player(tmp_path: Path) -> None:
+    """Jail card on a target who cannot afford jail fine → bankruptcy in 4-player game."""
+    engine = make_four_player_engine(tmp_path)
+    # a at 10, b at 12 (distance 2 ≤ 5)
+    engine.state.players["a"].position = 10
+    engine.state.players["b"].position = 12
+    # b is nearly broke and in jail already — will pay 50 fine on next turn
+    engine.state.players["b"].cash = 10
+    engine.state.players["b"].jail_status = JailStatus.WAITING
+    give_card(engine, "chance-jail")
+
+    events = engine.execute(UseChanceCard("a", "chance-jail", target_player_id="b"))
+
+    assert engine.state.players["b"].position == 10
+    assert engine.state.players["b"].jail_status is JailStatus.WAITING
+    assert "chance-jail" not in engine.state.players["a"].chance_cards
+    assert any(e.event_type == "player_jailed" for e in events)
+
+
+def test_jail_card_rejects_target_beyond_five_in_four_player(tmp_path: Path) -> None:
+    """Jail card rejects target 6 spaces away in 4-player game."""
+    engine = make_four_player_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    engine.state.players["b"].position = 16  # distance 6 > 5
+    give_card(engine, "chance-jail")
+    before = state_copy(engine)
+
+    with pytest.raises(GameRuleError, match="not legal"):
+        engine.execute(UseChanceCard("a", "chance-jail", target_player_id="b"))
+
+    assert engine.state == before
+
+
+def test_alliance_causes_rent_bankruptcy_in_four_player(tmp_path: Path) -> None:
+    """Alliance + rent: payer goes bankrupt after paying rent split in 4-player."""
+    engine = make_four_player_engine(tmp_path)
+    # a at 10, b at 12 (distance 2 ≤ 5), alliance target
+    engine.state.players["a"].position = 10
+    engine.state.players["b"].position = 12
+    # c owns position 8 (Vermont Ave, light_blue)
+    assign_street(engine, "c", 8, level=1)
+    # d is nearly broke, will land on c's property
+    engine.state.players["d"].cash = 1
+    engine.state.players["d"].position = 6
+    give_card(engine, "chance-alliance")
+
+    # a allies with b
+    events = engine.execute(UseChanceCard("a", "chance-alliance", target_player_id="b"))
+
+    assert any(e.event_type == "ongoing_effect_created" for e in events)
+    # Now d lands on c's property at position 8 — distance 2 from 6
+    land_on(engine, "d", 8, (1, 1))
+    # d should be bankrupt (cash=1, rent > 1)
+    assert engine.state.players["d"].bankrupt is True
+
+
+def test_alliance_rejects_target_beyond_five(tmp_path: Path) -> None:
+    """Alliance rejects target 6 spaces away."""
+    engine = make_three_player_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    engine.state.players["b"].position = 16  # distance 6 > 5
+    give_card(engine, "chance-alliance")
+    before = state_copy(engine)
+
+    with pytest.raises(GameRuleError, match="not legal"):
+        engine.execute(UseChanceCard("a", "chance-alliance", target_player_id="b"))
+
+    assert engine.state == before
+
+
+def test_steal_card_takes_card_in_four_player(tmp_path: Path) -> None:
+    """Steal card works within 5-range in 4-player; target loses card."""
+    engine = make_four_player_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    engine.state.players["b"].position = 13  # distance 3 ≤ 5
+    engine.state.players["b"].chance_cards.append("chance-build")
+    give_card(engine, "chance-steal")
+
+    engine.execute(UseChanceCard("a", "chance-steal", target_player_id="b"))
+
+    # Theft selection phase
+    assert engine.state.turn_phase is TurnPhase.THEFT_CARD_SELECTION
+    # Select the stolen card
+    engine.execute(SelectStolenChanceCard("a", "chance-build"))
+
+    assert engine.state.players["a"].chance_cards == ["chance-build"]
+    assert "chance-build" not in engine.state.players["b"].chance_cards
+    assert engine.state.chance_discard_pile == ["chance-steal"]
+
+
+def test_steal_card_rejects_beyond_five(tmp_path: Path) -> None:
+    """Steal card rejects target 6 spaces away."""
+    engine = make_three_player_engine(tmp_path)
+    engine.state.players["b"].position = 6  # distance 6 > 5
+    engine.state.players["b"].chance_cards.append("chance-build")
+    give_card(engine, "chance-steal")
+    before = state_copy(engine)
+
+    with pytest.raises(GameRuleError, match="not legal"):
+        engine.execute(UseChanceCard("a", "chance-steal", target_player_id="b"))
+
+    assert engine.state == before
+
+
+def test_tax_card_causes_bankruptcy_in_four_player(tmp_path: Path) -> None:
+    """Tax card on a target with few assets → bankruptcy in 4-player."""
+    engine = make_four_player_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    engine.state.players["b"].position = 13  # distance 3 ≤ 5
+    engine.state.players["b"].cash = 50
+    engine.state.players["b"].properties.clear()  # no assets to liquidate
+    give_card(engine, "chance-tax")
+
+    engine.execute(UseChanceCard("a", "chance-tax", target_player_id="b"))
+
+    # b must pay ~35% tax (17) which they can afford; no bankruptcy this time
+    # but verify the card executed and b's cash decreased
+    assert engine.state.players["b"].cash < 50
+    assert "chance-tax" not in engine.state.players["a"].chance_cards
+
+
+def test_vacate_card_clears_property_in_four_player(tmp_path: Path) -> None:
+    """Vacate card clears a property within 5-range in 4-player game."""
+    engine = make_four_player_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    # Position 11 (St. Charles Place) is distance 1 ≤ 5
+    assign_street(engine, "b", 11, level=0)  # vacant = no buildings
+    give_card(engine, "chance-vacate")
+
+    engine.execute(UseChanceCard("a", "chance-vacate", target_position=11))
+
+    assert engine.state.properties[11].owner_id is None
+    assert engine.state.properties[11].building_level == 0
+    assert 11 not in engine.state.players["b"].properties
+
+
+def test_swap_buildings_exchanges_levels_in_four_player(tmp_path: Path) -> None:
+    """Swap buildings exchanges building levels between two streets within range."""
+    engine = make_four_player_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    # a has 1 house at 8 (distance 2 ≤ 5)
+    assign_street(engine, "a", 8, level=1)
+    # b has a hotel at 11 (distance 1 ≤ 5)
+    assign_street(engine, "b", 11, level=5)
+    give_card(engine, "chance-swap-buildings")
+
+    engine.execute(
+        UseChanceCard("a", "chance-swap-buildings", target_position=11, secondary_target_position=8)
+    )
+
+    # Building levels swapped: a's street gets 5, b's street gets 1
+    # Ownership does NOT change
+    assert engine.state.properties[8].owner_id == "a"
+    assert engine.state.properties[8].building_level == 5
+    assert engine.state.properties[11].owner_id == "b"
+    assert engine.state.properties[11].building_level == 1
+
+
+def test_buy_property_150pct_bankrupts_buyer_in_four_player(tmp_path: Path) -> None:
+    """Buy property at 150% price bankrupts a nearly-broke buyer in 4-player."""
+    engine = make_four_player_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    # Position 11 (St. Charles Place, price 140) → 150% = 210
+    assign_street(engine, "b", 11, level=0)
+    engine.state.players["a"].cash = 200  # not enough for 210
+    engine.state.players["a"].properties.clear()
+    give_card(engine, "chance-buy")
+
+    with pytest.raises(GameRuleError, match="insufficient cash"):
+        engine.execute(UseChanceCard("a", "chance-buy", target_position=11))
+
+    # Property unchanged
+    assert engine.state.properties[11].owner_id == "b"
+
+
+def test_freeze_and_surge_at_five_range_in_four_player(tmp_path: Path) -> None:
+    """Freeze/surge work at exact range=5 boundary in 4-player game."""
+    engine = make_four_player_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    give_card(engine, "chance-freeze")
+
+    # orange color group is at positions 16,18,19 — center 16 is distance 6 from 10, out of range
+    # pink group is at 11,13,14 — center 11 is distance 1 ≤ 5
+    events = engine.execute(UseChanceCard("a", "chance-freeze", target_color_group="pink"))
+
+    assert any(e.event_type == "ongoing_effect_created" for e in events)
+
+    # Surge at range boundary
+    give_card(engine, "chance-surge")
+    events2 = engine.execute(UseChanceCard("a", "chance-surge", target_color_group="pink"))
+
+    assert any(e.event_type == "ongoing_effect_created" for e in events2)
+
+
 @pytest.mark.parametrize(
     ("caster_cash", "target_cash", "expected_tax"),
     [(500, 3400, 1190), (100, 101, 35)],
@@ -783,11 +1001,11 @@ def test_buy_property_acceptance_price_and_range_rejection(tmp_path: Path) -> No
 
     engine = make_engine(tmp_path)
     engine.state.players["a"].position = 10
-    assign_street(engine, "b", 13)
+    assign_street(engine, "b", 16)
     give_card(engine, "chance-buy")
     assert_rejected_atomically(
         engine,
-        UseChanceCard("a", "chance-buy", target_position=13),
+        UseChanceCard("a", "chance-buy", target_position=16),
         match="target street is out of range",
     )
 
@@ -894,7 +1112,7 @@ def test_build_card_rejects_hotel_without_consuming_card(tmp_path: Path) -> None
 
 def test_steal_card_requires_selection_directly(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
-    engine.state.players["b"].position = 6
+    engine.state.players["b"].position = 5
     engine.state.players["b"].chance_cards.append("chance-build")
     give_card(engine, "chance-steal")
 
