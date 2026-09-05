@@ -2,35 +2,35 @@ game_id: b2-game-011
 experiment_id: fake-batch-2
 seed: 211
 players:
-- player_id: shang-court
-  seat: 1
-  controller_type: shang_court
-  court_role_profiles:
-    great_priest: shang-great-priest
-    emperor: shang-emperor
-- player_id: qin-court
-  seat: 2
-  controller_type: qin_court
-  court_role_profiles:
-    chancellor: qin-chancellor
-    grand_marshal: qin-grand-marshal
-    imperial_counsellor: qin-imperial-counsellor
-    emperor: qin-emperor
 - player_id: tang-court
-  seat: 3
+  seat: 1
   controller_type: tang_court
   court_role_profiles:
     zhongshu: tang-zhongshu
     menxia: tang-menxia
     emperor: tang-emperor
 - player_id: ming-court
-  seat: 4
+  seat: 2
   controller_type: ming_court
   court_role_profiles:
     chief_grand_secretary: ming-chief-grand-secretary
     grand_secretary_1: ming-grand-secretary-1
     grand_secretary_2: ming-grand-secretary-2
     emperor: ming-emperor
+- player_id: shang-court
+  seat: 3
+  controller_type: shang_court
+  court_role_profiles:
+    great_priest: shang-great-priest
+    emperor: shang-emperor
+- player_id: qin-court
+  seat: 4
+  controller_type: qin_court
+  court_role_profiles:
+    chancellor: qin-chancellor
+    grand_marshal: qin-grand-marshal
+    imperial_counsellor: qin-imperial-counsellor
+    emperor: qin-emperor
 model_profiles:
   shang-great-priest:
     provider: fake

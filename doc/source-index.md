@@ -17,7 +17,7 @@
 | `configs/games/random_baseline_demo.yaml` | 四玩家完全随机、非 LLM 的 Level 0 示例配置；显式使用 `controller_type: random_baseline`，不含 `model_profiles`。 | 作为 `monopoly-agent-battle play --config` 的输入；不产生 LLM 调用产物。 |
 | `configs/experiments/preexperiment_demo/batch.yaml` | 预实验批次清单，按顺序列出需要执行的独立对局 YAML；相对路径以清单文件所在目录为基准。 | 作为 `monopoly-agent-battle experiment run --batch` 的输入。 |
 | `configs/experiments/preexperiment_demo/game_a.yaml` / `game_b.yaml` | 两局 Level 0 完全随机、非 LLM 的预实验示例配置。 | 由 `batch.yaml` 按顺序调用；也可作为独立 `play --config` 配置。 |
-| `configs/fake_agent_batch_test/generate_configs.py` | 生成 4 批 × 20 局、50 回合的四朝廷 fake 对局配置及批次清单；种子互异，开局发 3 张机会卡，生成时逐份预校验。 | `.venv/Scripts/python.exe configs/fake_agent_batch_test/generate_configs.py`；批次用 `experiment run --batch configs/fake_agent_batch_test/batchN/batch.yaml` 执行。 |
+| `configs/fake_agent_batch_test/generate_configs.py` | 生成 4 批 × 20 局、50 回合的四朝廷 fake 对局配置及批次清单；座位轮转均衡，种子互异，开局发 3 张机会卡，生成时逐份预校验。 | `.venv/Scripts/python.exe configs/fake_agent_batch_test/generate_configs.py`；批次用 `experiment run --batch configs/fake_agent_batch_test/batchN/batch.yaml` 执行。 |
 | `src/monopoly_agent_battle/config/models.py` | 定义并校验单局配置、控制器及模型绑定；每个玩家或官员的 profile 可独立配置 URL、API Key 环境变量、模型、LLM seed 和调用参数。 | 由配置加载器和对局入口调用；真实 API Key 不进入配置。 |
 | `src/monopoly_agent_battle/config/loader.py` | 加载 YAML 配置，生成规范 JSON 及 SHA-256 `config_hash`。 | 由 CLI 或实验编排调用。 |
 | `.env.example` | 本地凭据模板（占位值），列出通用 `MONOPOLY_API_KEY` 及 `example.yaml` 中 13 名官员的 `api_key_env` 变量名。 | `Copy-Item .env.example .env.local` 后填入真实 API Key；禁止提交真实密钥。 |
