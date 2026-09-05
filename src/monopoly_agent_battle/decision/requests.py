@@ -282,7 +282,9 @@ def _candidate_commands(engine: GameEngine, player_id: str) -> list[GameCommand]
             *(Mortgage(player_id, position) for position in sorted(player.properties)),
         ]
     if phase is TurnPhase.FORCED_DISCARD:
-        return [DiscardChanceCard(player_id, card_id) for card_id in player.chance_cards]
+        return [
+            DiscardChanceCard(player_id, card_id) for card_id in dict.fromkeys(player.chance_cards)
+        ]
     if phase is TurnPhase.THEFT_CARD_SELECTION:
         target_id = engine.state.pending_theft_target_id
         return (
@@ -290,7 +292,7 @@ def _candidate_commands(engine: GameEngine, player_id: str) -> list[GameCommand]
             if target_id is None
             else [
                 SelectStolenChanceCard(player_id, card_id)
-                for card_id in engine.state.players[target_id].chance_cards
+                for card_id in dict.fromkeys(engine.state.players[target_id].chance_cards)
             ]
         )
     if phase is TurnPhase.ASSET_MANAGEMENT:
@@ -312,7 +314,7 @@ def _chance_candidates(engine: GameEngine, player_id: str) -> list[UseChanceCard
         tuple(COLOR_GROUPS),
     )
     candidates: list[UseChanceCard] = []
-    for card_id in player.chance_cards:
+    for card_id in dict.fromkeys(player.chance_cards):
         effect = CARDS_BY_ID[card_id].effect
         if effect is CardEffect.RENT_WAIVER:
             candidates.append(UseChanceCard(player_id, card_id))

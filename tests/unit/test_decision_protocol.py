@@ -338,6 +338,89 @@ def test_forced_discard_lists_each_held_card_as_its_own_candidate(tmp_path: Path
     }
 
 
+def test_duplicate_held_cards_show_one_option_and_keep_both_copies(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    player = engine.state.players["a"]
+    player.properties.update({1, 3})
+    engine.state.properties[1].owner_id = "a"
+    engine.state.properties[3].owner_id = "a"
+    player.chance_cards.extend(["chance-tax", "chance-tax", "chance-build"])
+
+    request = build_decision_request(engine, 1)
+
+    your_state = cast(dict[str, Any], player_visible_state(engine, "a")["your_state"])
+    hand = cast(list[dict[str, Any]], your_state["chance_cards"])
+    assert [entry["card_id"] for entry in hand] == ["chance-tax", "chance-tax", "chance-build"]
+
+    chance_options = [
+        option for option in request.options if option.command_type == "use_chance_card"
+    ]
+    assert [option.option_id for option in chance_options] == [
+        "use_chance_card-chance-tax",
+        "use_chance_card-chance-build",
+    ]
+    tax_option = next(
+        option for option in chance_options if option.parameters["card_id"] == "chance-tax"
+    )
+    assert tax_option.target is not None
+    assert tax_option.target.legal_values == (("b",),)
+
+    engine.execute(UseChanceCard("a", "chance-tax", target_player_id="b"))
+
+    assert player.chance_cards == ["chance-tax", "chance-build"]
+    follow_up = build_decision_request(engine, 2)
+    assert "use_chance_card-chance-tax" in {option.option_id for option in follow_up.options}
+
+
+def test_forced_discard_lists_duplicate_card_kind_once(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.FORCED_DISCARD
+    engine.state.players["a"].chance_cards.extend(
+        ["chance-tax", "chance-tax", "chance-build", "chance-steal"]
+    )
+
+    request = build_decision_request(engine, 1)
+    discard_options = [
+        option for option in request.options if option.command_type == "discard_chance_card"
+    ]
+
+    assert [option.option_id for option in discard_options] == [
+        "discard_chance_card-chance-tax",
+        "discard_chance_card-chance-build",
+        "discard_chance_card-chance-steal",
+    ]
+
+    engine.execute(DiscardChanceCard("a", "chance-tax"))
+
+    assert engine.state.players["a"].chance_cards == ["chance-tax", "chance-build", "chance-steal"]
+
+
+def test_theft_selection_lists_duplicate_card_kind_once(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    engine.state.players["a"].chance_cards.append("chance-steal")
+    engine.state.players["b"].chance_cards.extend(["chance-tax", "chance-tax", "chance-build"])
+
+    engine.execute(UseChanceCard("a", "chance-steal", target_player_id="b"))
+    request = build_decision_request(engine, 1)
+
+    theft_selection = cast(dict[str, Any], request.visible_state["theft_selection"])
+    assert theft_selection["target_chance_cards"] == [
+        {"card_id": "chance-tax", "name": "查税卡"},
+        {"card_id": "chance-tax", "name": "查税卡"},
+        {"card_id": "chance-build", "name": "建房卡"},
+    ]
+    theft_option = request.options[0]
+    assert theft_option.target is not None
+    assert theft_option.target.legal_values == (("chance-tax",), ("chance-build",))
+
+    engine.execute(SelectStolenChanceCard("a", "chance-tax"))
+
+    assert engine.state.players["b"].chance_cards == ["chance-tax", "chance-build"]
+    assert engine.state.players["a"].chance_cards == ["chance-tax"]
+
+
 def test_asset_management_keeps_cards_separate_and_folds_each_card_targets(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT

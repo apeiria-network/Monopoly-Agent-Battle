@@ -1,3 +1,4 @@
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -60,7 +61,7 @@ def test_landing_on_position_20_draws_chance_card_like_other_chance_spaces(tmp_p
 
     assert engine.state.players["a"].position == 20
     assert engine.state.players["a"].chance_cards == [expected_card]
-    assert expected_card not in engine.state.chance_draw_pile
+    assert len(engine.state.chance_draw_pile) == 31
     assert any(event.event_type == "card_drawn" for event in events)
     assert engine.state.turn_phase is TurnPhase.ASSET_MANAGEMENT
 
@@ -135,11 +136,12 @@ def test_initial_chance_cards_deal_from_shuffled_pile(tmp_path: Path) -> None:
     held = [player.chance_cards for player in engine.state.players.values()]
     assert all(len(cards) == 2 for cards in held)
     assert sum(len(cards) for cards in held) == 4
-    dealt = {card for cards in held for card in cards}
-    assert len(dealt) == 4
-    assert len(engine.state.chance_draw_pile) == 12
+    assert len(engine.state.chance_draw_pile) == 28
+    pile_and_held = Counter(engine.state.chance_draw_pile)
     for cards in held:
-        assert all(card not in engine.state.chance_draw_pile for card in cards)
+        pile_and_held.update(cards)
+    assert len(pile_and_held) == 16
+    assert set(pile_and_held.values()) == {2}
 
 
 def test_initial_chance_cards_deterministic_per_seed(tmp_path: Path) -> None:
@@ -156,4 +158,4 @@ def test_initial_chance_cards_default_deals_nothing(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
 
     assert all(player.chance_cards == [] for player in engine.state.players.values())
-    assert len(engine.state.chance_draw_pile) == 16
+    assert len(engine.state.chance_draw_pile) == 32

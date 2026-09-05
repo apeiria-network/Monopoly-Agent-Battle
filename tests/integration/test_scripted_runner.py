@@ -82,9 +82,9 @@ def test_runner_resolves_card_draw_without_false_success(tmp_path: Path) -> None
 
 
 def test_runner_replays_chance_card_with_secondary_property_target(tmp_path: Path) -> None:
-    config = make_config(tmp_path).model_copy(update={"max_complete_rounds": 2})
+    config = make_config(tmp_path).model_copy(update={"seed": 7, "max_complete_rounds": 2})
     engine = GameEngine(config)
-    dice = iter((1, 2, 3, 3, 1, 2, 2, 2, 1, 1, 1, 2))
+    dice = iter((1, 2, 3, 3, 1, 2, 3, 1))
     engine.random.randint = lambda _low, _high: next(dice)  # type: ignore[method-assign]
     artifacts = RunArtifacts.create(config)
 
@@ -98,12 +98,10 @@ def test_runner_replays_chance_card_with_secondary_property_target(tmp_path: Pat
                 RollDice("b"),
                 EndTurn("b"),
                 RollDice("a"),
-                RollDice("a"),
-                RollDice("a"),
                 UseChanceCard(
                     "a",
                     "chance-swap-property",
-                    target_position=9,
+                    target_position=6,
                     secondary_target_position=3,
                 ),
             ]
@@ -114,12 +112,15 @@ def test_runner_replays_chance_card_with_secondary_property_target(tmp_path: Pat
 
     assert result.status == "script_exhausted"
     assert engine.state.properties[3].owner_id == "b"
-    assert engine.state.properties[9].owner_id == "a"
+    assert engine.state.properties[6].owner_id == "a"
+    assert engine.state.properties[9].owner_id == "b"
+    assert engine.state.players["a"].chance_cards == []
+    assert engine.state.chance_discard_pile == ["chance-swap-property"]
     verify_run(artifacts.run_directory)
 
 
 def test_runner_replays_drawn_chance_card_use(tmp_path: Path) -> None:
-    config = make_config(tmp_path).model_copy(update={"seed": 7, "max_complete_rounds": 2})
+    config = make_config(tmp_path).model_copy(update={"max_complete_rounds": 2})
     artifacts = RunArtifacts.create(config)
     engine = make_engine(config, [1, 6])
 
@@ -128,7 +129,7 @@ def test_runner_replays_drawn_chance_card_use(tmp_path: Path) -> None:
         ScriptedController(
             [
                 RollDice("a"),
-                UseChanceCard("a", "chance-waiver"),
+                UseChanceCard("a", "chance-taxi", target_position=9),
             ]
         ),
         artifacts,
@@ -136,10 +137,10 @@ def test_runner_replays_drawn_chance_card_use(tmp_path: Path) -> None:
     )
 
     assert result.status == "script_exhausted"
-    assert engine.state.players["a"].position == 7
-    assert engine.state.players["a"].rent_waivers == 2
+    assert engine.state.players["a"].position == 9
+    assert engine.state.properties[9].owner_id == "a"
     assert engine.state.players["a"].chance_cards == []
-    assert engine.state.chance_discard_pile == ["chance-waiver"]
+    assert engine.state.chance_discard_pile == ["chance-taxi"]
     verify_run(artifacts.run_directory)
 
 
@@ -165,13 +166,13 @@ def test_replay_rejects_nonsequential_event_ids(tmp_path: Path) -> None:
 
 
 def test_replay_tolerates_card_discarded_without_reason_field(tmp_path: Path) -> None:
-    config = make_config(tmp_path).model_copy(update={"seed": 7, "max_complete_rounds": 2})
+    config = make_config(tmp_path).model_copy(update={"max_complete_rounds": 2})
     artifacts = RunArtifacts.create(config)
     engine = make_engine(config, [1, 6])
 
     run_scripted_game(
         config,
-        ScriptedController([RollDice("a"), UseChanceCard("a", "chance-waiver")]),
+        ScriptedController([RollDice("a"), UseChanceCard("a", "chance-taxi", target_position=9)]),
         artifacts,
         engine,
     )

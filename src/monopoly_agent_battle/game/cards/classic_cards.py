@@ -63,9 +63,8 @@ CHANCE_CARDS: tuple[Card, ...] = (
     Card("chance-buy", CardDeck.CHANCE, "购地卡", CardEffect.BUY_PROPERTY, range=5),
     Card("chance-freeze", CardDeck.CHANCE, "查封卡", CardEffect.RENT_FREEZE, range=5, turns=2),
     Card("chance-build", CardDeck.CHANCE, "建房卡", CardEffect.BUILD, range=5),
-)
+) * 2
 
-# Nuclear card removed from active deck; definition retained for replay backward compatibility.
 _DISABLED_CHANCE_CARDS: tuple[Card, ...] = (
     Card("chance-nuclear", CardDeck.CHANCE, "核弹卡", CardEffect.NUCLEAR_RESET),
 )

@@ -150,6 +150,7 @@ def test_chance_deck_reshuffles_its_discard_pile_before_drawing(tmp_path: Path) 
     engine.state.chance_draw_pile = []
     engine.state.chance_discard_pile = ["chance-waiver"]
     engine.random.shuffle = lambda cards: None  # type: ignore[method-assign]
+    engine.random.randint = lambda _low, _high: 1  # type: ignore[method-assign]
 
     events = engine.execute(RollDice("a"))
 
