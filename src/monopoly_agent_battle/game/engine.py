@@ -1579,6 +1579,24 @@ class GameEngine:
                     )
                 )
             player.community_get_out_of_jail_cards.clear()
+        dissolved_alliances = [
+            effect
+            for effect in self.state.ongoing_effects
+            if effect.kind is OngoingEffectKind.ALLIANCE
+            and player.player_id in {effect.source_player_id, effect.target_player_id}
+        ]
+        for effect in dissolved_alliances:
+            self.state.ongoing_effects.remove(effect)
+            events.append(
+                GameEvent(
+                    "ongoing_effect_expired",
+                    {
+                        "kind": effect.kind.value,
+                        "source_player_id": effect.source_player_id,
+                        "reason": "bankruptcy",
+                    },
+                )
+            )
         player.cash = 0
         for position in tuple(player.properties):
             property_state = self.state.properties[position]

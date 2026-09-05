@@ -138,7 +138,7 @@ _CARD_WORDING: dict[str, OptionWording] = {
     "chance-angel": OptionWording(
         "使用机会卡「天使卡」",
         "指定一个颜色组（组内任一地块距自身 5 格以内即可），"
-        "该组内每块已被玩家拥有的普通地块各增加一层建设。",
+        "该组内每块已被玩家拥有且未抵押的普通地块各增加一层建设；抵押中地块跳过。",
         {
             "reason": "填写选择使用天使卡的理由。",
             "selected_option": {
@@ -175,8 +175,8 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-swap-buildings": OptionWording(
         "使用机会卡「换屋卡」",
-        "指定距自身 5 格以内的一处有主普通地块（不论归属），"
-        "与自己拥有的一处普通地块交换完整建设等级，所有权不变。",
+        "指定距自身 5 格以内的一处有主且未抵押的普通地块（不论归属），"
+        "与自己拥有的一处未抵押普通地块交换完整建设等级，所有权不变。",
         {
             "reason": "填写选择使用换屋卡的理由。",
             "selected_option": {
@@ -209,7 +209,7 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-taxi": OptionWording(
         "使用机会卡「出租车卡」",
-        "移动到前方 1–6 格内的指定位置.",
+        "移动到前方 1–6 格内的指定地块。",
         {
             "reason": "填写选择使用出租车卡的理由。",
             "selected_option": {

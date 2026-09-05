@@ -1294,6 +1294,81 @@ def test_alliance_rounds_both_odd_rent_shares_and_bank_adjusts(tmp_path: Path) -
     assert any(event.event_type == "alliance_rent_rounding_adjusted" for event in events)
 
 
+def force_bankruptcy(engine: GameEngine, player_id: str) -> list[GameEvent]:
+    player = engine.state.players[player_id]
+    player.cash = 0
+    events: list[GameEvent] = []
+    engine._queue_payment(  # pyright: ignore[reportPrivateUsage]
+        player,
+        1,
+        None,
+        "test_bankruptcy",
+        TurnPhase.ASSET_MANAGEMENT,
+        None,
+        events,
+    )
+    engine._drain_settlement_operations(events)  # pyright: ignore[reportPrivateUsage]
+    return events
+
+
+def test_alliance_dissolves_when_source_goes_bankrupt(tmp_path: Path) -> None:
+    engine = make_three_player_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    engine.state.players["b"].position = 13
+    assign_street(engine, "b", 1)
+    give_card(engine, "chance-alliance")
+    engine.execute(UseChanceCard("a", "chance-alliance", target_player_id="b"))
+    engine.state.players["a"].cash = 1500
+    engine.state.players["b"].cash = 1500
+    engine.state.players["c"].cash = 1500
+
+    events = force_bankruptcy(engine, "a")
+
+    assert engine.state.players["a"].bankrupt is True
+    assert not any(
+        effect.kind is OngoingEffectKind.ALLIANCE for effect in engine.state.ongoing_effects
+    )
+    assert any(
+        event.event_type == "ongoing_effect_expired" and event.payload.get("reason") == "bankruptcy"
+        for event in events
+    )
+
+    rent_events = land_on(engine, "c", 1, (1, 2))
+
+    assert engine.state.players["b"].cash == 1502
+    assert engine.state.players["a"].cash == 0
+    assert not any(event.event_type == "alliance_rent_rounding_adjusted" for event in rent_events)
+
+
+def test_alliance_dissolves_when_target_goes_bankrupt(tmp_path: Path) -> None:
+    engine = make_three_player_engine(tmp_path)
+    engine.state.players["a"].position = 10
+    engine.state.players["b"].position = 13
+    assign_street(engine, "a", 1)
+    give_card(engine, "chance-alliance")
+    engine.execute(UseChanceCard("a", "chance-alliance", target_player_id="b"))
+    engine.state.players["a"].cash = 1500
+    engine.state.players["b"].cash = 1500
+    engine.state.players["c"].cash = 1500
+
+    events = force_bankruptcy(engine, "b")
+
+    assert engine.state.players["b"].bankrupt is True
+    assert not any(
+        effect.kind is OngoingEffectKind.ALLIANCE for effect in engine.state.ongoing_effects
+    )
+    assert any(
+        event.event_type == "ongoing_effect_expired" and event.payload.get("reason") == "bankruptcy"
+        for event in events
+    )
+
+    rent_events = land_on(engine, "c", 1, (1, 2))
+
+    assert engine.state.players["a"].cash == 1502
+    assert engine.state.players["b"].cash == 0
+    assert not any(event.event_type == "alliance_rent_rounding_adjusted" for event in rent_events)
+
+
 def test_hand_limit_requires_explicit_discard_before_turn_end(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT

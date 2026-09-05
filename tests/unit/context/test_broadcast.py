@@ -356,6 +356,23 @@ def test_ongoing_effect_created_with_targets() -> None:
     assert "颜色组：red" in result
 
 
+def test_ongoing_effect_expired_bankruptcy_dissolves_alliance() -> None:
+    """Bankruptcy-dissolved alliances render a distinct dissolution sentence."""
+    event = GameEvent(
+        "ongoing_effect_expired",
+        {"kind": "alliance", "source_player_id": "a", "reason": "bankruptcy"},
+    )
+    result = _rendered(event)
+    assert "同盟效果因玩家破产而解除" in result
+    assert "来源a" in result
+
+    natural_expiry = GameEvent(
+        "ongoing_effect_expired",
+        {"kind": "alliance", "source_player_id": "a"},
+    )
+    assert "同盟效果到期" in _rendered(natural_expiry)
+
+
 def test_property_events_include_board_names() -> None:
     """Property-related events include board space names."""
     event = GameEvent(
