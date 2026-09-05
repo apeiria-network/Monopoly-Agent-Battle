@@ -15,7 +15,6 @@ class SpaceKind(StrEnum):
     CHANCE = "chance"
     COMMUNITY_CHEST = "community_chest"
     JAIL = "jail"
-    FREE_PARKING = "free_parking"
     GO_TO_JAIL = "go_to_jail"
 
 

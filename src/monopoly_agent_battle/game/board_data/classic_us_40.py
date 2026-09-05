@@ -30,7 +30,7 @@ BOARD: tuple[BoardSpace, ...] = (
     BoardSpace(17, "Community Chest", SpaceKind.COMMUNITY_CHEST),
     _street(18, "Tennessee Avenue", "orange", 180, 100, (14, 70, 200, 550, 750, 950)),
     _street(19, "New York Avenue", "orange", 200, 100, (16, 80, 220, 600, 800, 1000)),
-    BoardSpace(20, "Free Parking", SpaceKind.FREE_PARKING),
+    BoardSpace(20, "Chance", SpaceKind.CHANCE),
     _street(21, "Kentucky Avenue", "red", 220, 150, (18, 90, 250, 700, 875, 1050)),
     BoardSpace(22, "Chance", SpaceKind.CHANCE),
     _street(23, "Indiana Avenue", "red", 220, 150, (18, 90, 250, 700, 875, 1050)),

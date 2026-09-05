@@ -50,6 +50,21 @@ def test_roll_moves_collects_go_and_forces_property_purchase(tmp_path: Path) -> 
     assert {event.event_type for event in events} >= {"go_salary_collected", "property_purchased"}
 
 
+def test_landing_on_position_20_draws_chance_card_like_other_chance_spaces(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.players["a"].position = 17
+    expected_card = engine.state.chance_draw_pile[-1]
+    set_dice(engine, [1, 2])
+
+    events = engine.execute(RollDice("a"))
+
+    assert engine.state.players["a"].position == 20
+    assert engine.state.players["a"].chance_cards == [expected_card]
+    assert expected_card not in engine.state.chance_draw_pile
+    assert any(event.event_type == "card_drawn" for event in events)
+    assert engine.state.turn_phase is TurnPhase.ASSET_MANAGEMENT
+
+
 def test_rent_uses_complete_color_group_bonus_and_mortgage_blocks_it(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     for position in (1, 3):
