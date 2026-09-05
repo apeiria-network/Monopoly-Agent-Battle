@@ -190,6 +190,7 @@ class GameEngine:
             if self.state.turn_phase is not TurnPhase.ASSET_MANAGEMENT:
                 raise GameRuleError("chance cards require the asset management phase")
             events = self._use_chance_card(player, command)
+            self._drain_settlement_operations(events)
         elif isinstance(command, UseCommunityGetOutOfJailCard):
             if self.state.turn_phase is not TurnPhase.ROLLING:
                 raise GameRuleError("get-out-of-jail cards require the rolling phase")
@@ -706,20 +707,24 @@ class GameEngine:
                 GameEvent("player_jailed", {"player_id": target.player_id, "reason": card.card_id})
             )
         elif card.effect is CardEffect.NUCLEAR_RESET:
-            if command.target_position is not None or command.target_player_id is not None:
-                raise GameRuleError("nuclear card does not accept a target")
-            die = self.random.randint(1, 6)
-            center = (player.position + die) % 40
-            events.append(
-                GameEvent(
-                    "card_die_rolled",
-                    {"player_id": player.player_id, "card_id": card.card_id, "die": die},
-                )
+            raise GameRuleError("nuclear card is disabled and cannot be used")
+        elif card.effect is CardEffect.TAXI_MOVE:
+            if command.target_position is None:
+                raise GameRuleError("taxi card requires a target position")
+            distance = (command.target_position - player.position) % 40
+            if distance < 1 or distance > (card.range or 6):
+                raise GameRuleError(f"taxi card target must be 1-{card.range or 6} spaces ahead")
+            crosses_go = player.position + distance >= 40
+            self._queue_card_move(
+                player,
+                command.target_position,
+                card.card_id,
+                events,
+                collect_go_salary=crosses_go,
+                allow_build=True,
+                resume_phase=TurnPhase.ASSET_MANAGEMENT,
+                resume_player_id=player.player_id,
             )
-            for position in ((center - 1) % 40, center, (center + 1) % 40):
-                space = BOARD_BY_POSITION[position]
-                if space.kind is SpaceKind.STREET:
-                    self._reset_property(position, events, card.card_id)
         elif card.effect is CardEffect.MONSTER:
             color_group = self._color_group_target(
                 player, command.target_color_group, card.range or 0
@@ -1121,6 +1126,7 @@ class GameEngine:
         collect_go_salary: bool,
         resume_phase: TurnPhase,
         resume_player_id: str | None,
+        allow_build: bool = False,
     ) -> None:
         operation = SettlementOperation(
             operation_id=self.state.next_settlement_operation_id,
@@ -1130,7 +1136,7 @@ class GameEngine:
             destination=destination,
             dice_total=0,
             collect_go_salary=collect_go_salary,
-            allow_build=False,
+            allow_build=allow_build,
             resume_phase=resume_phase,
             resume_player_id=resume_player_id,
         )

@@ -420,57 +420,155 @@ def test_equalize_cash_rounds_both_shares_and_records_bank_adjustment(tmp_path: 
     assert engine.state.chance_discard_pile == ["chance-equalize"]
 
 
-def test_nuclear_card_resets_streets_around_special_center(tmp_path: Path) -> None:
+def test_nuclear_card_disabled_rejects_use(tmp_path: Path) -> None:
     engine = make_three_player_engine(tmp_path)
     engine.state.players["a"].position = 9
-    assign_street(engine, "b", 9, level=1)
-    assign_street(engine, "c", 11, level=1)
     give_card(engine, "chance-nuclear")
-    engine.random.randint = lambda _low, _high: 1  # type: ignore[method-assign]
-
-    engine.execute(UseChanceCard("a", "chance-nuclear"))
-
-    for position in (9, 11):
-        assert engine.state.properties[position].owner_id is None
-        assert engine.state.properties[position].building_level == 0
-        assert engine.state.properties[position].mortgaged is False
-    assert 9 not in engine.state.players["b"].properties
-    assert 11 not in engine.state.players["c"].properties
-
-
-def test_nuclear_card_rejects_wrong_phase_before_rolling_die(tmp_path: Path) -> None:
-    engine = make_engine(tmp_path)
-    engine.state.players["a"].chance_cards.append("chance-nuclear")
-    calls = 0
-
-    def count_die(_low: int, _high: int) -> int:
-        nonlocal calls
-        calls += 1
-        return 1
-
-    engine.random.randint = count_die  # type: ignore[method-assign]
     before = state_copy(engine)
-    with pytest.raises(GameRuleError, match="asset management phase"):
+    with pytest.raises(GameRuleError, match="disabled"):
         engine.execute(UseChanceCard("a", "chance-nuclear"))
 
-    assert calls == 0
     assert engine.state == before
 
 
-def test_nuclear_card_resets_only_streets_and_removes_ownership(tmp_path: Path) -> None:
-    engine = make_engine(tmp_path)
-    engine.state.players["a"].position = 1
-    engine.state.properties[1].owner_id = "b"
-    engine.state.properties[1].building_level = 2
-    engine.state.players["b"].properties.add(1)
-    give_card(engine, "chance-nuclear")
-    engine.random.randint = lambda _low, _high: 1  # type: ignore[method-assign]
+def test_nuclear_card_rejects_in_asset_management(tmp_path: Path) -> None:
+    """Nuclear card is disabled even when in the correct phase for card use."""
+    engine = make_three_player_engine(tmp_path)
+    engine.state.players["a"].chance_cards.append("chance-nuclear")
+    # Force into asset management phase
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    before = state_copy(engine)
+    with pytest.raises(GameRuleError, match="disabled"):
+        engine.execute(UseChanceCard("a", "chance-nuclear"))
 
-    engine.execute(UseChanceCard("a", "chance-nuclear"))
+    assert engine.state == before
 
-    assert engine.state.properties[1].owner_id is None
-    assert engine.state.properties[1].building_level == 0
-    assert 1 not in engine.state.players["b"].properties
+
+# --- Taxi card tests ---
+
+
+def test_taxi_card_moves_player_forward(tmp_path: Path) -> None:
+    """Taxi card moves player 1-6 spaces ahead and resolves the landing."""
+    engine = make_three_player_engine(tmp_path)
+    engine.state.players["a"].position = 5
+    give_card(engine, "chance-taxi")
+
+    events = engine.execute(UseChanceCard("a", "chance-taxi", target_position=8))
+
+    # Card is used and discarded
+    assert "chance-taxi" not in engine.state.players["a"].chance_cards
+    assert engine.state.chance_discard_pile[-1] == "chance-taxi"
+    # MOVE operation has been drained: player is now at position 8
+    assert engine.state.players["a"].position == 8
+    assert len(engine.state.settlement_operations) == 0
+    # chance_card_used event emitted
+    assert any(e.event_type == "chance_card_used" for e in events)
+    # player_moved event emitted
+    assert any(e.event_type == "player_moved" for e in events)
+
+
+def test_taxi_card_rejects_target_out_of_range(tmp_path: Path) -> None:
+    """Taxi card rejects targets more than 6 spaces ahead."""
+    engine = make_three_player_engine(tmp_path)
+    engine.state.players["a"].position = 5
+    give_card(engine, "chance-taxi")
+    before = state_copy(engine)
+
+    # 7 spaces ahead is out of range
+    with pytest.raises(GameRuleError, match="1-6 spaces ahead"):
+        engine.execute(UseChanceCard("a", "chance-taxi", target_position=12))
+
+    assert engine.state == before
+
+
+def test_taxi_card_rejects_target_behind(tmp_path: Path) -> None:
+    """Taxi card rejects targets behind the player (distance 0 or negative mod 40)."""
+    engine = make_three_player_engine(tmp_path)
+    engine.state.players["a"].position = 5
+    give_card(engine, "chance-taxi")
+    before = state_copy(engine)
+
+    # Same position = distance 0
+    with pytest.raises(GameRuleError, match="1-6 spaces ahead"):
+        engine.execute(UseChanceCard("a", "chance-taxi", target_position=5))
+
+    assert engine.state == before
+
+
+def test_taxi_card_wraps_around_go(tmp_path: Path) -> None:
+    """Taxi card near end of board: moving 3 ahead wraps past position 39 to GO+2."""
+    engine = make_three_player_engine(tmp_path)
+    # Player at 38, target 39 (Boardwalk, 1 ahead) — avoids community/chance landing
+    engine.state.players["a"].position = 37
+    give_card(engine, "chance-taxi")
+
+    events = engine.execute(UseChanceCard("a", "chance-taxi", target_position=39))
+
+    # Distance = (39 - 37) % 40 = 2, within range; no GO crossing this time
+    assert engine.state.players["a"].position == 39
+    assert not any(e.event_type == "go_salary_collected" for e in events)
+
+    # Now test actual GO wrap: player at 39, target 2 (3 ahead, crosses GO)
+    give_card(engine, "chance-taxi")
+    engine.state.players["a"].position = 39
+    events2 = engine.execute(UseChanceCard("a", "chance-taxi", target_position=2))
+    # Landing on community chest at position 2 may cause further moves;
+    # just verify GO salary was collected for the taxi move itself
+    assert any(e.event_type == "go_salary_collected" for e in events2)
+
+
+def test_taxi_card_rejects_no_target(tmp_path: Path) -> None:
+    """Taxi card requires a target position."""
+    engine = make_three_player_engine(tmp_path)
+    engine.state.players["a"].position = 5
+    give_card(engine, "chance-taxi")
+    before = state_copy(engine)
+
+    with pytest.raises(GameRuleError, match="target position"):
+        engine.execute(UseChanceCard("a", "chance-taxi"))
+
+    assert engine.state == before
+
+
+def test_taxi_card_lands_on_rent_triggers_bankruptcy(tmp_path: Path) -> None:
+    """Taxi card moves to another player's property; rent exceeds cash → bankruptcy."""
+    engine = make_three_player_engine(tmp_path)
+    # Position 6 is Oriental Avenue (street, light_blue, price 100, base rent 6)
+    engine.state.players["a"].position = 4  # Income Tax
+    engine.state.players["a"].cash = 1  # nearly broke
+    # Player b owns position 6
+    engine.state.properties[6].owner_id = "b"
+    engine.state.properties[6].building_level = 0
+    engine.state.players["b"].properties.add(6)
+    give_card(engine, "chance-taxi")
+
+    events = engine.execute(UseChanceCard("a", "chance-taxi", target_position=6))
+
+    # Player a should be bankrupt: rent due > cash, no assets to liquidate
+    assert engine.state.players["a"].bankrupt is True
+    # Bankruptcy event should be present
+    assert any(e.event_type == "player_bankrupt" for e in events)
+
+
+def test_taxi_card_lands_on_own_property_auto_builds(tmp_path: Path) -> None:
+    """Taxi card moves to own unmortgaged street → auto-build one level (allow_build=True)."""
+    engine = make_three_player_engine(tmp_path)
+    # Position 8 is Vermont Avenue (street, light_blue, building_cost 50)
+    engine.state.players["a"].position = 6  # Oriental Avenue
+    engine.state.players["a"].cash = 200  # enough to build
+    # Player a owns position 8
+    engine.state.properties[8].owner_id = "a"
+    engine.state.properties[8].building_level = 0
+    engine.state.players["a"].properties.add(8)
+    give_card(engine, "chance-taxi")
+
+    events = engine.execute(UseChanceCard("a", "chance-taxi", target_position=8))
+
+    # Player a should be at position 8 with one building level added
+    assert engine.state.players["a"].position == 8
+    assert engine.state.properties[8].building_level == 1
+    # building_added event from automatic build
+    assert any(e.event_type == "building_added" for e in events)
 
 
 def assign_street(engine: GameEngine, player_id: str, position: int, *, level: int = 0) -> None:

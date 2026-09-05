@@ -197,11 +197,22 @@ _CARD_WORDING: dict[str, OptionWording] = {
         },
     ),
     "chance-nuclear": OptionWording(
-        "使用机会卡「核弹卡」",
-        "以掷骰结果对应格子为中心，将中心及前后各一格内的普通地块重置为无主、无建筑、无抵押。",
+        "使用机会卡「核弹卡」（已禁用）",
+        "此卡已禁用，不可使用。",
         {
             "reason": "填写选择使用核弹卡的理由。",
             "selected_option": {"option": "{option_id}"},
+        },
+    ),
+    "chance-taxi": OptionWording(
+        "使用机会卡「出租车卡」",
+        "移动到前方 1–6 格内的指定位置.",
+        {
+            "reason": "填写选择使用出租车卡的理由。",
+            "selected_option": {
+                "option": "{option_id}",
+                "target": "填写需要移动到的目标格子编号（前方 1–6 格内）。",
+            },
         },
     ),
     "chance-alliance": OptionWording(

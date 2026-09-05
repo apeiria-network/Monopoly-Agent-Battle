@@ -17,7 +17,8 @@ class CardEffect(StrEnum):
     EQUALIZE_CASH = "equalize_cash"
     SWAP_BUILDINGS = "swap_buildings"
     JAIL_PLAYER = "jail_player"
-    NUCLEAR_RESET = "nuclear_reset"
+    NUCLEAR_RESET = "nuclear_reset"  # disabled; kept for backward compatibility
+    TAXI_MOVE = "taxi_move"
     ALLIANCE = "alliance"
     RENT_WAIVER = "rent_waiver"
     MONSTER = "monster"
@@ -54,7 +55,7 @@ CHANCE_CARDS: tuple[Card, ...] = (
     Card("chance-equalize", CardDeck.CHANCE, "均富卡", CardEffect.EQUALIZE_CASH, range=5),
     Card("chance-swap-buildings", CardDeck.CHANCE, "换屋卡", CardEffect.SWAP_BUILDINGS, range=2),
     Card("chance-jail", CardDeck.CHANCE, "陷害卡", CardEffect.JAIL_PLAYER, range=9),
-    Card("chance-nuclear", CardDeck.CHANCE, "核弹卡", CardEffect.NUCLEAR_RESET),
+    Card("chance-taxi", CardDeck.CHANCE, "出租车卡", CardEffect.TAXI_MOVE, range=6),
     Card("chance-alliance", CardDeck.CHANCE, "同盟卡", CardEffect.ALLIANCE, range=3, turns=3),
     Card("chance-waiver", CardDeck.CHANCE, "免费卡", CardEffect.RENT_WAIVER, amount=2),
     Card("chance-monster", CardDeck.CHANCE, "怪兽卡", CardEffect.MONSTER, range=5),
@@ -62,6 +63,11 @@ CHANCE_CARDS: tuple[Card, ...] = (
     Card("chance-buy", CardDeck.CHANCE, "购地卡", CardEffect.BUY_PROPERTY, range=1),
     Card("chance-freeze", CardDeck.CHANCE, "查封卡", CardEffect.RENT_FREEZE, range=6, turns=2),
     Card("chance-build", CardDeck.CHANCE, "建房卡", CardEffect.BUILD, range=3),
+)
+
+# Nuclear card removed from active deck; definition retained for replay backward compatibility.
+_DISABLED_CHANCE_CARDS: tuple[Card, ...] = (
+    Card("chance-nuclear", CardDeck.CHANCE, "核弹卡", CardEffect.NUCLEAR_RESET),
 )
 
 COMMUNITY_CHEST_CARDS: tuple[Card, ...] = (
@@ -123,4 +129,6 @@ COMMUNITY_CHEST_CARDS: tuple[Card, ...] = (
     ),
 )
 
-CARDS_BY_ID = {card.card_id: card for card in CHANCE_CARDS + COMMUNITY_CHEST_CARDS}
+CARDS_BY_ID = {
+    card.card_id: card for card in CHANCE_CARDS + _DISABLED_CHANCE_CARDS + COMMUNITY_CHEST_CARDS
+}

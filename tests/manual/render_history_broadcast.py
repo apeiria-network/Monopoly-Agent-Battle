@@ -436,16 +436,12 @@ def scenario_7_chance_waiver_nuke(directory: str, collector: EventCollector) -> 
         collector.collect("Scenario 7: Waiver/Nuke", engine.execute(RollDice("d")), "d", engine)
         collector.collect("Scenario 7: Waiver/Nuke", engine.execute(EndTurn("d")), "d", engine)
 
-        # Nuclear card (played twice for a 2nd card_die_rolled occurrence)
-        assign_property(engine, "c", 9, level=1)
-        give_card(engine, "a", "chance-nuclear")
+        # Taxi card (replaces disabled nuclear card;
+        # generates chance_card_used with target_position)
+        give_card(engine, "a", "chance-taxi")
         engine.state.players["a"].position = 1
-        engine.random.randint = lambda _low, _high: 1  # type: ignore
-        events = engine.execute(UseChanceCard("a", "chance-nuclear"))
-        collector.collect("Scenario 7: Waiver/Nuke", events, "a", engine)
-        give_card(engine, "a", "chance-nuclear")
-        events = engine.execute(UseChanceCard("a", "chance-nuclear"))
-        collector.collect("Scenario 7: Waiver/Nuke", events, "a", engine)
+        events = engine.execute(UseChanceCard("a", "chance-taxi", target_position=4))
+        collector.collect("Scenario 7: Waiver/Taxi", events, "a", engine)
     except Exception as e:
         print(f"  Scenario 7 error: {e}")
 
