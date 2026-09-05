@@ -115,7 +115,7 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-tax": OptionWording(
         "使用机会卡「查税卡」",
-        "对距自身 5 格以内的目标玩家使用，收取其当前现金的 35%。",
+        "对距自身 5 格以内的目标玩家使用，收取其当前现金的 20%。",
         {
             "reason": "填写选择使用查税卡的理由。",
             "selected_option": {
@@ -263,7 +263,7 @@ _CARD_WORDING: dict[str, OptionWording] = {
     "chance-buy": OptionWording(
         "使用机会卡「购地卡」",
         "指定距自身 5 格以内的一处其他玩家无建筑且未抵押的普通地块，"
-        "支付原价的 150% 取得产权；资金不足则退回卡并取消。",
+        "支付原价的 110% 取得产权；资金不足则退回卡并取消。",
         {
             "reason": "填写选择使用购地卡的理由。",
             "selected_option": {

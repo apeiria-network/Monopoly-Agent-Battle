@@ -797,7 +797,7 @@ class GameEngine:
                 )
         elif card.effect is CardEffect.TAX_PLAYER:
             target = self._player_target(player, command.target_player_id, card.range or 0)
-            amount = _round_ratio_half_up(target.cash * 35, 100)
+            amount = _round_ratio_half_up(target.cash * 20, 100)
             target.cash -= amount
             player.cash += amount
             events.append(
@@ -882,7 +882,7 @@ class GameEngine:
             position, owner = self._other_vacant_street_target(
                 player, command.target_position, card.range or 0
             )
-            price = _round_ratio_half_up((BOARD_BY_POSITION[position].price or 0) * 150, 100)
+            price = _round_ratio_half_up((BOARD_BY_POSITION[position].price or 0) * 110, 100)
             if player.cash < price:
                 raise GameRuleError("insufficient cash to buy the target property")
             player.cash -= price

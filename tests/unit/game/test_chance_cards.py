@@ -235,7 +235,7 @@ def test_color_effect_follows_property_after_card_purchase(tmp_path: Path) -> No
     engine.execute(UseChanceCard("a", "chance-buy", target_position=23))
 
     events = land_on(engine, "c", 23, (1, 2))
-    assert engine.state.players["a"].cash == 206
+    assert engine.state.players["a"].cash == 294
     assert engine.state.players["c"].cash == 1464
     assert any(event.event_type == "payment_made" for event in events)
 
@@ -716,7 +716,7 @@ def test_tax_card_causes_bankruptcy_in_four_player(tmp_path: Path) -> None:
 
     engine.execute(UseChanceCard("a", "chance-tax", target_player_id="b"))
 
-    # b must pay ~35% tax (17) which they can afford; no bankruptcy this time
+    # b must pay ~20% tax (10) which they can afford; no bankruptcy this time
     # but verify the card executed and b's cash decreased
     assert engine.state.players["b"].cash < 50
     assert "chance-tax" not in engine.state.players["a"].chance_cards
@@ -759,13 +759,13 @@ def test_swap_buildings_exchanges_levels_in_four_player(tmp_path: Path) -> None:
     assert engine.state.properties[11].building_level == 1
 
 
-def test_buy_property_150pct_bankrupts_buyer_in_four_player(tmp_path: Path) -> None:
-    """Buy property at 150% price bankrupts a nearly-broke buyer in 4-player."""
+def test_buy_property_110pct_rejects_insufficient_buyer_in_four_player(tmp_path: Path) -> None:
+    """Buy property at 110% price rejects a nearly-broke buyer in 4-player."""
     engine = make_four_player_engine(tmp_path)
     engine.state.players["a"].position = 10
-    # Position 11 (St. Charles Place, price 140) → 150% = 210
+    # Position 11 (St. Charles Place, price 140) → 110% = 154
     assign_street(engine, "b", 11, level=0)
-    engine.state.players["a"].cash = 200  # not enough for 210
+    engine.state.players["a"].cash = 150  # not enough for 154
     engine.state.players["a"].properties.clear()
     give_card(engine, "chance-buy")
 
@@ -797,7 +797,7 @@ def test_freeze_and_surge_at_five_range_in_four_player(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("caster_cash", "target_cash", "expected_tax"),
-    [(500, 3400, 1190), (100, 101, 35)],
+    [(500, 3400, 680), (100, 101, 20)],
 )
 def test_tax_card_acceptance_amounts(
     tmp_path: Path,
@@ -828,14 +828,14 @@ def test_tax_and_vacate_cards_transfer_cash_and_reset_property(tmp_path: Path) -
 
     engine.execute(UseChanceCard("a", "chance-tax", target_player_id="b"))
 
-    assert engine.state.players["a"].cash == 1535
-    assert engine.state.players["b"].cash == 65
+    assert engine.state.players["a"].cash == 1520
+    assert engine.state.players["b"].cash == 80
     give_card(engine, "chance-vacate")
     assign_street(engine, "b", 3)
 
     engine.execute(UseChanceCard("a", "chance-vacate", target_position=3))
 
-    assert engine.state.players["b"].cash == 125
+    assert engine.state.players["b"].cash == 140
     assert engine.state.properties[3].owner_id is None
     assert 3 not in engine.state.players["b"].properties
 
@@ -993,8 +993,8 @@ def test_buy_property_acceptance_price_and_range_rejection(tmp_path: Path) -> No
 
     engine.execute(UseChanceCard("a", "chance-buy", target_position=11))
 
-    assert engine.state.players["a"].cash == 290
-    assert engine.state.players["b"].cash == 310
+    assert engine.state.players["a"].cash == 346
+    assert engine.state.players["b"].cash == 254
     assert engine.state.properties[11].owner_id == "a"
     assert engine.state.properties[11].building_level == 0
     assert engine.state.properties[11].mortgaged is False
@@ -1013,7 +1013,7 @@ def test_buy_property_acceptance_price_and_range_rejection(tmp_path: Path) -> No
 def test_buy_property_returns_card_when_cash_is_insufficient(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.players["a"].position = 3
-    engine.state.players["a"].cash = 89
+    engine.state.players["a"].cash = 65
     assign_street(engine, "b", 3)
     give_card(engine, "chance-buy")
 
@@ -1023,7 +1023,7 @@ def test_buy_property_returns_card_when_cash_is_insufficient(tmp_path: Path) -> 
     assert engine.state.turn_phase is TurnPhase.ASSET_MANAGEMENT
     assert engine.state.players["a"].chance_cards == ["chance-buy"]
     assert engine.state.chance_discard_pile == []
-    assert engine.state.players["a"].cash == 89
+    assert engine.state.players["a"].cash == 65
     assert engine.state.players["b"].cash == 1500
     assert engine.state.properties[3].owner_id == "b"
     assert engine.state.settlement_operations == []
@@ -1040,8 +1040,8 @@ def test_buy_property_and_build_card_change_state_without_normal_build_limits(
 
     engine.execute(UseChanceCard("a", "chance-buy", target_position=3))
 
-    assert engine.state.players["a"].cash == 10
-    assert engine.state.players["b"].cash == 1590
+    assert engine.state.players["a"].cash == 34
+    assert engine.state.players["b"].cash == 1566
     assert engine.state.properties[3].owner_id == "a"
     give_card(engine, "chance-build")
 
