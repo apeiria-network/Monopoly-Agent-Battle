@@ -84,8 +84,9 @@ def test_performance_zero_decisions_with_officer_is_neutral() -> None:
     assessment = result.assessments["officer"]
     assert assessment["decision_count"] == 0
     assert assessment["consistency_ratio"] is None
-    assert assessment["ratio_relation"] == "equal"
+    assert assessment["ratio_relation"] == "empty"
     assert assessment["bad_review"] is False
+    assert assessment["reason"] == "本窗口无决策记录，不记差评。"
 
 
 @pytest.mark.parametrize("selected_option", [None, [], 1, "end_turn"])

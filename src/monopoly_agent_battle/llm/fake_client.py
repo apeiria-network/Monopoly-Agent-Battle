@@ -83,19 +83,21 @@ class FakeLLMClient(LLMClient):
     def _required_selected_option(self, request: LLMRequest) -> dict[str, object] | None:
         if not request.caller_role.endswith(".chief_grand_secretary"):
             return None
-        for message in reversed(request.messages):
-            marker = "请你汇总3位官员的草拟决策，并为决策"
-            if marker not in message.content:
-                continue
-            raw = message.content.split(marker, 1)[1].split("撰写对应决策理由", 1)[0].strip()
-            try:
-                value = json.loads(raw)
-            except json.JSONDecodeError:
-                return None
-            if isinstance(value, dict):
-                document = cast(dict[str, Any], value)
-                if isinstance(document.get("option"), str):
-                    return document
+        if not request.messages:
+            return None
+        message = request.messages[-1]
+        marker = "请你汇总3位官员的草拟决策，并为决策"
+        if marker not in message.content:
+            return None
+        raw = message.content.split(marker, 1)[1].split("撰写对应决策理由", 1)[0].strip()
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(value, dict):
+            document = cast(dict[str, Any], value)
+            if isinstance(document.get("option"), str):
+                return document
         return None
 
 

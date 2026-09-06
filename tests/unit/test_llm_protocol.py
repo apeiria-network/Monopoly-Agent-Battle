@@ -164,6 +164,70 @@ def test_fake_special_role_formats() -> None:
     assert client.complete(_make_request("ignored")).content == "two"
 
 
+def _fake_summary_decision_request() -> DecisionRequest:
+    options = tuple(
+        DecisionOption(
+            option_id=option_id,
+            command_type="EndTurn",
+            parameters={},
+            title=option_id,
+            preview=option_id,
+            response_format={},
+        )
+        for option_id in ("end_turn", "mortgage")
+    )
+    return DecisionRequest(
+        decision_id="d1",
+        game_id="g",
+        complete_rounds=0,
+        player_id="a",
+        phase="decision",
+        kind=DecisionKind.ASSET_MANAGEMENT,
+        question="choose",
+        visible_state={},
+        options=options,
+        output_constraints={},
+    )
+
+
+def test_fake_ignores_summary_marker_left_in_earlier_messages() -> None:
+    stale = (
+        "请你汇总3位官员的草拟决策，并为决策"
+        '{"option":"use_chance_card-chance-steal","target":"tang-court"}'
+        "撰写对应决策理由"
+    )
+    request = LLMRequest(
+        messages=(
+            LLMMessage(role="user", content=stale),
+            LLMMessage(role="assistant", content='{"selected_option":{"option":"end_turn"}}'),
+            LLMMessage(role="user", content="## 当前决策\n请选择"),
+        ),
+        model="fake-random-v1",
+        caller_role="a.chief_grand_secretary",
+        decision_request=_fake_summary_decision_request(),
+    )
+    document = json.loads(FakeLLMClient(seed=42).complete(request).content)
+    assert document["selected_option"]["option"] in {"end_turn", "mortgage"}
+    assert document["reason"].startswith("模拟模型根据上下文随机选择候选操作")
+
+
+def test_fake_follows_summary_marker_in_final_message() -> None:
+    instruction = '请你汇总3位官员的草拟决策，并为决策{"option":"end_turn"}撰写对应决策理由'
+    request = LLMRequest(
+        messages=(
+            LLMMessage(role="user", content="上下文"),
+            LLMMessage(role="assistant", content='{"selected_option":{"option":"mortgage"}}'),
+            LLMMessage(role="user", content=instruction + "\n\n## 当前决策\n请选择"),
+        ),
+        model="fake-random-v1",
+        caller_role="a.chief_grand_secretary",
+        decision_request=_fake_summary_decision_request(),
+    )
+    document = json.loads(FakeLLMClient(seed=42).complete(request).content)
+    assert document["selected_option"] == {"option": "end_turn"}
+    assert document["reason"] == "模拟模型采用内阁确定结果。"
+
+
 def test_recording_client_writes_success_record(tmp_path: Path) -> None:
     artifacts = RunArtifacts.create(_llm_config(tmp_path))
     client = RecordingLLMClient(MockLLMClient(seed=0), artifacts)

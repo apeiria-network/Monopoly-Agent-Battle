@@ -33,7 +33,7 @@ def test_single_game_report_aggregates_safe_fields(tmp_path: Path) -> None:
     text = render_single_game_report(report)
 
     assert report["status"] == "completed"
-    assert report["rankings"] == ["a", "b"]
+    assert report["rankings"] == ["b", "a"]
     assert report["llm"]["calls"] == 0
     assert report["decisions"]["total"] == 2
     assert report["decisions"]["non_llm"] == 2

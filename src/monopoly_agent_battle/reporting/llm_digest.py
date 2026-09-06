@@ -235,11 +235,10 @@ def _trace_rows(trace_calls: list[dict[str, Any]], context: _DecisionContext) ->
         role = str(entry.get("role") or "")
         outcome = _outcome(entry)
         if outcome not in _REAL_OUTCOMES:
-            # A validation_error entry rejects the preceding real call of the
-            # same role; it is not a separate LLM call and adds no row.
-            rejected_row = last_row_by_role.get(role)
-            if rejected_row is not None:
-                rejected_row[-1] = "True"
+            if outcome == "validation_error":
+                rejected_row = last_row_by_role.get(role)
+                if rejected_row is not None:
+                    rejected_row[-1] = "True"
             continue
         reason, option, target = _parse_reply(entry.get("content"))
         if outcome == "connection_error":
