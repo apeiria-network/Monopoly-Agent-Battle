@@ -26,6 +26,7 @@ def _load_prompt(relative_path: str) -> str:
 
 _PRIEST_SYSTEM_PROMPT = _load_prompt("Shang/Shang_great_priest.txt")
 _EMPEROR_ROLE_INSTRUCTION = _load_prompt("Shang/Shang_emperor.txt")
+_NORMAL_OUTPUT = _load_prompt("normal_output_requirement.txt")
 
 _ORACLE_SECTION_HEADER = "## 朝廷内部神谕（仅供皇帝本次决策参考）"
 
@@ -176,6 +177,7 @@ class ShangCourtAgent:
             self._emperor_conversation,
             request,
             role_instruction=_EMPEROR_ROLE_INSTRUCTION,
+            segment3_prompt=_NORMAL_OUTPUT,
         )
         self._last_warning = warning
         emperor_messages = messages

@@ -46,6 +46,7 @@ _ROLE_INSTRUCTIONS = {
     _SECRETARY_2: _load_prompt("Ming/grand_secretary.txt"),
     _EMPEROR: _load_prompt("Ming/emperor.txt"),
 }
+_NORMAL_OUTPUT = _load_prompt("normal_output_requirement.txt")
 
 
 @dataclass(frozen=True, slots=True)
@@ -375,6 +376,7 @@ class MingCourtAgent:
             request,
             pre_decision_context=extra,
             role_instruction=_ROLE_INSTRUCTIONS[role],
+            segment3_prompt=_NORMAL_OUTPUT,
         )
         self._last_warning = warning
         profile = self._profiles[role]

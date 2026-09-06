@@ -212,7 +212,8 @@ def _question(engine: GameEngine, player_id: str) -> tuple[DecisionKind, str]:
     if phase is TurnPhase.PAYMENT_RESOLUTION:
         return (
             DecisionKind.PAYMENT_RESOLUTION,
-            f"你需要支付 {engine.state.settlement_operations[0].amount}；请出售建筑或抵押资产。",
+            f"你需要支付 {engine.state.settlement_operations[0].amount}；请出售建筑或抵押资产。"
+            "每次决策只执行一次操作，资金仍不足时会再次获得决策机会，请依次处置直至付清。",
         )
     if phase is TurnPhase.FORCED_DISCARD:
         return DecisionKind.FORCED_DISCARD, "尝试结束回合后，你的机会卡超过三张；必须弃置一张。"

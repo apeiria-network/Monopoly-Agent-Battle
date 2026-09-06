@@ -152,6 +152,7 @@ SCENARIO A: 首次决策 — 持有多张机会卡，无任何历史（段 4、�
 只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。
 - `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的待指定目标。
 - 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 `{"swap_in_position": 1, "swap_out_position": 3}`。
+- 每次决策只执行一次操作；需要多项操作（如出售多栋建筑、抵押多处地产）时，依次发起决策逐项完成。
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
@@ -387,6 +388,7 @@ SCENARIO B: 新一轮行动回合刚开始 — 段 4 累积历史，段 5 为空
 只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。
 - `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的待指定目标。
 - 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 `{"swap_in_position": 1, "swap_out_position": 3}`。
+- 每次决策只执行一次操作；需要多项操作（如出售多栋建筑、抵押多处地产）时，依次发起决策逐项完成。
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
@@ -608,6 +610,7 @@ SCENARIO C: 同回合多次决策 — 段 5 出现 assistant/user 交替
 只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。
 - `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的待指定目标。
 - 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 `{"swap_in_position": 1, "swap_out_position": 3}`。
+- 每次决策只执行一次操作；需要多项操作（如出售多栋建筑、抵押多处地产）时，依次发起决策逐项完成。
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
@@ -831,6 +834,7 @@ SCENARIO D: 段 4 溢出 — 真实回合历史触发裁剪与警告
 只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。
 - `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的待指定目标。
 - 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 `{"swap_in_position": 1, "swap_out_position": 3}`。
+- 每次决策只执行一次操作；需要多项操作（如出售多栋建筑、抵押多处地产）时，依次发起决策逐项完成。
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
@@ -1078,6 +1082,7 @@ SCENARIO E: 校验失败后默认结束回合 — A 抽到第 4 张机会卡后�
 只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。
 - `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的待指定目标。
 - 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 `{"swap_in_position": 1, "swap_out_position": 3}`。
+- 每次决策只执行一次操作；需要多项操作（如出售多栋建筑、抵押多处地产）时，依次发起决策逐项完成。
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
@@ -1318,6 +1323,7 @@ SCENARIO F: 朝廷内部意见 — 私有 user 上下文中的系统可信身份
 只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。
 - `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的待指定目标。
 - 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 `{"swap_in_position": 1, "swap_out_position": 3}`。
+- 每次决策只执行一次操作；需要多项操作（如出售多栋建筑、抵押多处地产）时，依次发起决策逐项完成。
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
@@ -1540,6 +1546,7 @@ SCENARIO G: 皇帝同一行动回合内两次决策 — 两轮朝廷意见与皇
 只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。
 - `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的待指定目标。
 - 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 `{"swap_in_position": 1, "swap_out_position": 3}`。
+- 每次决策只执行一次操作；需要多项操作（如出售多栋建筑、抵押多处地产）时，依次发起决策逐项完成。
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
