@@ -41,6 +41,7 @@ def _config(output_directory: Path) -> GameConfig:
                 seat=1,
                 controller_type="tang_court",
                 court_role_profiles=TangCourtRoleProfiles(
+                    shangshu="shangshu",
                     zhongshu="zhongshu",
                     menxia="menxia",
                     emperor="emperor",
@@ -54,7 +55,7 @@ def _config(output_directory: Path) -> GameConfig:
         card_data_version="classic-cards-v1",
         model_profiles={
             role: ModelProfile(provider="mock", model=f"mock-{role}-v1")
-            for role in ("zhongshu", "menxia", "emperor")
+            for role in ("shangshu", "zhongshu", "menxia", "emperor")
         },
         output_directory=output_directory,
     )
@@ -91,13 +92,15 @@ def _run(
     profiles = config.model_profiles
     conversations = {
         role: AgentConversation(agent_id=f"tang.{role}", window_turns=1)
-        for role in ("zhongshu", "menxia", "emperor")
+        for role in ("shangshu", "zhongshu", "menxia", "emperor")
     }
     clients = {
         role: RecordingLLMClient(MockLLMClient(capture), artifacts) for role in conversations
     }
     agent = TangCourtAgent(
         player_id="tang",
+        shangshu_client=clients["shangshu"],
+        shangshu_profile=profiles["shangshu"],
         zhongshu_client=clients["zhongshu"],
         zhongshu_profile=profiles["zhongshu"],
         menxia_client=clients["menxia"],
@@ -120,6 +123,8 @@ def _run(
 
 def test_tang_run_audits_roles_and_replays(tmp_path: Path) -> None:
     def policy(request: LLMRequest) -> str:
+        if request.caller_role.endswith(".shangshu"):
+            return "尚书省摘要：双方现金与地产暂无重大变化。"
         if request.caller_role.endswith(".menxia"):
             return _review("agree")
         return _valid_choice(request)
@@ -131,14 +136,20 @@ def test_tang_run_audits_roles_and_replays(tmp_path: Path) -> None:
     assert tang_decisions
     assert all(
         [call["role"] for call in record["court_trace"]["calls"]]
-        == ["zhongshu", "menxia", "emperor"]
+        == ["shangshu", "zhongshu", "menxia", "emperor"]
         for record in tang_decisions
     )
     assert {call["caller_role"] for call in calls} == {
+        "tang.shangshu",
         "tang.zhongshu",
         "tang.menxia",
         "tang.emperor",
     }
+    assert any(
+        request.caller_role == "tang.zhongshu"
+        and '"decision_maker":"shangshu"' in request.messages[-1].content
+        for request in captured
+    )
     assert any(request.caller_role == "tang.emperor" for request in captured)
     verify_run(artifacts.run_directory)
 
@@ -149,6 +160,8 @@ def test_tang_internal_retries_and_connection_retry_are_auditable(tmp_path: Path
     def policy(request: LLMRequest) -> str:
         role = request.caller_role.rsplit(".", 1)[-1]
         attempts[role] = attempts.get(role, 0) + 1
+        if role == "shangshu":
+            return "尚书省摘要：双方现金与地产暂无重大变化。"
         if role == "zhongshu" and attempts[role] == 1:
             raise LLMConnectionError("temporary Zhongshu outage")
         if role == "menxia" and attempts[role] == 1:
@@ -173,5 +186,38 @@ def test_tang_internal_retries_and_connection_retry_are_auditable(tmp_path: Path
     assert any(
         request.caller_role == "tang.menxia" and "审核结构非法" in request.messages[-1].content
         for request in captured
+    )
+    verify_run(run_directory)
+
+
+def test_tang_shangshu_exhaustion_falls_back_within_runner(tmp_path: Path) -> None:
+    def policy(request: LLMRequest) -> str:
+        if request.caller_role.endswith(".shangshu"):
+            raise LLMConnectionError("尚书省持续不可用")
+        if request.caller_role.endswith(".menxia"):
+            return _review("agree")
+        return _valid_choice(request)
+
+    artifacts, captured = _run(tmp_path, policy)
+    run_directory = artifacts.run_directory
+    tang_decision = next(
+        record
+        for record in _records(run_directory / "decisions.jsonl")
+        if record["request"]["player_id"] == "tang"
+    )
+    assert tang_decision["connection_retries"] == 2
+    shangshu_calls = [
+        call for call in tang_decision["court_trace"]["calls"] if call["role"] == "shangshu"
+    ]
+    assert [call["outcome"] for call in shangshu_calls] == [
+        "connection_error",
+        "connection_error",
+        "connection_error",
+        "summary_fallback",
+    ]
+    assert any(
+        "尚书省重连次数耗尽，无法做出有效回复" in request.messages[-1].content
+        for request in captured
+        if request.caller_role == "tang.emperor"
     )
     verify_run(run_directory)

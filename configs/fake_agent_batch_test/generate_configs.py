@@ -41,6 +41,7 @@ COURTS: list[tuple[str, str, dict[str, str]]] = [
         "tang-court",
         "tang_court",
         {
+            "shangshu": "tang-shangshu",
             "zhongshu": "tang-zhongshu",
             "menxia": "tang-menxia",
             "emperor": "tang-emperor",

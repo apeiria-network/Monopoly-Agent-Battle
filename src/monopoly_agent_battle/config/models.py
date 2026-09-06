@@ -90,10 +90,11 @@ class QinCourtRoleProfiles(BaseModel):
 
 
 class TangCourtRoleProfiles(BaseModel):
-    """Independent model-profile bindings for the three Tang court roles."""
+    """Independent model-profile bindings for the four Tang court roles."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    shangshu: str = Field(min_length=1)
     zhongshu: str = Field(min_length=1)
     menxia: str = Field(min_length=1)
     emperor: str = Field(min_length=1)

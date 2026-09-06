@@ -215,7 +215,7 @@ def run_play(config_path: Path) -> Path:
             assert isinstance(player.court_role_profiles, TangCourtRoleProfiles)
             roles = {
                 role: config.model_profiles[getattr(player.court_role_profiles, role)]
-                for role in ("zhongshu", "menxia", "emperor")
+                for role in ("shangshu", "zhongshu", "menxia", "emperor")
             }
             role_clients = {
                 role: RecordingLLMClient(create_client(profile), artifacts, _current_round)
@@ -232,6 +232,8 @@ def run_play(config_path: Path) -> Path:
             conversations[player.player_id] = role_conversations
             controllers[player.player_id] = TangCourtAgent(
                 player_id=player.player_id,
+                shangshu_client=role_clients["shangshu"],
+                shangshu_profile=roles["shangshu"],
                 zhongshu_client=role_clients["zhongshu"],
                 zhongshu_profile=roles["zhongshu"],
                 menxia_client=role_clients["menxia"],

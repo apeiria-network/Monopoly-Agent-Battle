@@ -20,6 +20,7 @@ players:
     seat: 3
     controller_type: tang_court
     court_role_profiles:
+      shangshu: tang-shangshu
       zhongshu: tang-zhongshu
       menxia: tang-menxia
       emperor: tang-emperor
@@ -38,6 +39,7 @@ model_profiles:
   qin-grand-marshal: {provider: fake, model: fake-random-v1, seed: 42}
   qin-imperial-counsellor: {provider: fake, model: fake-random-v1, seed: 42}
   qin-emperor: {provider: fake, model: fake-random-v1, seed: 42}
+  tang-shangshu: {provider: fake, model: fake-random-v1, seed: 42}
   tang-zhongshu: {provider: fake, model: fake-random-v1, seed: 42}
   tang-menxia: {provider: fake, model: fake-random-v1, seed: 42}
   tang-emperor: {provider: fake, model: fake-random-v1, seed: 42}

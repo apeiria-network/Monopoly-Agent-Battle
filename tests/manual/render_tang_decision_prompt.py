@@ -1,4 +1,4 @@
-"""Render ten Tang court prompt scenarios for human review."""
+"""Render eleven Tang court prompt scenarios for human review."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from monopoly_agent_battle.llm.protocol import LLMMessage, LLMRequest, LLMRespon
 
 _DIVIDER = "=" * 72
 _REPORT_PATH = Path("tests/manual/render_tang_decision_prompt_report.txt")
-_ROLES = ("zhongshu", "menxia", "emperor")
+_ROLES = ("shangshu", "zhongshu", "menxia", "emperor")
 _TITLES = {
     "1": "首次外部决策：中书省无历史首轮起草",
     "2": "首次外部决策：门下省审核第一轮中书草案",
@@ -31,6 +31,7 @@ _TITLES = {
     "8": "同一行动回合第二次决策：中书省回看两轮抵押决策历史",
     "9": "同一行动回合第二次决策：门下省审核抵押后的资产管理草案",
     "10": "同一行动回合第二次决策：皇帝回看前次通过轮并裁决新草案",
+    "11": "同一行动回合第二次决策：尚书省查看段4历史播报与本回合事件",
 }
 
 
@@ -43,7 +44,9 @@ class _CaptureClient:
 
     def complete(self, request: LLMRequest) -> LLMResponse:
         self.requests.append(request)
-        if self.role == "menxia":
+        if self.role == "shangshu":
+            content = "尚书省摘要：当前局面平稳，双方现金与地产暂无重大变化。"
+        elif self.role == "menxia":
             verdict = self.reviews.pop(0)
             content = _review(verdict, f"第{len(self.requests)}轮审核意见")
         else:
@@ -102,6 +105,8 @@ def _make_agent(
             conversation.start_turn(1)
     return TangCourtAgent(
         player_id="a",
+        shangshu_client=clients["shangshu"],
+        shangshu_profile=profiles["shangshu"],
         zhongshu_client=clients["zhongshu"],
         zhongshu_profile=profiles["zhongshu"],
         menxia_client=clients["menxia"],
@@ -149,6 +154,46 @@ def _capture_same_turn_second(
     return clients[role].requests[-1].messages, agent.last_context_warning
 
 
+def _capture_shangshu_second_decision(
+    engine: GameEngine,
+) -> tuple[tuple[LLMMessage, ...], object]:
+    conversations = {
+        name: AgentConversation(agent_id=f"a.{name}", window_turns=1) for name in _ROLES
+    }
+    agent, clients = _make_agent(["agree", "agree", "agree"], conversations)
+    first_request = build_decision_request(engine, sequence=1)
+    first_reply = agent(first_request)
+    agent.record_final_decision(first_request, first_reply)
+    validation = parse_and_validate(first_reply, first_request)
+    if not validation.valid or validation.option is None:
+        raise AssertionError("first Tang decision must be a valid engine decision")
+    events = engine.execute(
+        command_from_option(first_request, validation.option, validation.target)
+    )
+    for event in events:
+        for conversation in conversations.values():
+            conversation.append_event(event, engine.state.complete_rounds)
+    for conversation in conversations.values():
+        conversation.start_turn(2)
+    clients["zhongshu"].target = 3
+    clients["emperor"].target = 3
+    second_request = build_decision_request(engine, sequence=2)
+    second_reply = agent(second_request)
+    agent.record_final_decision(second_request, second_reply)
+    validation = parse_and_validate(second_reply, second_request)
+    if not validation.valid or validation.option is None:
+        raise AssertionError("second Tang decision must be a valid engine decision")
+    events = engine.execute(
+        command_from_option(second_request, validation.option, validation.target)
+    )
+    for event in events:
+        for conversation in conversations.values():
+            conversation.append_event(event, engine.state.complete_rounds)
+    third_request = build_decision_request(engine, sequence=3)
+    agent(third_request)
+    return clients["shangshu"].requests[-1].messages, agent.last_context_warning
+
+
 def _write(
     buffer: StringIO,
     label: str,
@@ -186,6 +231,8 @@ def main() -> None:
                 _make_engine(directory), role, first_reviews, second_reviews
             )
             _write(buffer, label, role, messages, warning)
+        messages, warning = _capture_shangshu_second_decision(_make_engine(directory))
+        _write(buffer, "11", "shangshu", messages, warning)
     _REPORT_PATH.write_text(buffer.getvalue(), encoding="utf-8")
     print(f"Wrote {_REPORT_PATH} ({len(buffer.getvalue())} chars)")
 
