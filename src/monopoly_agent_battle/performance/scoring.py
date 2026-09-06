@@ -164,18 +164,27 @@ def score_window(
         matches = [_is_consistent(evidence, officer) for evidence in decisions]
         count = sum(matches)
         total = len(matches)
+        empty = total == 0
         above = 2 * count > total
         equal = 2 * count == total
         bad_result = end_net_worth < start_net_worth
-        poor = False if equal else (above == bad_result)
+        poor = False if (empty or equal) else (above == bad_result)
         assessments[officer] = {
             "consistent_count": count,
             "decision_count": total,
             "consistency_ratio": count / total if total else None,
-            "ratio_relation": "equal" if equal else "above" if above else "below",
+            "ratio_relation": "empty"
+            if empty
+            else "equal"
+            if equal
+            else "above"
+            if above
+            else "below",
             "per_decision_consistent": matches,
             "bad_review": poor,
-            "reason": _reason(bad_result, equal, above),
+            "reason": "本窗口无决策记录，不记差评。"
+            if empty
+            else _reason(bad_result, equal, above),
         }
     return PerformanceWindowResult(
         game_id=game_id,

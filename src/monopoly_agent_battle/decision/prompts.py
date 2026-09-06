@@ -47,7 +47,6 @@ _SPACE_KIND_CN = {
     "chance": "机会",
     "community_chest": "社区基金",
     "jail": "监狱/探监",
-    "free_parking": "免费停车",
     "go_to_jail": "入狱",
 }
 

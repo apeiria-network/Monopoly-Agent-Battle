@@ -115,16 +115,17 @@ def test_four_player_seeded_turn_trace_is_reproducible(tmp_path: Path) -> None:
             assert first.state == second.state
 
 
-def test_card_catalog_has_32_unique_ids_and_correct_decks() -> None:
-    cards = CHANCE_CARDS + COMMUNITY_CHEST_CARDS
-    card_ids = [card.card_id for card in cards]
+def test_card_catalog_composition_and_correct_decks() -> None:
+    chance_kind_counts = Counter(card.card_id for card in CHANCE_CARDS)
+    community_ids = [card.card_id for card in COMMUNITY_CHEST_CARDS]
 
-    assert len(CHANCE_CARDS) == 16
-    assert len(COMMUNITY_CHEST_CARDS) == 16
-    assert len(card_ids) == 32
-    assert len(card_ids) == len(set(card_ids))
-    assert len(CARDS_BY_ID) == 32
-    assert set(CARDS_BY_ID) == set(card_ids)
+    assert len(CHANCE_CARDS) == 32
+    assert len(chance_kind_counts) == 16
+    assert set(chance_kind_counts.values()) == {2}
+    assert len(community_ids) == 16
+    assert len(set(community_ids)) == 16
+    assert set(chance_kind_counts).isdisjoint(community_ids)
+    assert set(chance_kind_counts) | set(community_ids) <= set(CARDS_BY_ID)
     assert all(card.deck is CardDeck.CHANCE for card in CHANCE_CARDS)
     assert all(card.deck is CardDeck.COMMUNITY_CHEST for card in COMMUNITY_CHEST_CARDS)
 

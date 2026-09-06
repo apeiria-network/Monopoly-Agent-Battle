@@ -122,7 +122,11 @@ class GameEngine:
         ):
             raise GameRuleError("command must be issued by the current player")
         player = self.state.players[command.player_id]
-        if player.bankrupt:
+        if player.bankrupt and not (
+            isinstance(command, EndTurn)
+            and command.player_id == self.state.current_player_id
+            and self.state.turn_phase is TurnPhase.TURN_COMPLETE
+        ):
             raise GameRuleError("bankrupt player cannot act")
         if isinstance(command, RollDice):
             if self.state.turn_phase is not TurnPhase.ROLLING:
@@ -186,6 +190,7 @@ class GameEngine:
             if self.state.turn_phase is not TurnPhase.ASSET_MANAGEMENT:
                 raise GameRuleError("chance cards require the asset management phase")
             events = self._use_chance_card(player, command)
+            self._drain_settlement_operations(events)
         elif isinstance(command, UseCommunityGetOutOfJailCard):
             if self.state.turn_phase is not TurnPhase.ROLLING:
                 raise GameRuleError("get-out-of-jail cards require the rolling phase")
@@ -702,20 +707,24 @@ class GameEngine:
                 GameEvent("player_jailed", {"player_id": target.player_id, "reason": card.card_id})
             )
         elif card.effect is CardEffect.NUCLEAR_RESET:
-            if command.target_position is not None or command.target_player_id is not None:
-                raise GameRuleError("nuclear card does not accept a target")
-            die = self.random.randint(1, 6)
-            center = (player.position + die) % 40
-            events.append(
-                GameEvent(
-                    "card_die_rolled",
-                    {"player_id": player.player_id, "card_id": card.card_id, "die": die},
-                )
+            raise GameRuleError("nuclear card is disabled and cannot be used")
+        elif card.effect is CardEffect.TAXI_MOVE:
+            if command.target_position is None:
+                raise GameRuleError("taxi card requires a target position")
+            distance = (command.target_position - player.position) % 40
+            if distance < 1 or distance > (card.range or 6):
+                raise GameRuleError(f"taxi card target must be 1-{card.range or 6} spaces ahead")
+            crosses_go = player.position + distance >= 40
+            self._queue_card_move(
+                player,
+                command.target_position,
+                card.card_id,
+                events,
+                collect_go_salary=crosses_go,
+                allow_build=True,
+                resume_phase=TurnPhase.ASSET_MANAGEMENT,
+                resume_player_id=player.player_id,
             )
-            for position in ((center - 1) % 40, center, (center + 1) % 40):
-                space = BOARD_BY_POSITION[position]
-                if space.kind is SpaceKind.STREET:
-                    self._reset_property(position, events, card.card_id)
         elif card.effect is CardEffect.MONSTER:
             color_group = self._color_group_target(
                 player, command.target_color_group, card.range or 0
@@ -788,7 +797,7 @@ class GameEngine:
                 )
         elif card.effect is CardEffect.TAX_PLAYER:
             target = self._player_target(player, command.target_player_id, card.range or 0)
-            amount = _round_ratio_half_up(target.cash * 35, 100)
+            amount = _round_ratio_half_up(target.cash * 20, 100)
             target.cash -= amount
             player.cash += amount
             events.append(
@@ -873,7 +882,7 @@ class GameEngine:
             position, owner = self._other_vacant_street_target(
                 player, command.target_position, card.range or 0
             )
-            price = _round_ratio_half_up((BOARD_BY_POSITION[position].price or 0) * 150, 100)
+            price = _round_ratio_half_up((BOARD_BY_POSITION[position].price or 0) * 110, 100)
             if player.cash < price:
                 raise GameRuleError("insufficient cash to buy the target property")
             player.cash -= price
@@ -1117,6 +1126,7 @@ class GameEngine:
         collect_go_salary: bool,
         resume_phase: TurnPhase,
         resume_player_id: str | None,
+        allow_build: bool = False,
     ) -> None:
         operation = SettlementOperation(
             operation_id=self.state.next_settlement_operation_id,
@@ -1126,7 +1136,7 @@ class GameEngine:
             destination=destination,
             dice_total=0,
             collect_go_salary=collect_go_salary,
-            allow_build=False,
+            allow_build=allow_build,
             resume_phase=resume_phase,
             resume_player_id=resume_player_id,
         )
@@ -1569,6 +1579,24 @@ class GameEngine:
                     )
                 )
             player.community_get_out_of_jail_cards.clear()
+        dissolved_alliances = [
+            effect
+            for effect in self.state.ongoing_effects
+            if effect.kind is OngoingEffectKind.ALLIANCE
+            and player.player_id in {effect.source_player_id, effect.target_player_id}
+        ]
+        for effect in dissolved_alliances:
+            self.state.ongoing_effects.remove(effect)
+            events.append(
+                GameEvent(
+                    "ongoing_effect_expired",
+                    {
+                        "kind": effect.kind.value,
+                        "source_player_id": effect.source_player_id,
+                        "reason": "bankruptcy",
+                    },
+                )
+            )
         player.cash = 0
         for position in tuple(player.properties):
             property_state = self.state.properties[position]

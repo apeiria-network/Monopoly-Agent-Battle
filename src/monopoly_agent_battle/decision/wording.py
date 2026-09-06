@@ -104,7 +104,7 @@ _COMMAND_WORDING: dict[str, OptionWording] = {
 _CARD_WORDING: dict[str, OptionWording] = {
     "chance-steal": OptionWording(
         "使用机会卡「抢夺卡」",
-        "查看目标玩家手牌并选择获得其中一张。",
+        "对距自身 5 格以内的目标玩家使用，查看其手牌并选择获得其中一张。",
         {
             "reason": "填写选择使用抢夺卡的理由。",
             "selected_option": {
@@ -115,7 +115,7 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-tax": OptionWording(
         "使用机会卡「查税卡」",
-        "收取目标玩家当前现金的 35%。",
+        "对距自身 5 格以内的目标玩家使用，收取其当前现金的 20%。",
         {
             "reason": "填写选择使用查税卡的理由。",
             "selected_option": {
@@ -126,7 +126,7 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-vacate": OptionWording(
         "使用机会卡「空地卡」",
-        "将目标玩家的一处无建筑且未抵押的普通地块按原价强制出售给银行。",
+        "指定距自身 5 格以内的一处其他玩家无建筑且未抵押的普通地块，按原价强制出售给银行。",
         {
             "reason": "填写选择使用空地卡的理由。",
             "selected_option": {
@@ -137,7 +137,8 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-angel": OptionWording(
         "使用机会卡「天使卡」",
-        "目标颜色组内每块已被所有玩家拥有的普通地块各增加一层建设。",
+        "指定一个颜色组（组内任一地块距自身 5 格以内即可），"
+        "该组内每块已被玩家拥有且未抵押的普通地块各增加一层建设；抵押中地块跳过。",
         {
             "reason": "填写选择使用天使卡的理由。",
             "selected_option": {
@@ -148,7 +149,8 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-swap-property": OptionWording(
         "使用机会卡「换地卡」",
-        "用自己的一处无建筑且未抵押的普通地块与目标玩家的同条件地块交换所有权。",
+        "指定距自身 5 格以内的一处其他玩家无建筑且未抵押的普通地块，"
+        "与自己的一处同条件地块交换所有权。",
         {
             "reason": "填写选择使用换地卡的理由。",
             "selected_option": {
@@ -162,7 +164,7 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-equalize": OptionWording(
         "使用机会卡「均富卡」",
-        "与目标玩家平分双方当前现金。",
+        "对距自身 5 格以内的目标玩家使用，平分双方当前现金。",
         {
             "reason": "填写选择使用均富卡的理由。",
             "selected_option": {
@@ -173,7 +175,8 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-swap-buildings": OptionWording(
         "使用机会卡「换屋卡」",
-        "交换两处普通地块的完整建设等级，所有权不变。",
+        "指定距自身 5 格以内的一处有主且未抵押的普通地块（不论归属），"
+        "与自己拥有的一处未抵押普通地块交换完整建设等级，所有权不变。",
         {
             "reason": "填写选择使用换屋卡的理由。",
             "selected_option": {
@@ -187,7 +190,7 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-jail": OptionWording(
         "使用机会卡「陷害卡」",
-        "将目标玩家送入监狱。",
+        "对距自身 5 格以内的目标玩家使用，将其送入监狱。",
         {
             "reason": "填写选择使用陷害卡的理由。",
             "selected_option": {
@@ -197,16 +200,27 @@ _CARD_WORDING: dict[str, OptionWording] = {
         },
     ),
     "chance-nuclear": OptionWording(
-        "使用机会卡「核弹卡」",
-        "以掷骰结果对应格子为中心，将中心及前后各一格内的普通地块重置为无主、无建筑、无抵押。",
+        "使用机会卡「核弹卡」（已禁用）",
+        "此卡已禁用，不可使用。",
         {
             "reason": "填写选择使用核弹卡的理由。",
             "selected_option": {"option": "{option_id}"},
         },
     ),
+    "chance-taxi": OptionWording(
+        "使用机会卡「出租车卡」",
+        "移动到前方 1–6 格内的指定地块。",
+        {
+            "reason": "填写选择使用出租车卡的理由。",
+            "selected_option": {
+                "option": "{option_id}",
+                "target": "填写需要移动到的目标格子编号（前方 1–6 格内）。",
+            },
+        },
+    ),
     "chance-alliance": OptionWording(
         "使用机会卡「同盟卡」",
-        "与目标玩家同盟，持续 3 个后续回合；期间任一方收租时双方平分。",
+        "对距自身 5 格以内的目标玩家使用，同盟持续 3 个后续回合；期间任一方收租时双方平分。",
         {
             "reason": "填写选择使用同盟卡的理由。",
             "selected_option": {
@@ -225,7 +239,8 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-monster": OptionWording(
         "使用机会卡「怪兽卡」",
-        "目标颜色组内每块普通地块各降低一层建设（酒店降为 4 栋房屋）。",
+        "指定一个颜色组（组内任一地块距自身 5 格以内即可），"
+        "该组内每块普通地块各降低一层建设（酒店降为 4 栋房屋）。",
         {
             "reason": "填写选择使用怪兽卡的理由。",
             "selected_option": {
@@ -236,7 +251,7 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-surge": OptionWording(
         "使用机会卡「涨价卡」",
-        "目标颜色组租金翻倍，持续 3 个后续回合。",
+        "指定一个颜色组（组内任一地块距自身 5 格以内即可），该组租金翻倍，持续 3 个后续回合。",
         {
             "reason": "填写选择使用涨价卡的理由。",
             "selected_option": {
@@ -247,7 +262,8 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-buy": OptionWording(
         "使用机会卡「购地卡」",
-        "支付目标地产购买价的 150% 取得其产权；资金不足则退回卡并取消。",
+        "指定距自身 5 格以内的一处其他玩家无建筑且未抵押的普通地块，"
+        "支付原价的 110% 取得产权；资金不足则退回卡并取消。",
         {
             "reason": "填写选择使用购地卡的理由。",
             "selected_option": {
@@ -258,7 +274,7 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-freeze": OptionWording(
         "使用机会卡「查封卡」",
-        "目标颜色组暂停收取租金，持续 2 个后续回合。",
+        "指定一个颜色组（组内任一地块距自身 5 格以内即可），该组暂停收取租金，持续 2 个后续回合。",
         {
             "reason": "填写选择使用查封卡的理由。",
             "selected_option": {
@@ -269,7 +285,7 @@ _CARD_WORDING: dict[str, OptionWording] = {
     ),
     "chance-build": OptionWording(
         "使用机会卡「建房卡」",
-        "在自己的一处未抵押普通地块上免费加建一层，不超过酒店。",
+        "在距自身 5 格以内的一处自己拥有的未抵押普通地块上免费加建一层，不超过酒店。",
         {
             "reason": "填写选择使用建房卡的理由。",
             "selected_option": {

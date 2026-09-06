@@ -282,7 +282,9 @@ def _candidate_commands(engine: GameEngine, player_id: str) -> list[GameCommand]
             *(Mortgage(player_id, position) for position in sorted(player.properties)),
         ]
     if phase is TurnPhase.FORCED_DISCARD:
-        return [DiscardChanceCard(player_id, card_id) for card_id in player.chance_cards]
+        return [
+            DiscardChanceCard(player_id, card_id) for card_id in dict.fromkeys(player.chance_cards)
+        ]
     if phase is TurnPhase.THEFT_CARD_SELECTION:
         target_id = engine.state.pending_theft_target_id
         return (
@@ -290,7 +292,7 @@ def _candidate_commands(engine: GameEngine, player_id: str) -> list[GameCommand]
             if target_id is None
             else [
                 SelectStolenChanceCard(player_id, card_id)
-                for card_id in engine.state.players[target_id].chance_cards
+                for card_id in dict.fromkeys(engine.state.players[target_id].chance_cards)
             ]
         )
     if phase is TurnPhase.ASSET_MANAGEMENT:
@@ -312,10 +314,16 @@ def _chance_candidates(engine: GameEngine, player_id: str) -> list[UseChanceCard
         tuple(COLOR_GROUPS),
     )
     candidates: list[UseChanceCard] = []
-    for card_id in player.chance_cards:
+    for card_id in dict.fromkeys(player.chance_cards):
         effect = CARDS_BY_ID[card_id].effect
-        if effect in {CardEffect.NUCLEAR_RESET, CardEffect.RENT_WAIVER}:
+        if effect is CardEffect.RENT_WAIVER:
             candidates.append(UseChanceCard(player_id, card_id))
+        elif effect is CardEffect.TAXI_MOVE:
+            card_range = CARDS_BY_ID[card_id].range or 6
+            candidates.extend(
+                UseChanceCard(player_id, card_id, target_position=(player.position + d) % 40)
+                for d in range(1, card_range + 1)
+            )
         elif effect is CardEffect.STEAL_CARD:
             candidates.extend(
                 UseChanceCard(player_id, card_id, target_player_id=target)
@@ -405,7 +413,7 @@ def _target_fields(command: GameCommand) -> tuple[tuple[str, str], ...]:
 
 
 def _chance_target_fields(effect: CardEffect) -> tuple[tuple[str, str], ...]:
-    if effect in {CardEffect.NUCLEAR_RESET, CardEffect.RENT_WAIVER}:
+    if effect is CardEffect.RENT_WAIVER:
         return ()
     if effect in {
         CardEffect.ALLIANCE,
@@ -422,7 +430,12 @@ def _chance_target_fields(effect: CardEffect) -> tuple[tuple[str, str], ...]:
         CardEffect.ANGEL,
     }:
         return (("target_color_group", "target_color_group"),)
-    if effect in {CardEffect.VACATE_PROPERTY, CardEffect.BUY_PROPERTY, CardEffect.BUILD}:
+    if effect in {
+        CardEffect.VACATE_PROPERTY,
+        CardEffect.BUY_PROPERTY,
+        CardEffect.BUILD,
+        CardEffect.TAXI_MOVE,
+    }:
         return (("target_position", "target_position"),)
     if effect in {CardEffect.SWAP_PROPERTY, CardEffect.SWAP_BUILDINGS}:
         return (

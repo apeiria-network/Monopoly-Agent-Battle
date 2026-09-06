@@ -332,6 +332,8 @@ def render_event(event: GameEvent, viewer_id: str | None) -> str | None:
         # Translate effect kinds
         kind_map = {"alliance": "同盟", "rent_surge": "涨价", "rent_freeze": "查封"}
         kind_text = kind_map.get(kind, kind)
+        if payload.get("reason") == "bankruptcy":
+            return f"{kind_text}效果因玩家破产而解除（来源{payload['source_player_id']}）。"
         return f"{kind_text}效果到期（来源{payload['source_player_id']}）。"
 
     if event.event_type == "automatic_build_skipped_insufficient_cash":

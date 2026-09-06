@@ -1,5 +1,8 @@
 """Generate fake-agent batch test configs (4 batches x 20 games).
 
+Court seat order rotates per game so each court occupies every seat equally
+often.
+
 Usage: python configs/fake_agent_batch_test/generate_configs.py
 """
 
@@ -15,10 +18,9 @@ BASE = Path(__file__).resolve().parent
 GAMES_PER_BATCH = 20
 ROUNDS_PER_GAME = 50
 
-COURTS: list[tuple[str, int, str, dict[str, str]]] = [
+COURTS: list[tuple[str, str, dict[str, str]]] = [
     (
         "shang-court",
-        1,
         "shang_court",
         {
             "great_priest": "shang-great-priest",
@@ -27,7 +29,6 @@ COURTS: list[tuple[str, int, str, dict[str, str]]] = [
     ),
     (
         "qin-court",
-        2,
         "qin_court",
         {
             "chancellor": "qin-chancellor",
@@ -38,7 +39,6 @@ COURTS: list[tuple[str, int, str, dict[str, str]]] = [
     ),
     (
         "tang-court",
-        3,
         "tang_court",
         {
             "zhongshu": "tang-zhongshu",
@@ -48,7 +48,6 @@ COURTS: list[tuple[str, int, str, dict[str, str]]] = [
     ),
     (
         "ming-court",
-        4,
         "ming_court",
         {
             "chief_grand_secretary": "ming-chief-grand-secretary",
@@ -62,10 +61,12 @@ COURTS: list[tuple[str, int, str, dict[str, str]]] = [
 
 def build_game(batch: int, game: int) -> dict[str, Any]:
     seed = batch * 100 + game
+    rotation = (game - 1) % len(COURTS)
     players: list[dict[str, Any]] = []
     profiles: dict[str, dict[str, Any]] = {}
     index = 0
-    for player_id, seat, controller, roles in COURTS:
+    for court_index, (player_id, controller, roles) in enumerate(COURTS):
+        seat = (court_index + rotation) % len(COURTS) + 1
         players.append(
             {
                 "player_id": player_id,
@@ -81,6 +82,7 @@ def build_game(batch: int, game: int) -> dict[str, Any]:
                 "model": "fake-random-v1",
                 "seed": seed * 100 + index,
             }
+    players.sort(key=lambda player: player["seat"])
     return {
         "game_id": f"b{batch}-game-{game:03d}",
         "experiment_id": f"fake-batch-{batch}",

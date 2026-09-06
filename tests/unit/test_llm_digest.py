@@ -459,6 +459,52 @@ def test_trace_validation_error_marks_preceding_call(tmp_path: Path) -> None:
     assert [row["是否报错回复"] for row in rows] == ["True", "False"]
 
 
+def test_trace_advice_normalized_does_not_mark_preceding_call(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    decision = _decision("ming-court", 1)
+    decision["court_trace"] = {
+        "court": "ming",
+        "decision_id": "decision-x",
+        "calls": [
+            {
+                "role": "chief_grand_secretary",
+                "caller_role": "ming-court.chief_grand_secretary",
+                "outcome": "success",
+                "content": _reply("end_turn", "首辅汇总。"),
+            },
+            {
+                "role": "chief_grand_secretary",
+                "caller_role": "ming-court.chief_grand_secretary",
+                "outcome": "advice_normalized",
+                "content": _reply("end_turn", "系统采用内阁一致结果。"),
+            },
+            {
+                "role": "emperor",
+                "caller_role": "ming-court.emperor",
+                "outcome": "success",
+                "content": _reply("end_turn", "照准。"),
+            },
+        ],
+    }
+    _write_decisions(run, [decision])
+    _write_calls(
+        run,
+        [
+            {
+                "caller_role": "ming-court.chief_grand_secretary",
+                "response_summary": _reply("end_turn", "首辅汇总。"),
+            },
+            {
+                "caller_role": "ming-court.emperor",
+                "response_summary": _reply("end_turn", "照准。"),
+            },
+        ],
+    )
+    rows = _rows(run)
+    assert len(rows) == 2
+    assert [row["是否报错回复"] for row in rows] == ["False", "False"]
+
+
 def test_free_text_reply_keeps_reason_without_option(tmp_path: Path) -> None:
     run = tmp_path / "run"
     decision = _decision("shang", 1)

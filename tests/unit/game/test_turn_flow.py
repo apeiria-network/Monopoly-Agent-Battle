@@ -8,12 +8,19 @@ from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine, GameRuleError
 
 
-def make_engine(tmp_path: Path, cash: int = 1500) -> GameEngine:
+def make_engine(
+    tmp_path: Path,
+    cash: int = 1500,
+    players: tuple[str, ...] = ("a", "b"),
+) -> GameEngine:
     config = GameConfig(
         game_id="flow-game",
         experiment_id="flow-experiment",
         seed=1,
-        players=(PlayerConfig(player_id="a", seat=1), PlayerConfig(player_id="b", seat=2)),
+        players=tuple(
+            PlayerConfig(player_id=player_id, seat=seat)
+            for seat, player_id in enumerate(players, 1)
+        ),
         initial_cash=cash,
         max_complete_rounds=2,
         rules_version="classic-level0-v1",
@@ -78,3 +85,34 @@ def test_insolvent_payer_is_declared_bankrupt_automatically(tmp_path: Path) -> N
     assert engine.state.players["a"].bankrupt
     assert engine.state.finished
     assert {event.event_type for event in events} >= {"player_bankrupt", "game_finished"}
+
+
+def test_mid_turn_bankruptcy_ends_turn_via_end_turn_and_game_continues(tmp_path: Path) -> None:
+    """A current player bankrupt mid-turn is closed by EndTurn; others continue."""
+    engine = make_engine(tmp_path, cash=1500, players=("a", "b", "c", "d"))
+    # b owns Baltic (3); a sits next to it with nothing to liquidate.
+    engine.state.properties[3].owner_id = "b"
+    engine.state.players["b"].properties.add(3)
+    engine.state.players["a"].cash = 0
+    engine.state.players["a"].position = 2
+    set_dice(engine, [1, 0])
+
+    events = engine.execute(RollDice("a"))
+
+    assert engine.state.players["a"].bankrupt
+    assert not engine.state.finished
+    assert engine.state.turn_phase is TurnPhase.TURN_COMPLETE
+    assert engine.state.current_player_id == "a"
+    assert {event.event_type for event in events} >= {"player_bankrupt"}
+
+    # Every other command from the corpse is still rejected.
+    with pytest.raises(GameRuleError, match="bankrupt player cannot act"):
+        engine.execute(RollDice("a"))
+
+    close_events = engine.execute(EndTurn("a"))
+
+    assert engine.state.current_player_id == "b"
+    assert engine.state.turn_phase is TurnPhase.ROLLING
+    assert {event.event_type for event in close_events} >= {"turn_ended", "turn_started"}
+    assert engine.state.completed_round_player_ids == {"a"}
+    assert not engine.state.finished
