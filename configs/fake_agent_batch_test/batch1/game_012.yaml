@@ -14,6 +14,7 @@ players:
   seat: 2
   controller_type: tang_court
   court_role_profiles:
+    shangshu: tang-shangshu
     zhongshu: tang-zhongshu
     menxia: tang-menxia
     emperor: tang-emperor
@@ -56,34 +57,38 @@ model_profiles:
     provider: fake
     model: fake-random-v1
     seed: 11206
-  tang-zhongshu:
+  tang-shangshu:
     provider: fake
     model: fake-random-v1
     seed: 11207
-  tang-menxia:
+  tang-zhongshu:
     provider: fake
     model: fake-random-v1
     seed: 11208
-  tang-emperor:
+  tang-menxia:
     provider: fake
     model: fake-random-v1
     seed: 11209
-  ming-chief-grand-secretary:
+  tang-emperor:
     provider: fake
     model: fake-random-v1
     seed: 11210
-  ming-grand-secretary-1:
+  ming-chief-grand-secretary:
     provider: fake
     model: fake-random-v1
     seed: 11211
-  ming-grand-secretary-2:
+  ming-grand-secretary-1:
     provider: fake
     model: fake-random-v1
     seed: 11212
-  ming-emperor:
+  ming-grand-secretary-2:
     provider: fake
     model: fake-random-v1
     seed: 11213
+  ming-emperor:
+    provider: fake
+    model: fake-random-v1
+    seed: 11214
 initial_cash: 1500
 initial_chance_cards: 3
 max_complete_rounds: 50
