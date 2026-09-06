@@ -36,6 +36,8 @@ class FakeLLMClient(LLMClient):
         caller = request.caller_role
         if caller.endswith(".great_priest"):
             return "神谕提示：审视当前局势，谨慎权衡可行行动。"
+        if caller.endswith(".shangshu"):
+            return "尚书省摘要：当前局面平稳，双方现金与地产暂无重大变化。"
         if caller.endswith(".imperial_counsellor"):
             return json.dumps(
                 {

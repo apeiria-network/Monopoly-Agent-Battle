@@ -19,7 +19,7 @@ from monopoly_agent_battle.llm.protocol import LLMMessage, LLMRequest, LLMRespon
 
 _DIVIDER = "=" * 72
 _REPORT_PATH = Path("tests/manual/render_tang_decision_prompt_report.txt")
-_ROLES = ("zhongshu", "menxia", "emperor")
+_ROLES = ("shangshu", "zhongshu", "menxia", "emperor")
 _TITLES = {
     "1": "首次外部决策：中书省无历史首轮起草",
     "2": "首次外部决策：门下省审核第一轮中书草案",
@@ -31,6 +31,7 @@ _TITLES = {
     "8": "同一行动回合第二次决策：中书省回看两轮抵押决策历史",
     "9": "同一行动回合第二次决策：门下省审核抵押后的资产管理草案",
     "10": "同一行动回合第二次决策：皇帝回看前次通过轮并裁决新草案",
+    "11": "首次外部决策：尚书省整理全局信息生成摘要",
 }
 
 
@@ -43,7 +44,9 @@ class _CaptureClient:
 
     def complete(self, request: LLMRequest) -> LLMResponse:
         self.requests.append(request)
-        if self.role == "menxia":
+        if self.role == "shangshu":
+            content = "尚书省摘要：当前局面平稳，双方现金与地产暂无重大变化。"
+        elif self.role == "menxia":
             verdict = self.reviews.pop(0)
             content = _review(verdict, f"第{len(self.requests)}轮审核意见")
         else:
@@ -102,6 +105,8 @@ def _make_agent(
             conversation.start_turn(1)
     return TangCourtAgent(
         player_id="a",
+        shangshu_client=clients["shangshu"],
+        shangshu_profile=profiles["shangshu"],
         zhongshu_client=clients["zhongshu"],
         zhongshu_profile=profiles["zhongshu"],
         menxia_client=clients["menxia"],
@@ -186,6 +191,8 @@ def main() -> None:
                 _make_engine(directory), role, first_reviews, second_reviews
             )
             _write(buffer, label, role, messages, warning)
+        messages, warning = _capture_single(_make_engine(directory), "shangshu", ["agree"])
+        _write(buffer, "11", "shangshu", messages, warning)
     _REPORT_PATH.write_text(buffer.getvalue(), encoding="utf-8")
     print(f"Wrote {_REPORT_PATH} ({len(buffer.getvalue())} chars)")
 

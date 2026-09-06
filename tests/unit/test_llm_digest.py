@@ -414,6 +414,113 @@ def test_court_trace_rows_and_final_decision_flag(tmp_path: Path) -> None:
     assert all(row["是否报错回复"] == "False" for row in rows)
 
 
+def test_court_trace_shangshu_summary_rows(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    decision = _decision("tang-court", 2, executed_command="EndTurn")
+    decision["court_trace"] = {
+        "court": "tang",
+        "decision_id": "decision-t",
+        "calls": [
+            {
+                "role": "shangshu",
+                "caller_role": "tang-court.shangshu",
+                "outcome": "success",
+                "content": "玩家a现金领先，玩家b地产集中于棕色组。",
+            },
+            {
+                "role": "zhongshu",
+                "caller_role": "tang-court.zhongshu",
+                "outcome": "success",
+                "content": _reply("end_turn", "结束回合。"),
+            },
+            {
+                "role": "emperor",
+                "caller_role": "tang-court.emperor",
+                "outcome": "success",
+                "content": _reply("end_turn", "批准。"),
+            },
+        ],
+    }
+    _write_decisions(run, [decision])
+    _write_calls(
+        run,
+        [
+            {
+                "caller_role": "tang-court.shangshu",
+                "response_summary": "玩家a现金领先，玩家b地产集中于棕色组。",
+                "error": None,
+            },
+            {
+                "caller_role": "tang-court.zhongshu",
+                "response_summary": _reply("end_turn", "结束回合。"),
+                "error": None,
+            },
+            {
+                "caller_role": "tang-court.emperor",
+                "response_summary": _reply("end_turn", "批准。"),
+                "error": None,
+            },
+        ],
+    )
+    rows = _rows(run)
+    assert len(rows) == 3
+    assert rows[0]["发言者"] == "tang-court.shangshu"
+    assert rows[0]["是否是最终决策者"] == "False"
+    assert rows[0]["reason"] == "玩家a现金领先，玩家b地产集中于棕色组。"
+    assert rows[0]["选项"] == ""
+    assert rows[2]["是否是最终决策者"] == "True"
+
+
+def test_court_trace_summary_fallback_outcome_is_skipped(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    decision = _decision("tang-court", 1)
+    decision["court_trace"] = {
+        "court": "tang",
+        "decision_id": "decision-t",
+        "calls": [
+            {
+                "role": "shangshu",
+                "caller_role": "tang-court.shangshu",
+                "outcome": "connection_error",
+                "error": "connection reset",
+            },
+            {
+                "role": "shangshu",
+                "caller_role": "tang-court.shangshu",
+                "outcome": "summary_fallback",
+                "content": "尚书省重连次数耗尽，无法做出有效回复",
+            },
+            {
+                "role": "emperor",
+                "caller_role": "tang-court.emperor",
+                "outcome": "success",
+                "content": _reply("end_turn", "批准。"),
+            },
+        ],
+    }
+    _write_decisions(run, [decision])
+    _write_calls(
+        run,
+        [
+            {
+                "caller_role": "tang-court.shangshu",
+                "response_summary": None,
+                "error": "connection reset",
+            },
+            {
+                "caller_role": "tang-court.emperor",
+                "response_summary": _reply("end_turn", "批准。"),
+                "error": None,
+            },
+        ],
+    )
+    rows = _rows(run)
+    assert len(rows) == 2
+    assert [row["发言者"] for row in rows] == ["tang-court.shangshu", "tang-court.emperor"]
+    assert rows[0]["是否报错回复"] == "True"
+    assert all("尚书省重连次数耗尽" not in row["reason"] for row in rows)
+
+
 def test_trace_validation_error_marks_preceding_call(tmp_path: Path) -> None:
     run = tmp_path / "run"
     decision = _decision("qin-court", 1)

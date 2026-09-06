@@ -21,14 +21,18 @@ from monopoly_agent_battle.decision.protocol import (
 )
 from monopoly_agent_battle.llm.protocol import LLMClient, LLMMessage, LLMRequest
 
+_SHANGSHU = "shangshu"
 _ZHONGSHU = "zhongshu"
 _MENXIA = "menxia"
 _EMPEROR = "emperor"
 _DRAFT = "draft"
 _REVIEW = "review"
 _FINAL = "final_decision"
+_SUMMARY = "summary"
 _MAX_ROUNDS = 3
 _MAX_REASON_CHARS = 400
+_MAX_SUMMARY_CHARS = 400
+_SUMMARY_FALLBACK = "尚书省重连次数耗尽，无法做出有效回复"
 _PROMPT_ROOT = Path(__file__).resolve().parent / "agent_prompt_list"
 
 
@@ -37,6 +41,7 @@ def _load_prompt(path: str) -> str:
 
 
 _ROLE_INSTRUCTIONS = {
+    _SHANGSHU: _load_prompt("Tang/Tang_shangshu.txt"),
     _ZHONGSHU: _load_prompt("Tang/Tang_zhongshu.txt"),
     _MENXIA: _load_prompt("Tang/Tang_menxia.txt"),
     _EMPEROR: _load_prompt("Tang/Tang_emperor.txt"),
@@ -44,6 +49,8 @@ _ROLE_INSTRUCTIONS = {
 _NORMAL_OUTPUT = _load_prompt("normal_output_requirement.txt")
 _MENXIA_OUTPUT = _load_prompt("Tang/Tang_menxia_output_requirement.txt")
 _MENXIA_OPTIONS = _load_prompt("Tang/Tang_menxia_candidates.txt")
+_SHANGSHU_OUTPUT = _load_prompt("Tang/Tang_shangshu_output_requirement.txt")
+_SHANGSHU_OPTIONS = _load_prompt("Tang/Tang_shangshu_candidates.txt")
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +80,8 @@ class TangCourtAgent:
         self,
         *,
         player_id: str,
+        shangshu_client: LLMClient,
+        shangshu_profile: ModelProfile,
         zhongshu_client: LLMClient,
         zhongshu_profile: ModelProfile,
         menxia_client: LLMClient,
@@ -81,20 +90,24 @@ class TangCourtAgent:
         emperor_profile: ModelProfile,
         conversations: dict[str, AgentConversation],
         validation_retries: int = 2,
+        max_connection_retries: int = 2,
     ) -> None:
         self._player_id = player_id
         self._clients = {
+            _SHANGSHU: shangshu_client,
             _ZHONGSHU: zhongshu_client,
             _MENXIA: menxia_client,
             _EMPEROR: emperor_client,
         }
         self._profiles = {
+            _SHANGSHU: shangshu_profile,
             _ZHONGSHU: zhongshu_profile,
             _MENXIA: menxia_profile,
             _EMPEROR: emperor_profile,
         }
         self._conversations = conversations
         self._validation_retries = validation_retries
+        self._max_connection_retries = max_connection_retries
         self._decision_id: str | None = None
         self._rounds: list[_Round] = []
         self._final_raw: str | None = None
@@ -103,6 +116,8 @@ class TangCourtAgent:
         self._last_warning: ContextWarning | None = None
         self._final_recorded = False
         self._current_draft: str | None = None
+        self._summary: str | None = None
+        self._summary_failures = 0
 
     def player_id(self) -> str:
         return self._player_id
@@ -176,6 +191,7 @@ class TangCourtAgent:
                 feedback_text=feedback,
             )
         self._last_llm_call_count = 0
+        self._request_summary(request)
         while len(self._rounds) < _MAX_ROUNDS:
             if self._current_draft is None:
                 if self._rounds and self._rounds[-1].verdict != "disagree":
@@ -199,9 +215,94 @@ class TangCourtAgent:
         self._trace = []
         self._final_recorded = False
         self._current_draft = None
+        self._summary = None
+        self._summary_failures = 0
         for conversation in self._conversations.values():
             if conversation.current_turn is None:
                 conversation.start_turn(1)
+
+    def _request_summary(self, request: DecisionRequest) -> None:
+        if self._summary is not None:
+            return
+        profile = self._profiles[_SHANGSHU]
+        caller_role = f"{self._player_id}.{_SHANGSHU}"
+        self._last_llm_call_count += 1
+        try:
+            response = self._clients[_SHANGSHU].complete(
+                LLMRequest(
+                    messages=self._shangshu_messages(request),
+                    model=profile.model,
+                    caller_role=caller_role,
+                    seed=profile.seed,
+                    temperature=profile.temperature,
+                    max_tokens=profile.max_tokens,
+                    timeout_seconds=profile.timeout_seconds,
+                    decision_request=request,
+                )
+            )
+        except ConnectionError as error:
+            self._trace.append(
+                TangCallTrace(
+                    request.decision_id,
+                    _SHANGSHU,
+                    caller_role,
+                    "connection_error",
+                    error=str(error),
+                )
+            )
+            self._summary_failures += 1
+            if self._summary_failures <= self._max_connection_retries:
+                raise
+            self._summary = _SUMMARY_FALLBACK
+            self._trace.append(
+                TangCallTrace(
+                    request.decision_id,
+                    _SHANGSHU,
+                    caller_role,
+                    "summary_fallback",
+                    content=self._summary,
+                    decision_maker=_SHANGSHU,
+                    content_type=_SUMMARY,
+                )
+            )
+            self._deliver_summary(request)
+            return
+        self._summary = response.content[:_MAX_SUMMARY_CHARS]
+        self._trace.append(
+            TangCallTrace(
+                request.decision_id,
+                _SHANGSHU,
+                caller_role,
+                "success",
+                response.content,
+                decision_maker=_SHANGSHU,
+                content_type=_SUMMARY,
+            )
+        )
+        self._deliver_summary(request)
+
+    def _shangshu_messages(self, request: DecisionRequest) -> tuple[LLMMessage, ...]:
+        messages, warning = compose_prompt(
+            self._conversations[_SHANGSHU],
+            request,
+            role_instruction=_ROLE_INSTRUCTIONS[_SHANGSHU],
+            segment3_prompt=_SHANGSHU_OUTPUT,
+            post_decision_context=_SHANGSHU_OPTIONS,
+        )
+        self._last_warning = warning
+        return messages
+
+    def _deliver_summary(self, request: DecisionRequest) -> None:
+        assert self._summary is not None
+        for role in (_ZHONGSHU, _MENXIA, _EMPEROR):
+            self._conversations[role].append_internal_decision(
+                internal_decision_id=f"{request.decision_id}:{_SHANGSHU}:{_SUMMARY}",
+                decision_id=request.decision_id,
+                question_summary=render_decision_question(request),
+                decision_maker=_SHANGSHU,
+                content_type=_SUMMARY,
+                raw_content=self._summary,
+            )
 
     def _call_draft(self, request: DecisionRequest, round_number: int) -> str:
         role = _ZHONGSHU
