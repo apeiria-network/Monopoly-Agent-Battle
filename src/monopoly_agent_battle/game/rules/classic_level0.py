@@ -15,7 +15,7 @@ def net_worth(player: PlayerState, state: GameState) -> int:
         for position in player.properties
     )
     mortgage_debt = sum(
-        BOARD_BY_POSITION[position].price or 0
+        ((BOARD_BY_POSITION[position].price or 0) + 1) // 2
         for position in player.properties
         if state.properties[position].mortgaged
     )

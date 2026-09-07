@@ -389,7 +389,7 @@ Scenario 8: Vacate/Ongoing
 Scenario 9: Mortgage/Bankruptcy
 ================================================================================
 
-[第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得60。
+[第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得30。
 [第0轮] 玩家a结束行动回合。
 [第0轮] 玩家b开始行动回合。
 [第0轮] 玩家b掷出1+0=1点。
@@ -406,7 +406,7 @@ Scenario 9: Mortgage/Bankruptcy
 [第1轮] 玩家a开始行动回合。
 [第1轮] 玩家a掷出1+0=1点。
 [第1轮] 玩家a移动到第1格（Mediterranean Avenue）。
-[第1轮] 玩家a赎回第1格（Mediterranean Avenue）抵押，支付66。
+[第1轮] 玩家a赎回第1格（Mediterranean Avenue）抵押，支付33。
 [第1轮] 玩家a结束行动回合。
 [第1轮] 玩家b开始行动回合。
 [第1轮] 玩家b掷出1+0=1点。
@@ -523,7 +523,7 @@ Scenario 13: Repeat Coverage
 [第0轮] 玩家a在第1格（Mediterranean Avenue）自动加建房屋，花费50。
 [第0轮] 玩家a出售第1格（Mediterranean Avenue）房屋，获得25。
 [第0轮] 玩家a出售第3格（Baltic Avenue）房屋，获得25。
-[第0轮] 玩家a抵押第3格（Baltic Avenue），获得60。
+[第0轮] 玩家a抵押第3格（Baltic Avenue），获得30。
 [第0轮] 玩家a结束行动回合。
 [第0轮] 玩家b开始行动回合。
 [第0轮] 玩家b掷出1+0=1点。
@@ -545,7 +545,7 @@ Scenario 13: Repeat Coverage
 [第1轮] 玩家a移动到第2格（Community Chest）。
 [第1轮] 玩家a抽得一张公益基金卡「学费」（即时生效）。
 [第1轮] 玩家a支付50给银行（原因：学费）。
-[第1轮] 玩家a赎回第3格（Baltic Avenue）抵押，支付66。
+[第1轮] 玩家a赎回第3格（Baltic Avenue）抵押，支付33。
 [第1轮] 玩家a结束行动回合。
 [第1轮] 玩家b开始行动回合。
 [第1轮] 玩家b掷出1+0=1点。
@@ -938,7 +938,7 @@ Scenario 19: Final Coverage
 ================================================================================
 
 [第0轮] 玩家a出售第1格（Mediterranean Avenue）房屋，获得25。
-[第0轮] 玩家a抵押第3格（Baltic Avenue），获得60。
+[第0轮] 玩家a抵押第3格（Baltic Avenue），获得30。
 [第0轮] 玩家a结束行动回合。
 [第0轮] 玩家b开始行动回合。
 [第0轮] 玩家b掷出1+0=1点。
@@ -959,7 +959,7 @@ Scenario 19: Final Coverage
 [第1轮] 玩家a掷出1+0=1点。
 [第1轮] 玩家a移动到第1格（Mediterranean Avenue）。
 [第1轮] 玩家a在第1格（Mediterranean Avenue）自动加建房屋，花费50。
-[第1轮] 玩家a赎回第3格（Baltic Avenue）抵押，支付66。
+[第1轮] 玩家a赎回第3格（Baltic Avenue）抵押，支付33。
 [第1轮] 玩家a结束行动回合。
 [第1轮] 玩家b开始行动回合。
 [第1轮] 玩家b掷出1+0=1点。

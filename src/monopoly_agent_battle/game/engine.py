@@ -1632,7 +1632,7 @@ class GameEngine:
         property_state = self._owned_property(player, position)
         if property_state.mortgaged or property_state.building_level > 0:
             raise GameRuleError("property cannot be mortgaged")
-        amount = space.price or 0
+        amount = _round_ratio_half_up((space.price or 0) * 50, 100)
         property_state.mortgaged = True
         player.cash += amount
         events = [
@@ -1647,7 +1647,7 @@ class GameEngine:
     def _redeem(self, player: PlayerState, position: int) -> list[GameEvent]:
         space = BOARD_BY_POSITION[position]
         property_state = self._owned_property(player, position)
-        amount = (space.price or 0) * 110 // 100
+        amount = _round_ratio_half_up((space.price or 0) * 55, 100)
         if not property_state.mortgaged or player.cash < amount:
             raise GameRuleError("property cannot be redeemed")
         property_state.mortgaged = False

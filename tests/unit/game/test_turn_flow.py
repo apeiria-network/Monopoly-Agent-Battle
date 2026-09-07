@@ -59,7 +59,7 @@ def test_non_double_enters_asset_management_then_advances_turn(tmp_path: Path) -
 
 
 def test_payment_shortfall_can_be_resolved_by_mortgaging(tmp_path: Path) -> None:
-    engine = make_engine(tmp_path, cash=10)
+    engine = make_engine(tmp_path, cash=110)
     engine.state.properties[5].owner_id = "a"
     engine.state.players["a"].properties.add(5)
     engine.state.players["a"].position = 2

@@ -86,7 +86,7 @@ def test_rent_uses_complete_color_group_bonus_and_mortgage_blocks_it(tmp_path: P
     engine.execute(EndTurn("a"))
     set_dice(engine, [1, 1])
     engine.execute(RollDice("b"))
-    assert engine.state.players["a"].cash == 1570
+    assert engine.state.players["a"].cash == 1540
     assert engine.state.players["b"].cash == 1890
 
 
@@ -126,7 +126,7 @@ def test_redeem_mortgage_charges_ten_percent_interest(tmp_path: Path) -> None:
     engine.execute(Mortgage("a", 1))
     engine.execute(RedeemMortgage("a", 1))
 
-    assert engine.state.players["a"].cash == 1494
+    assert engine.state.players["a"].cash == 1497
     assert not engine.state.properties[1].mortgaged
 
 
