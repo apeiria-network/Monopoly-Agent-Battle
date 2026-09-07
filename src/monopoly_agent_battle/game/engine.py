@@ -1693,14 +1693,16 @@ class GameEngine:
     def _finish(self, reason: EndReason) -> None:
         self.state.finished = True
         self.state.end_reason = reason
-        self.state.rankings = tuple(
-            player.player_id
-            for player in sorted(
-                self._living_players(),
-                key=lambda item: (net_worth(item, self.state), item.cash),
-                reverse=True,
-            )
+        living = sorted(
+            self._living_players(),
+            key=lambda item: (net_worth(item, self.state), item.cash),
+            reverse=True,
         )
+        bankrupt = sorted(
+            (player for player in self.state.players.values() if player.bankrupt),
+            key=lambda item: (-item.survived_turns, item.seat),
+        )
+        self.state.rankings = tuple(player.player_id for player in (*living, *bankrupt))
 
     def _validate_invariants(self) -> None:
         for _position, property_state in self.state.properties.items():

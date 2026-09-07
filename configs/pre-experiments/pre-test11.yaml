@@ -5,7 +5,7 @@ seed: 42
 # Tang mixed-model court vs 3 * baseline AI
 # baselines all DeepSeek-V4-Flash
 # court departments: shangshu DeepSeek-V4-Flash / zhongshu GLM-5-Turbo / menxia Qwen3.7-Plus / emperor Kimi-K2.6
-# total rounds: 50
+# total rounds: 100
 
 players:
   - player_id: tang-court
@@ -101,7 +101,7 @@ model_profiles:
     timeout_seconds: 60
 
 initial_cash: 1500
-max_complete_rounds: 50
+max_complete_rounds: 100
 initial_chance_cards: 2
 rules_version: classic-level0-v1
 rules_level: 0
