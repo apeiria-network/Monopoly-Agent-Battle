@@ -76,8 +76,8 @@ def test_rent_uses_complete_color_group_bonus_and_mortgage_blocks_it(tmp_path: P
     set_dice(engine, [1, 1])
 
     engine.execute(RollDice("b"))
-    assert engine.state.players["a"].cash == 1504
-    assert engine.state.players["b"].cash == 1696
+    assert engine.state.players["a"].cash == 1510
+    assert engine.state.players["b"].cash == 1690
 
     engine.state.players["b"].position = 39
     engine.state.current_player_id = "a"
@@ -86,8 +86,8 @@ def test_rent_uses_complete_color_group_bonus_and_mortgage_blocks_it(tmp_path: P
     engine.execute(EndTurn("a"))
     set_dice(engine, [1, 1])
     engine.execute(RollDice("b"))
-    assert engine.state.players["a"].cash == 1564
-    assert engine.state.players["b"].cash == 1896
+    assert engine.state.players["a"].cash == 1570
+    assert engine.state.players["b"].cash == 1890
 
 
 def test_owned_street_builds_automatically_after_dice_landing(tmp_path: Path) -> None:

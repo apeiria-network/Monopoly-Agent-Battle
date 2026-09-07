@@ -69,7 +69,7 @@ def test_visible_state_separates_private_cards_and_property_details(tmp_path: Pa
         "kind": "street",
         "price": 60,
         "building_cost": 50,
-        "rents": [2, 10, 30, 90, 160, 250],
+        "rents": [5, 10, 30, 50, 70, 90],
         "tax": None,
         "color_group": "brown",
         "owner_id": "a",
@@ -109,7 +109,7 @@ def test_current_space_rent_is_only_outstanding_rent(tmp_path: Path) -> None:
 
     visible = player_visible_state(engine, "a")
     assert engine.state.turn_phase is TurnPhase.PAYMENT_RESOLUTION
-    assert cast(dict[str, object], visible["current_space"])["rent"] == 4
+    assert cast(dict[str, object], visible["current_space"])["rent"] == 10
 
 
 def test_current_space_rent_is_none_when_waived_or_frozen(tmp_path: Path) -> None:
@@ -173,7 +173,7 @@ def test_current_space_rent_sums_unpaid_alliance_shares(tmp_path: Path) -> None:
 
     visible = player_visible_state(engine, "a")
     assert engine.state.turn_phase is TurnPhase.PAYMENT_RESOLUTION
-    assert cast(dict[str, object], visible["current_space"])["rent"] == 4
+    assert cast(dict[str, object], visible["current_space"])["rent"] == 10
 
 
 def test_asset_request_only_lists_engine_legal_options(tmp_path: Path) -> None:
