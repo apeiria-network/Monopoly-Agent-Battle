@@ -1,10 +1,10 @@
-game_id: pre-test12-ming-vs-baselines
+game_id: pre-test13-ming-vs-baselines
 experiment_id: pre-test
 seed: 42
-# pre test12
+# pre test13
 # Ming mixed-model court vs 3 * baseline AI
 # baselines all DeepSeek-V4-Flash
-# court departments: chief_grand_secretary DeepSeek-V4-Flash / grand_secretary_1 GLM-5-Turbo / grand_secretary_2 Qwen3.7-Plus / emperor Kimi-K2.6
+# court departments: chief_grand_secretary Kimi-K2.6 / grand_secretary_1 GLM-5-Turbo / grand_secretary_2 Qwen3.7-Plus / emperor DeepSeek-V4-Flash
 # total rounds: 50
 
 players:
