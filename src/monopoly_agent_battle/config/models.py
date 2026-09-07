@@ -10,11 +10,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 SUPPORTED_REMOTE_MODELS: frozenset[str] = frozenset(
     {
         "GLM-5-Turbo",
+        "GLM-5.3-Flash",
         "DeepSeek-V4-Flash",
         "DeepSeek-V4-Pro",
         "Qwen3.7-Plus",
         "Qwen3.8-Max",
+        "Qwen3.8-Flash",
         "Kimi-K2.6",
+        "Kimi-K2.7",
+        "GPT-5.6-Luna",
     }
 )
 
