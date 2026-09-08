@@ -91,6 +91,7 @@ def test_baseline_agent_returns_client_content_and_builds_multi_message_request(
     assert "游戏规则" in system
     assert "## 输出要求" in system
     assert system.index("游戏规则") < system.index("## 输出要求")
+    assert "每次决策只执行一次操作" in system
     # Candidate JSON stays in the trailing user message and retains its local schema.
     trailing_user = llm_request.messages[-1].content
     assert "合法候选操作" in trailing_user

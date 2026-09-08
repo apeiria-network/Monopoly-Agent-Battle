@@ -46,6 +46,7 @@ _ROLE_INSTRUCTIONS = {
     _SECRETARY_2: _load_prompt("Ming/grand_secretary.txt"),
     _EMPEROR: _load_prompt("Ming/emperor.txt"),
 }
+_NORMAL_OUTPUT = _load_prompt("normal_output_requirement.txt")
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,9 +99,12 @@ class MingCourtAgent:
         self._validation_retries = validation_retries
         self._decision_id: str | None = None
         self._first: dict[str, str] = {}
+        self._redrafted_roles: set[str] = set()
+        self._redraft_instructed: set[str] = set()
         self._final_drafts: dict[str, str] = {}
         self._vote: dict[str, object] | None = None
         self._advice: str | None = None
+        self._advice_instructed = False
         self._final_raw: str | None = None
         self._trace: list[MingCallTrace] = []
         self._last_llm_call_count = 0
@@ -168,7 +172,7 @@ class MingCourtAgent:
                 bad_reply="",
                 feedback_text=feedback,
             )
-        if not self._first:
+        if any(role not in self._first for role in _MEMBERS):
             self._parallel_drafts(request, "first")
         if not _all_same(self._first):
             self._parallel_redrafts(request)
@@ -178,19 +182,22 @@ class MingCourtAgent:
         )
         if self._vote is not None:
             self._record_vote_history(request, self._vote)
-        self._conversations[_CHIEF].append_context(
-            _ADVICE_INSTRUCTION.format(
-                selected_option=json.dumps(
-                    _expected_result(self._final_drafts, self._vote),
-                    ensure_ascii=False,
-                    separators=(",", ":"),
+        if self._advice is None:
+            if not self._advice_instructed:
+                self._conversations[_CHIEF].append_context(
+                    _ADVICE_INSTRUCTION.format(
+                        selected_option=json.dumps(
+                            _expected_result(self._final_drafts, self._vote),
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        )
+                    )
                 )
+                self._advice_instructed = True
+            self._advice = self._call_advice(request)
+            self._deliver(
+                request, _CHIEF, _ADVICE, self._advice, {_SECRETARY_1, _SECRETARY_2, _EMPEROR}
             )
-        )
-        self._advice = self._call_advice(request)
-        self._deliver(
-            request, _CHIEF, _ADVICE, self._advice, {_SECRETARY_1, _SECRETARY_2, _EMPEROR}
-        )
         if self._final_raw is not None and feedback is None:
             return self._final_raw
         self._final_raw = self._validated_call(_EMPEROR, request, "final")
@@ -201,9 +208,12 @@ class MingCourtAgent:
             return
         self._decision_id = request.decision_id
         self._first = {}
+        self._redrafted_roles = set()
+        self._redraft_instructed = set()
         self._final_drafts = {}
         self._vote = None
         self._advice = None
+        self._advice_instructed = False
         self._final_raw = None
         self._trace = []
         self._final_recorded = False
@@ -212,11 +222,10 @@ class MingCourtAgent:
                 conversation.start_turn(1)
 
     def _parallel_drafts(self, request: DecisionRequest, phase: str) -> None:
+        pending = [role for role in _MEMBERS if role not in self._first]
         with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {
-                role: executor.submit(self._draft, role, request, phase) for role in _MEMBERS
-            }
-            for role in _MEMBERS:
+            futures = {role: executor.submit(self._draft, role, request, phase) for role in pending}
+            for role in pending:
                 self._first[role] = futures[role].result()
         for role in _MEMBERS:
             self._deliver(
@@ -238,12 +247,16 @@ class MingCourtAgent:
                 {str(member) for member in _MEMBERS if member != role},
                 delivery_key="first",
             )
-        for role in _MEMBERS:
-            self._conversations[role].append_context(_REDRAFT_INSTRUCTION)
+        pending = [role for role in _MEMBERS if role not in self._redrafted_roles]
+        for role in pending:
+            if role not in self._redraft_instructed:
+                self._conversations[role].append_context(_REDRAFT_INSTRUCTION)
+                self._redraft_instructed.add(role)
         with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {role: executor.submit(self._redraft, role, request) for role in _MEMBERS}
-            for role in _MEMBERS:
+            futures = {role: executor.submit(self._redraft, role, request) for role in pending}
+            for role in pending:
                 self._first[role] = futures[role].result()
+                self._redrafted_roles.add(role)
         for role in _MEMBERS:
             self._deliver(
                 request,
@@ -375,6 +388,7 @@ class MingCourtAgent:
             request,
             pre_decision_context=extra,
             role_instruction=_ROLE_INSTRUCTIONS[role],
+            segment3_prompt=_NORMAL_OUTPUT,
         )
         self._last_warning = warning
         profile = self._profiles[role]

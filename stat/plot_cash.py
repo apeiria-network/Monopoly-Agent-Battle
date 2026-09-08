@@ -1,14 +1,14 @@
-"""Plot per-round net worth lines for every player from a run's llm_digest.csv.
+"""Plot per-round cash lines for every player from a run's llm_digest.csv.
 
 Usage:
-    python stat/plot_net_worth.py <run_dir_or_csv> [-o OUTPUT.png] [--show]
+    python stat/plot_cash.py <run_dir_or_csv> [-o OUTPUT.png] [--show]
 
 X axis is the digest's 轮次 column (complete_rounds, 0 = first round in
 progress). For every (round, player) pair the LAST row of that player in that
-round is used — the player's latest recorded net worth, the closest the
-digest gets to "net worth at end of round". A player who stopped appearing
-(line ends) simply has no further data; intermediate missing rounds are
-forward-filled so the line stays connected.
+round is used — the player's latest recorded cash, the closest the digest
+gets to "cash at end of round". A player who stopped appearing (line ends)
+simply has no further data; intermediate missing rounds are forward-filled
+so the line stays connected.
 """
 
 # pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false
@@ -24,18 +24,18 @@ from pathlib import Path
 
 _ROUND = "轮次"
 _PLAYER = "玩家"
-_NET_WORTH = "当前玩家净资产"
+_CASH = "当前玩家现金持有量"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Plot per-round net worth lines for every player from llm_digest.csv."
+        description="Plot per-round cash lines for every player from llm_digest.csv."
     )
     parser.add_argument(
         "run", help="run directory (containing llm_digest.csv) or the csv path itself"
     )
     parser.add_argument(
-        "-o", "--output", help="output PNG path (default: <csv dir>/net_worth_by_round.png)"
+        "-o", "--output", help="output PNG path (default: <csv dir>/cash_by_round.png)"
     )
     parser.add_argument("--show", action="store_true", help="also open an interactive window")
     return parser.parse_args(argv)
@@ -51,7 +51,7 @@ def resolve_csv(run: str) -> Path:
 
 
 def read_series(csv_path: Path) -> OrderedDict[str, OrderedDict[int, int]]:
-    """Return player -> (round -> last net worth of that player in that round)."""
+    """Return player -> (round -> last cash of that player in that round)."""
     if not csv_path.exists():
         raise SystemExit(f"llm_digest.csv not found: {csv_path}")
     series: OrderedDict[str, OrderedDict[int, int]] = OrderedDict()
@@ -61,7 +61,7 @@ def read_series(csv_path: Path) -> OrderedDict[str, OrderedDict[int, int]]:
         for row in csv.DictReader(handle):
             player = (row.get(_PLAYER) or "").strip()
             round_text = (row.get(_ROUND) or "").strip()
-            worth_text = (row.get(_NET_WORTH) or "").strip()
+            cash_text = (row.get(_CASH) or "").strip()
             if not player:
                 continue
             try:
@@ -70,14 +70,14 @@ def read_series(csv_path: Path) -> OrderedDict[str, OrderedDict[int, int]]:
                 skipped_round += 1
                 continue
             try:
-                worth = int(worth_text)
+                cash = int(cash_text)
             except ValueError:
                 skipped_value += 1
                 continue
-            series.setdefault(player, OrderedDict())[round_number] = worth
+            series.setdefault(player, OrderedDict())[round_number] = cash
     if skipped_round or skipped_value:
         print(
-            f"skipped rows: {skipped_round} bad round, {skipped_value} empty net worth",
+            f"skipped rows: {skipped_round} bad round, {skipped_value} empty cash",
             file=sys.stderr,
         )
     if not series:
@@ -120,9 +120,9 @@ def main(argv: list[str] | None = None) -> None:
             continue
         axis.plot(x, y, marker="o", markersize=3, linewidth=1.6, label=player)
 
-    axis.set_title(f"Net Worth by Round — {csv_path.parent.name}")
+    axis.set_title(f"Cash by Round — {csv_path.parent.name}")
     axis.set_xlabel("Round (complete_rounds)")
-    axis.set_ylabel("Net Worth")
+    axis.set_ylabel("Cash")
     if len(rounds) <= 60:
         axis.set_xticks(range(rounds[0], rounds[-1] + 1))
     else:
@@ -132,7 +132,7 @@ def main(argv: list[str] | None = None) -> None:
     axis.legend(title="Player")
     figure.tight_layout()
 
-    output = Path(args.output) if args.output else csv_path.parent / "net_worth_by_round.png"
+    output = Path(args.output) if args.output else csv_path.parent / "cash_by_round.png"
     figure.savefig(output, dpi=150)
     print(output)
     if args.show:

@@ -135,6 +135,7 @@ def test_baseline_decision_row_values(tmp_path: Path) -> None:
     assert row["最终执行命令"] == "RollDice"
     # cash 1500 + 60 (pos 1) + 50*2 (buildings) + 60 - 60 (mortgaged pos 3) = 1660
     assert row["当前玩家净资产"] == "1660"
+    assert row["当前玩家现金持有量"] == "1500"
     assert row["当前玩家持有机会卡数"] == "2"
     assert row["是否是最终决策者"] == "True"
     assert row["是否报错回复"] == "False"
@@ -200,6 +201,7 @@ def test_random_baseline_decision_emits_row(tmp_path: Path) -> None:
     assert row["target"] == "6"
     assert row["最终执行命令"] == "BuyProperty"
     assert row["当前玩家净资产"] == "1660"
+    assert row["当前玩家现金持有量"] == "1500"
     assert row["是否是最终决策者"] == "True"
     assert row["是否报错回复"] == "False"
 
@@ -268,6 +270,8 @@ def test_mixed_court_and_random_baseline_rows(tmp_path: Path) -> None:
     ]
     assert rows[2]["reason"] == "从全部合法候选中随机选择。"
     assert rows[2]["选项"] == "roll_dice"
+    # Court trace rows carry the same per-decision context columns.
+    assert all(row["当前玩家现金持有量"] == "1500" for row in rows)
 
 
 def test_code_fenced_reply_is_parsed(tmp_path: Path) -> None:

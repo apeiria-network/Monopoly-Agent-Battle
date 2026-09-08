@@ -69,7 +69,7 @@ def test_visible_state_separates_private_cards_and_property_details(tmp_path: Pa
         "kind": "street",
         "price": 60,
         "building_cost": 50,
-        "rents": [2, 10, 30, 90, 160, 250],
+        "rents": [5, 10, 30, 50, 70, 90],
         "tax": None,
         "color_group": "brown",
         "owner_id": "a",
@@ -109,7 +109,7 @@ def test_current_space_rent_is_only_outstanding_rent(tmp_path: Path) -> None:
 
     visible = player_visible_state(engine, "a")
     assert engine.state.turn_phase is TurnPhase.PAYMENT_RESOLUTION
-    assert cast(dict[str, object], visible["current_space"])["rent"] == 4
+    assert cast(dict[str, object], visible["current_space"])["rent"] == 10
 
 
 def test_current_space_rent_is_none_when_waived_or_frozen(tmp_path: Path) -> None:
@@ -173,7 +173,7 @@ def test_current_space_rent_sums_unpaid_alliance_shares(tmp_path: Path) -> None:
 
     visible = player_visible_state(engine, "a")
     assert engine.state.turn_phase is TurnPhase.PAYMENT_RESOLUTION
-    assert cast(dict[str, object], visible["current_space"])["rent"] == 4
+    assert cast(dict[str, object], visible["current_space"])["rent"] == 10
 
 
 def test_asset_request_only_lists_engine_legal_options(tmp_path: Path) -> None:
@@ -829,6 +829,111 @@ def test_selected_target_is_validated_and_reconstructed(tmp_path: Path) -> None:
         request,
     )
     assert not invalid.valid
+
+
+def test_single_field_target_tolerates_scalar_wrappers(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    engine.state.players["a"].chance_cards.append("chance-freeze")
+    request = build_decision_request(engine, 1)
+    option = next(
+        candidate
+        for candidate in request.options
+        if candidate.option_id == "use_chance_card-chance-freeze"
+    )
+    assert option.target is not None
+    color = cast(str, option.target.legal_values[0][0])
+
+    tolerated = (
+        color,
+        [color],
+        {"target_color_group": color},
+        {"target_color_group": [color]},
+    )
+    for target in tolerated:
+        validation = parse_and_validate(
+            json.dumps(
+                {
+                    "selected_option": {
+                        "option": "use_chance_card-chance-freeze",
+                        "target": target,
+                    },
+                    "reason": "查封该颜色组。",
+                }
+            ),
+            request,
+        )
+        assert validation.valid
+        assert validation.option is not None
+        assert validation.target == {"target_color_group": color}
+        command = command_from_option(request, validation.option, validation.target)
+        assert isinstance(command, UseChanceCard)
+        assert command.target_color_group == color
+
+    rejected = (
+        [color, color],
+        {"target_color_group": [color, color]},
+        {"color_group": color},
+    )
+    for target in rejected:
+        validation = parse_and_validate(
+            json.dumps(
+                {
+                    "selected_option": {
+                        "option": "use_chance_card-chance-freeze",
+                        "target": target,
+                    },
+                    "reason": "非法目标。",
+                }
+            ),
+            request,
+        )
+        assert not validation.valid
+
+
+def test_position_pair_target_tolerates_single_element_lists(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    player = engine.state.players["a"]
+    player.properties.add(1)
+    engine.state.properties[1].owner_id = "a"
+    engine.state.players["b"].properties.add(3)
+    engine.state.properties[3].owner_id = "b"
+    player.chance_cards.append("chance-swap-property")
+    request = build_decision_request(engine, 1)
+    option = next(
+        candidate
+        for candidate in request.options
+        if candidate.option_id == "use_chance_card-chance-swap-property"
+    )
+    assert option.target is not None
+    swap_in, swap_out = cast(tuple[int, int], option.target.legal_values[0])
+
+    validation = parse_and_validate(
+        json.dumps(
+            {
+                "selected_option": {
+                    "option": "use_chance_card-chance-swap-property",
+                    "target": {
+                        "swap_in_position": [swap_in],
+                        "swap_out_position": [swap_out],
+                    },
+                },
+                "reason": "交换地产。",
+            }
+        ),
+        request,
+    )
+    assert validation.valid
+    assert validation.option is not None
+    assert validation.target == {
+        "target_position": swap_in,
+        "secondary_target_position": swap_out,
+    }
+    command = command_from_option(request, validation.option, validation.target)
+    assert isinstance(command, UseChanceCard)
+    assert command.target_position == swap_in
+    assert command.secondary_target_position == swap_out
 
 
 def test_option_json_encodes_selected_legal_target_tuple(tmp_path: Path) -> None:

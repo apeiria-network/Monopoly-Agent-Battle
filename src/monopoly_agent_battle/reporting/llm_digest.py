@@ -13,7 +13,7 @@ at all (random baselines) still emit one row parsed from their recorded
 Columns (all values are strings):
 
     轮次, 玩家, 发言者, reason, 选项, target, 最终执行命令,
-    当前玩家净资产, 当前玩家持有机会卡数, 是否是最终决策者, 是否报错回复
+    当前玩家净资产, 当前玩家现金持有量, 当前玩家持有机会卡数, 是否是最终决策者, 是否报错回复
 
 A court emperor (caller role ending in ``.emperor``) or a plain baseline
 player (role without a ``.``) is the final decision maker. Replies are parsed
@@ -43,6 +43,7 @@ COLUMNS: tuple[str, ...] = (
     "target",
     "最终执行命令",
     "当前玩家净资产",
+    "当前玩家现金持有量",
     "当前玩家持有机会卡数",
     "是否是最终决策者",
     "是否报错回复",
@@ -139,6 +140,7 @@ def _decision_rows(record: dict[str, Any], queue: _CallQueue) -> list[list[str]]
                 target,
                 context.executed_command,
                 context.net_worth,
+                context.cash,
                 context.chance_card_count,
                 _true_false(True),
                 _true_false(fallback),
@@ -162,6 +164,7 @@ def _decision_rows(record: dict[str, Any], queue: _CallQueue) -> list[list[str]]
                 target,
                 context.executed_command,
                 context.net_worth,
+                context.cash,
                 context.chance_card_count,
                 _true_false(_is_final_decision(str(call.get("caller_role") or ""))),
                 _true_false(rejected),
@@ -190,6 +193,7 @@ def _leftover_rows(queue: _CallQueue) -> list[list[str]]:
                 "",
                 "",
                 "",
+                "",
                 _true_false(_is_final_decision(caller)),
                 _true_false(bool(error)),
             ]
@@ -205,11 +209,13 @@ class _DecisionContext:
         round_label: str,
         executed_command: str,
         net_worth: str,
+        cash: str,
         chance_card_count: str,
     ) -> None:
         self.round_label = round_label
         self.executed_command = executed_command
         self.net_worth = net_worth
+        self.cash = cash
         self.chance_card_count = chance_card_count
 
 
@@ -223,6 +229,7 @@ def _decision_context(record: dict[str, Any]) -> _DecisionContext:
         str(round_value) if isinstance(round_value, int) else "?",
         str(executed.get("command_type") or ""),
         str(_visible_net_worth(visible, player)),
+        str(_visible_cash(visible)),
         str(_visible_chance_card_count(visible)),
     )
 
@@ -252,6 +259,7 @@ def _trace_rows(trace_calls: list[dict[str, Any]], context: _DecisionContext) ->
             target,
             context.executed_command,
             context.net_worth,
+            context.cash,
             context.chance_card_count,
             _true_false(_is_final_decision(caller)),
             _true_false(outcome == "connection_error"),
@@ -296,6 +304,12 @@ def _visible_net_worth(visible: dict[str, Any], player_id: str) -> int:
         if space.get("mortgaged"):
             total -= price
     return total
+
+
+def _visible_cash(visible: dict[str, Any]) -> int:
+    """Read the deciding player's cash from the decision snapshot."""
+    your_state = cast(dict[str, Any], visible.get("your_state") or {})
+    return int(your_state.get("cash") or 0)
 
 
 def _visible_chance_card_count(visible: dict[str, Any]) -> int:

@@ -5,6 +5,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
+import pytest
+
 from monopoly_agent_battle.agents.ming import MingCourtAgent
 from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
 from monopoly_agent_battle.context.conversation import AgentConversation
@@ -23,6 +25,21 @@ class Stub:
     def complete(self, request: LLMRequest) -> LLMResponse:
         self.requests.append(request)
         return LLMResponse(self.responses.pop(0), UsageMetrics(1, 1), request.model)
+
+
+class FlakyStub(Stub):
+    """Raise ConnectionError on the configured 1-based call numbers."""
+
+    def __init__(self, responses: list[str], fail_calls: set[int]) -> None:
+        super().__init__(responses)
+        self.fail_calls = fail_calls
+        self.calls = 0
+
+    def complete(self, request: LLMRequest) -> LLMResponse:
+        self.calls += 1
+        if self.calls in self.fail_calls:
+            raise ConnectionError("simulated timeout")
+        return super().complete(request)
 
 
 def make_request(tmp_path: Path, sequence: int = 1) -> DecisionRequest:
@@ -62,19 +79,7 @@ def choice(req: DecisionRequest, option: str | None = None, reason: str = "意�
     )
 
 
-def make_agent(req: DecisionRequest) -> tuple[MingCourtAgent, dict[str, Stub]]:
-    options = [item.option_id for item in req.options]
-    first = [
-        choice(req, options[0], "首辅草案"),
-        choice(req, options[0], "大学士一草案"),
-        choice(req, options[0], "大学士二草案"),
-    ]
-    clients = {
-        "chief": Stub(first[:1] + [choice(req, options[0], "汇总")]),
-        "secretary_1": Stub(first[1:2]),
-        "secretary_2": Stub(first[2:3]),
-        "emperor": Stub([choice(req, options[0], "终裁")]),
-    }
+def build_agent(clients: dict[str, Stub]) -> tuple[MingCourtAgent, dict[str, Stub]]:
     profiles = {role: ModelProfile(provider="mock", model=f"{role}-model") for role in clients}
     conversations = {
         role: AgentConversation(agent_id=f"a.{role}", window_turns=1)
@@ -98,6 +103,22 @@ def make_agent(req: DecisionRequest) -> tuple[MingCourtAgent, dict[str, Stub]]:
         conversations=conversations,
     )
     return agent, clients
+
+
+def make_agent(req: DecisionRequest) -> tuple[MingCourtAgent, dict[str, Stub]]:
+    options = [item.option_id for item in req.options]
+    first = [
+        choice(req, options[0], "首辅草案"),
+        choice(req, options[0], "大学士一草案"),
+        choice(req, options[0], "大学士二草案"),
+    ]
+    clients = {
+        "chief": Stub(first[:1] + [choice(req, options[0], "汇总")]),
+        "secretary_1": Stub(first[1:2]),
+        "secretary_2": Stub(first[2:3]),
+        "emperor": Stub([choice(req, options[0], "终裁")]),
+    }
+    return build_agent(clients)
 
 
 def test_ming_unanimous_workflow_and_emperor_visibility(tmp_path: Path) -> None:
@@ -241,3 +262,104 @@ def test_ming_advice_is_system_forced_and_history_is_complete(tmp_path: Path) ->
         assert turn is not None
         assert any(getattr(entry, "content_type", None) == "advice" for entry in turn.entries)
         assert any(getattr(entry, "content_type", None) == "vote_result" for entry in turn.entries)
+
+
+def test_ming_recovers_when_last_first_draft_times_out(tmp_path: Path) -> None:
+    req = make_request(tmp_path)
+    option_ids = [item.option_id for item in req.options]
+    clients = {
+        "chief": Stub(
+            [
+                choice(req, option_ids[0], "首辅草案"),
+                choice(req, option_ids[0], "首辅重拟"),
+                choice(req, option_ids[0], "汇总"),
+            ]
+        ),
+        "secretary_1": Stub(
+            [choice(req, option_ids[1], "大学士一草案"), choice(req, option_ids[0], "大学士一重拟")]
+        ),
+        "secretary_2": FlakyStub(
+            [
+                choice(req, option_ids[1], "大学士二草案"),
+                choice(req, option_ids[0], "大学士二重拟"),
+            ],
+            fail_calls={1},
+        ),
+        "emperor": Stub([choice(req, option_ids[0], "终裁")]),
+    }
+    agent, clients = build_agent(clients)
+
+    with pytest.raises(ConnectionError):
+        agent(req)
+    reply = agent(req)
+
+    assert json.loads(reply)["reason"] == "终裁"
+    assert [
+        len(clients[key].requests) for key in ("chief", "secretary_1", "secretary_2", "emperor")
+    ] == [3, 2, 2, 1]
+
+
+def test_ming_recovers_when_one_redraft_times_out(tmp_path: Path) -> None:
+    req = make_request(tmp_path)
+    option_ids = [item.option_id for item in req.options]
+    clients = {
+        "chief": Stub(
+            [
+                choice(req, option_ids[0], "首辅草案"),
+                choice(req, option_ids[0], "首辅重拟"),
+                choice(req, option_ids[0], "汇总"),
+            ]
+        ),
+        "secretary_1": Stub(
+            [choice(req, option_ids[1], "大学士一草案"), choice(req, option_ids[0], "大学士一重拟")]
+        ),
+        "secretary_2": FlakyStub(
+            [
+                choice(req, option_ids[1], "大学士二草案"),
+                choice(req, option_ids[0], "大学士二重拟"),
+            ],
+            fail_calls={2},
+        ),
+        "emperor": Stub([choice(req, option_ids[0], "终裁")]),
+    }
+    agent, clients = build_agent(clients)
+
+    with pytest.raises(ConnectionError):
+        agent(req)
+    reply = agent(req)
+
+    assert json.loads(reply)["reason"] == "终裁"
+    assert [
+        len(clients[key].requests) for key in ("chief", "secretary_1", "secretary_2", "emperor")
+    ] == [3, 2, 2, 1]
+    redraft_prompts = [
+        "\n".join(message.content for message in clients[key].requests[1].messages)
+        for key in ("chief", "secretary_1", "secretary_2")
+    ]
+    assert all(prompt.count("内阁意见不一致，请重新草拟") == 1 for prompt in redraft_prompts)
+
+
+def test_ming_recovers_when_advice_call_times_out(tmp_path: Path) -> None:
+    req = make_request(tmp_path)
+    option_ids = [item.option_id for item in req.options]
+    clients = {
+        "chief": FlakyStub(
+            [choice(req, option_ids[0], "首辅草案"), choice(req, option_ids[0], "汇总")],
+            fail_calls={2},
+        ),
+        "secretary_1": Stub([choice(req, option_ids[0], "大学士一草案")]),
+        "secretary_2": Stub([choice(req, option_ids[0], "大学士二草案")]),
+        "emperor": Stub([choice(req, option_ids[0], "终裁")]),
+    }
+    agent, clients = build_agent(clients)
+
+    with pytest.raises(ConnectionError):
+        agent(req)
+    reply = agent(req)
+
+    assert json.loads(reply)["reason"] == "终裁"
+    assert [
+        len(clients[key].requests) for key in ("chief", "secretary_1", "secretary_2", "emperor")
+    ] == [2, 1, 1, 1]
+    advice_prompt = "\n".join(message.content for message in clients["chief"].requests[1].messages)
+    assert advice_prompt.count("请你汇总3位官员的草拟决策") == 1

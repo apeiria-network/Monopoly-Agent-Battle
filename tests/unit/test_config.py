@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from monopoly_agent_battle.config.loader import canonical_config_json, config_hash, load_game_config
 from monopoly_agent_battle.config.models import (
+    SUPPORTED_REMOTE_MODELS,
     GameConfig,
     QinCourtRoleProfiles,
     ShangCourtRoleProfiles,
@@ -141,6 +142,38 @@ model_profiles:
     config = load_game_config(config_path)
     assert config.model_profiles["remote"].model == "DeepSeek-V4-Flash"
     assert config.model_profiles["remote"].thinking is True
+
+
+@pytest.mark.parametrize("model", sorted(SUPPORTED_REMOTE_MODELS))
+def test_load_game_config_accepts_every_whitelisted_model(tmp_path: Path, model: str) -> None:
+    config_path = tmp_path / "game.yaml"
+    config_path.write_text(
+        f"""game_id: game-001
+experiment_id: experiment-001
+seed: 42
+players:
+  - player_id: a
+    seat: 1
+    controller_type: llm_baseline
+    model_profile: remote
+  - player_id: b
+    seat: 2
+    controller_type: random_baseline
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+model_profiles:
+  remote:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/v1
+    api_key_env: REMOTE_API_KEY
+    model: {model}
+""",
+        encoding="utf-8",
+    )
+
+    assert load_game_config(config_path).model_profiles["remote"].model == model
 
 
 def test_config_thinking_defaults_off_and_changes_hash() -> None:

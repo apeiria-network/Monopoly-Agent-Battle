@@ -161,7 +161,7 @@ def test_birthday_blocks_noncurrent_payer_then_resumes_cardholder(tmp_path: Path
     assert engine.state.current_player_id == "a"
     assert engine.state.turn_phase is TurnPhase.ASSET_MANAGEMENT
     assert engine.state.players["a"].cash == 1520
-    assert engine.state.players["b"].cash == 195
+    assert engine.state.players["b"].cash == 95
     assert engine.state.players["c"].cash == 1490
     assert engine.state.settlement_operations == []
     assert any(event.event_type == "payment_made" for event in events)

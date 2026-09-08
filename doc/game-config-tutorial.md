@@ -259,15 +259,19 @@ api_key: sk-真实密钥
 
 ### 7.1 模型白名单
 
-`provider: openai_compatible` 的 `model` 只接受以下六个模型，配置其他模型名会在加载时直接报错（不区分 `base_url`，对所有地址统一生效）：
+`provider: openai_compatible` 的 `model` 只接受以下十个模型，配置其他模型名会在加载时直接报错（不区分 `base_url`，对所有地址统一生效）：
 
 ```text
 GLM-5-Turbo
+GLM-5.3-Flash
 DeepSeek-V4-Flash
 DeepSeek-V4-Pro
 Qwen3.7-Plus
 Qwen3.8-Max
+Qwen3.8-Flash
 Kimi-K2.6
+Kimi-K2.7
+GPT-5.6-Luna
 ```
 
 `mock` 和 `fake` 的模型名不受白名单限制。

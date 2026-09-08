@@ -35,8 +35,8 @@ _COMMAND_WORDING: dict[str, OptionWording] = {
     ),
     "Mortgage": OptionWording(
         "抵押地产",
-        "抵押一处你拥有的地产，获得其购买价；抵押期间该地产不收租，不能建造房屋，"
-        "但是可以享受地产增益。赎回时需支付购买价的 110%。",
+        "抵押一处你拥有的地产，获得其购买价的 50%；抵押期间该地产不收租，不能建造房屋，"
+        "但是可以享受地产增益。赎回时需支付购买价的 55%。",
         {
             "reason": "填写选择抵押该地产的理由。",
             "selected_option": {
@@ -47,7 +47,7 @@ _COMMAND_WORDING: dict[str, OptionWording] = {
     ),
     "RedeemMortgage": OptionWording(
         "赎回抵押地产",
-        "赎回一处你抵押地产，支付该地产购买价的110%，恢复收取租金。",
+        "赎回一处你抵押地产，支付该地产购买价的55%，恢复收取租金。",
         {
             "reason": "填写选择赎回该抵押地产的理由。",
             "selected_option": {

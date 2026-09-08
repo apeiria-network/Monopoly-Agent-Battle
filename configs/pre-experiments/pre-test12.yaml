@@ -1,0 +1,110 @@
+game_id: pre-test12-ming-vs-baselines
+experiment_id: pre-test
+seed: 42
+# pre test12
+# Ming mixed-model court vs 3 * baseline AI
+# baselines all DeepSeek-V4-Flash
+# court departments: chief_grand_secretary DeepSeek-V4-Flash / grand_secretary_1 GLM-5-Turbo / grand_secretary_2 Qwen3.7-Plus / emperor Kimi-K2.6
+# total rounds: 50
+
+players:
+  - player_id: ming-court
+    seat: 4
+    controller_type: ming_court
+    court_role_profiles:
+      chief_grand_secretary: ming-chief-grand-secretary
+      grand_secretary_1: ming-grand-secretary-1
+      grand_secretary_2: ming-grand-secretary-2
+      emperor: ming-emperor
+  - player_id: baseline-1
+    seat: 1
+    controller_type: llm_baseline
+    model_profile: baseline-model-1
+  - player_id: baseline-2
+    seat: 2
+    controller_type: llm_baseline
+    model_profile: baseline-model-2
+  - player_id: baseline-3
+    seat: 3
+    controller_type: llm_baseline
+    model_profile: baseline-model-3
+
+model_profiles:
+  ming-chief-grand-secretary:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: DeepSeek-V4-Flash
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  ming-grand-secretary-1:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: GLM-5-Turbo
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  ming-grand-secretary-2:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: Qwen3.7-Plus
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  ming-emperor:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: Kimi-K2.6
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  baseline-model-1:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: DeepSeek-V4-Flash
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  baseline-model-2:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: DeepSeek-V4-Flash
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  baseline-model-3:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: DeepSeek-V4-Flash
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+initial_cash: 1500
+max_complete_rounds: 50
+initial_chance_cards: 2
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs

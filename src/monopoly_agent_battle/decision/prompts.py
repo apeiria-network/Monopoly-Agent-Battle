@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import Any, cast
 
 from monopoly_agent_battle.context.rules import load_game_rules
@@ -52,15 +53,22 @@ _SPACE_KIND_CN = {
 
 _MAX_JAIL_ROLL_ATTEMPTS = 3
 
-_OUTPUT_GUIDE = (
-    "只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。\n"
-    "- `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的"
-    "待指定目标。\n"
-    "- 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量"
-    '（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 '
-    '`{"swap_in_position": 1, "swap_out_position": 3}`。\n'
-    "- 不需要目标的选项若模型填了 `target`，按忽略处理。"
+_OUTPUT_REQUIREMENT_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "agents"
+    / "agent_prompt_list"
+    / "normal_output_requirement.txt"
 )
+
+_output_requirement_cache: str | None = None
+
+
+def load_output_requirement() -> str:
+    """Return the shared segment-3 output requirement; cached after first read."""
+    global _output_requirement_cache
+    if _output_requirement_cache is None:
+        _output_requirement_cache = _OUTPUT_REQUIREMENT_PATH.read_text(encoding="utf-8").strip()
+    return _output_requirement_cache
 
 
 def render_role(
@@ -98,7 +106,7 @@ def render_system_prompt(
     prompt_profile: str = "full-v2",
 ) -> str:
     """Render fixed prompt segments using the selected compatible layout."""
-    output_section = output_guide or ("## 输出要求\n" + _OUTPUT_GUIDE)
+    output_section = output_guide or load_output_requirement()
     if prompt_profile.startswith("cache-first"):
         return "\n\n".join(
             (

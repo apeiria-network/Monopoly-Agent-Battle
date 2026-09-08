@@ -1,0 +1,109 @@
+game_id: pre-test10-tang-vs-baselines
+experiment_id: pre-test
+seed: 42
+# pre test10
+# Tang vs 3 * baseline AI
+# all Qwen3.7-Plus
+# total rounds: 50
+
+players:
+  - player_id: tang-court
+    seat: 4
+    controller_type: tang_court
+    court_role_profiles:
+      shangshu: tang-shangshu
+      zhongshu: tang-zhongshu
+      menxia: tang-menxia
+      emperor: tang-emperor
+  - player_id: baseline-1
+    seat: 1
+    controller_type: llm_baseline
+    model_profile: baseline-model-1
+  - player_id: baseline-2
+    seat: 2
+    controller_type: llm_baseline
+    model_profile: baseline-model-2
+  - player_id: baseline-3
+    seat: 3
+    controller_type: llm_baseline
+    model_profile: baseline-model-3
+
+model_profiles:
+  tang-shangshu:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: Qwen3.7-Plus
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  tang-zhongshu:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: Qwen3.7-Plus
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  tang-menxia:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: Qwen3.7-Plus
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  tang-emperor:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: Qwen3.7-Plus
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  baseline-model-1:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: Qwen3.7-Plus
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  baseline-model-2:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: Qwen3.7-Plus
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  baseline-model-3:
+    provider: openai_compatible
+    base_url: https://llmapi.paratera.com/
+    api_key_env: MONOPOLY_API_KEY2
+    model: Qwen3.7-Plus
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+initial_cash: 1500
+max_complete_rounds: 50
+initial_chance_cards: 2
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs

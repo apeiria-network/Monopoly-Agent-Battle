@@ -4,7 +4,7 @@ import pytest
 
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.domain.commands import EndTurn, Mortgage, RollDice
-from monopoly_agent_battle.domain.models import TurnPhase
+from monopoly_agent_battle.domain.models import EndReason, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine, GameRuleError
 
 
@@ -59,7 +59,7 @@ def test_non_double_enters_asset_management_then_advances_turn(tmp_path: Path) -
 
 
 def test_payment_shortfall_can_be_resolved_by_mortgaging(tmp_path: Path) -> None:
-    engine = make_engine(tmp_path, cash=10)
+    engine = make_engine(tmp_path, cash=110)
     engine.state.properties[5].owner_id = "a"
     engine.state.players["a"].properties.add(5)
     engine.state.players["a"].position = 2
@@ -116,3 +116,17 @@ def test_mid_turn_bankruptcy_ends_turn_via_end_turn_and_game_continues(tmp_path:
     assert {event.event_type for event in close_events} >= {"turn_ended", "turn_started"}
     assert engine.state.completed_round_player_ids == {"a"}
     assert not engine.state.finished
+
+
+def test_rankings_append_bankrupt_players_behind_survivors(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path, players=("a", "b", "c", "d"))
+    engine.state.players["b"].bankrupt = True
+    engine.state.players["b"].survived_turns = 3
+    engine.state.players["d"].bankrupt = True
+    engine.state.players["d"].survived_turns = 7
+    engine.state.players["a"].cash = 300
+    engine.state.players["c"].cash = 500
+
+    engine._finish(EndReason.ROUND_LIMIT)  # pyright: ignore[reportPrivateUsage]
+
+    assert engine.state.rankings == ("c", "a", "d", "b")

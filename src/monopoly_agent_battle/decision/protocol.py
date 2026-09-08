@@ -227,16 +227,38 @@ def _validate_target(
     if target_spec is None:
         return {}
     if len(target_spec.fields) == 1:
-        if (raw_target,) not in target_spec.legal_values:
+        candidate = _unwrap_single_field(target_spec.fields[0], raw_target)
+        if (candidate,) not in target_spec.legal_values:
             return None
-        return {target_spec.command_fields[0]: raw_target}
+        return {target_spec.command_fields[0]: candidate}
     if not isinstance(raw_target, dict):
         return None
     raw_target = cast(dict[str, object], raw_target)
-    values = tuple(raw_target.get(field) for field in target_spec.fields)
+    values = tuple(
+        _unwrap_single_field(field, raw_target.get(field)) for field in target_spec.fields
+    )
     if values not in target_spec.legal_values:
         return None
     return dict(zip(target_spec.command_fields, values, strict=True))
+
+
+def _unwrap_single_field(field: str, value: object | None) -> object | None:
+    if isinstance(value, dict):
+        mapping = cast(dict[str, object], value)
+        if set(mapping) != {field}:
+            return mapping
+        inner: object | None = mapping[field]
+        return _single_item(inner)
+    return _single_item(value)
+
+
+def _single_item(value: object | None) -> object | None:
+    if not isinstance(value, list):
+        return value
+    items = cast(list[object], value)
+    if len(items) == 1:
+        return items[0]
+    return items
 
 
 def _target_json(target_spec: OptionTarget, values: tuple[object, ...]) -> object:
