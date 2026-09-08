@@ -236,6 +236,20 @@ def test_response_tolerates_markdown_code_fence(tmp_path: Path) -> None:
     assert broken.error_category == "not_json"
 
 
+def test_empty_or_whitespace_reply_gets_dedicated_category(tmp_path: Path) -> None:
+    engine = make_engine(tmp_path)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
+    request = build_decision_request(engine, 1)
+
+    empty = parse_and_validate("", request)
+    whitespace = parse_and_validate("   \n\t ", request)
+
+    assert not empty.valid
+    assert empty.error_category == "empty_reply"
+    assert not whitespace.valid
+    assert whitespace.error_category == "empty_reply"
+
+
 def test_prompt_contains_request_and_fixed_response_contract(tmp_path: Path) -> None:
     engine = make_engine(tmp_path)
     engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT

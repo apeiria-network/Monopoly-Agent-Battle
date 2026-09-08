@@ -198,7 +198,7 @@ Start-Process -FilePath ".\.venv\Scripts\monopoly-agent-battle.exe" `
 | `rankings` | 终局排名 |
 | `validity_status` | 有效性：`valid` 或 `invalid` |
 | `llm_calls` | LLM 调用次数；纯随机局为 `0` |
-| `decision_fallbacks` | 因无效响应或重连耗尽而使用默认候选的次数 |
+| `decision_fallbacks` | 因无效响应、重连或调用错误（LLMCallError，如 HTTP 400）耗尽而使用默认候选的次数 |
 | `llm_token_stats` | token 统计：`totals`（全对局调用数与输入/缓存/未缓存/思考/输出 token 总量）、`per_player`（人均与每决策均值；思考与输出独立统计） |
 
 **有效性判定：** 当 LLM 触发的默认回退次数达到全部 LLM 调用数的 **10%** 时，`validity_status=invalid`（`decision/runner.py::_validity_status`）。重连或重试后成功得到合法回复不计入该分子。无效局仍完整保留全部日志，仅不计入正式排名与积分。

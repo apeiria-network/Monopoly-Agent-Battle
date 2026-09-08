@@ -12,6 +12,7 @@ from monopoly_agent_battle.decision.runner import (
 from monopoly_agent_battle.domain.models import GameEvent, JailStatus
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.replay import verify_run
+from monopoly_agent_battle.llm.protocol import LLMCallError
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 
 
@@ -91,7 +92,39 @@ def test_connection_failures_are_retried_then_recorded_as_fallback(tmp_path: Pat
         .splitlines()
     ]
     assert decisions[0]["fallback"] is True
-    assert decisions[0]["attempted_validation"]["validation_error"] == "response is not valid JSON"
+    assert decisions[0]["attempted_validation"]["validation_error"] == "response is empty"
+
+
+def test_llm_call_errors_are_retried_then_recorded_as_fallback(tmp_path: Path) -> None:
+    config = make_config(tmp_path)
+    artifacts = RunArtifacts.create(config)
+    attempts = 0
+
+    def failing_controller(_request: DecisionRequest, _feedback: str | None = None) -> str:
+        nonlocal attempts
+        attempts += 1
+        raise LLMCallError("Kimi endpoint returned HTTP 400")
+
+    run_decision_game(GameEngine(config), failing_controller, artifacts)
+
+    runtime = [
+        json.loads(line)
+        for line in (artifacts.run_directory / "runtime.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert attempts >= 3
+    assert runtime[0]["event_type"] == "controller_connection_error"
+    assert runtime[0]["payload"]["error"] == "Kimi endpoint returned HTTP 400"
+    assert runtime[2]["event_type"] == "controller_connection_error"
+    assert runtime[3]["event_type"] == "decision_fallback"
+    decisions = [
+        json.loads(line)
+        for line in (artifacts.run_directory / "decisions.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert decisions[0]["fallback"] is True
 
 
 def test_invalid_output_is_retried_with_feedback_then_falls_back(tmp_path: Path) -> None:

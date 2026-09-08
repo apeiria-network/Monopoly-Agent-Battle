@@ -45,9 +45,9 @@ model_profiles:
     api_key_env: GLM_API_KEY
     model: glm-5.3-flash
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   qin-chancellor:
     provider: openai_compatible
@@ -55,9 +55,9 @@ model_profiles:
     api_key_env: DEEPSEEK_API_KEY
     model: DeepSeek-V4-Pro
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   qin-grand-marshal:
     provider: kimi
@@ -65,9 +65,9 @@ model_profiles:
     api_key_env: KIMI_API_KEY
     model: kimi-k2.6
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   qin-imperial-counsellor:
     provider: qwen
@@ -75,9 +75,9 @@ model_profiles:
     api_key_env: QWEN_API_KEY
     model: qwen3.8-flash
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   qin-emperor:
     provider: glm
@@ -85,9 +85,9 @@ model_profiles:
     api_key_env: GLM_API_KEY
     model: glm-5.3-flash
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   tang-shangshu:
     provider: openai_compatible
@@ -95,9 +95,9 @@ model_profiles:
     api_key_env: DEEPSEEK_API_KEY
     model: DeepSeek-V4-Pro
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   tang-zhongshu:
     provider: kimi
@@ -105,9 +105,9 @@ model_profiles:
     api_key_env: KIMI_API_KEY
     model: kimi-k2.6
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   tang-menxia:
     provider: qwen
@@ -115,9 +115,9 @@ model_profiles:
     api_key_env: QWEN_API_KEY
     model: qwen3.8-flash
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   tang-emperor:
     provider: glm
@@ -125,9 +125,9 @@ model_profiles:
     api_key_env: GLM_API_KEY
     model: glm-5.3-flash
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   ming-chief-grand-secretary:
     provider: openai_compatible
@@ -135,9 +135,9 @@ model_profiles:
     api_key_env: DEEPSEEK_API_KEY
     model: DeepSeek-V4-Pro
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   ming-grand-secretary-1:
     provider: kimi
@@ -145,9 +145,9 @@ model_profiles:
     api_key_env: KIMI_API_KEY
     model: kimi-k2.6
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   ming-grand-secretary-2:
     provider: qwen
@@ -155,9 +155,9 @@ model_profiles:
     api_key_env: QWEN_API_KEY
     model: qwen3.8-flash
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
   ming-emperor:
     provider: glm
@@ -165,9 +165,9 @@ model_profiles:
     api_key_env: GLM_API_KEY
     model: glm-5.3-flash
     seed: 42
-    max_tokens: 2048
+    max_tokens: 4096
     thinking: true
-    timeout_seconds: 60
+    timeout_seconds: 120
 
 initial_cash: 1500
 max_complete_rounds: 3

@@ -14,6 +14,7 @@ from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.protocol import (
+    LLMCallError,
     LLMConnectionError,
     LLMRequest,
     LLMResponse,
@@ -165,6 +166,34 @@ def test_priest_connection_exhaustion_falls_back_and_emperor_decides(tmp_path: P
         "connection_error",
         "connection_error",
         "connection_error",
+        "connection_fallback",
+        "success",
+    ]
+
+
+def test_priest_call_error_exhaustion_falls_back_and_emperor_decides(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    expected = _valid_response(request)
+    priest = StubClient([LLMCallError("Kimi endpoint returned HTTP 400")] * 3)
+    emperor = StubClient([expected])
+    agent = _agent(request, priest, emperor)
+
+    with pytest.raises(LLMCallError):
+        agent(request)
+    with pytest.raises(LLMCallError):
+        agent(request)
+    response = agent(request)
+
+    assert response == expected
+    assert len(priest.requests) == 3
+    assert len(emperor.requests) == 1
+    emperor_text = "\n".join(message.content for message in emperor.requests[0].messages)
+    assert "大祭司重连次数耗尽，无法做出有效回复。" in emperor_text
+    outcomes = [call["outcome"] for call in agent.court_calls()]
+    assert outcomes == [
+        "call_error",
+        "call_error",
+        "call_error",
         "connection_fallback",
         "success",
     ]

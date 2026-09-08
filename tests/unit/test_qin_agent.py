@@ -14,6 +14,7 @@ from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.protocol import (
+    LLMCallError,
     LLMConnectionError,
     LLMRequest,
     LLMResponse,
@@ -318,6 +319,34 @@ def test_qin_counsellor_connection_exhaustion_still_lets_emperor_decide(tmp_path
     calls = cast(list[dict[str, Any]], agent.court_trace()["calls"])
     outcomes = [(call["role"], call["outcome"]) for call in calls]
     assert outcomes.count(("imperial_counsellor", "connection_error")) == 3
+    assert ("imperial_counsellor", "connection_fallback") in outcomes
+    assert ("emperor", "success") in outcomes
+
+
+def test_qin_counsellor_call_error_exhaustion_falls_back(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    clients = {
+        "chancellor": StubClient([_choice(request, "丞相意见")]),
+        "grand_marshal": StubClient([_choice(request, "太尉意见")]),
+        "imperial_counsellor": StubClient([LLMCallError("Kimi endpoint returned HTTP 400")] * 3),
+        "emperor": StubClient([_choice(request, "皇帝裁决")]),
+    }
+    agent = _agent(request, clients)
+
+    with pytest.raises(LLMCallError):
+        agent(request)
+    with pytest.raises(LLMCallError):
+        agent(request)
+    result = agent(request)
+
+    assert json.loads(result)["selected_option"]["option"] == request.options[0].option_id
+    assert len(clients["imperial_counsellor"].requests) == 3
+    assert len(clients["emperor"].requests) == 1
+    emperor_text = "\n".join(message.content for message in clients["emperor"].requests[0].messages)
+    assert "御史大夫重连次数耗尽，无法做出有效回复。" in emperor_text
+    calls = cast(list[dict[str, Any]], agent.court_trace()["calls"])
+    outcomes = [(call["role"], call["outcome"]) for call in calls]
+    assert outcomes.count(("imperial_counsellor", "call_error")) == 3
     assert ("imperial_counsellor", "connection_fallback") in outcomes
     assert ("emperor", "success") in outcomes
 

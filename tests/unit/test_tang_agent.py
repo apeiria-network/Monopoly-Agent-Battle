@@ -14,6 +14,7 @@ from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.protocol import (
+    LLMCallError,
     LLMConnectionError,
     LLMRequest,
     LLMResponse,
@@ -138,6 +139,40 @@ def test_tang_menxia_accepts_code_fenced_review(tmp_path: Path) -> None:
     assert json.loads(agent(req))["reason"] == "终裁"
     # A fenced-but-valid review is accepted on the first call: no extra round.
     assert [len(clients[role].requests) for role in ("zhongshu", "menxia", "emperor")] == [1, 1, 1]
+
+
+def test_tang_menxia_call_error_exhaustion_passes_draft(tmp_path: Path) -> None:
+    req = request(tmp_path)
+    clients: dict[str, Any] = {
+        "shangshu": Stub(["全局信息摘要"]),
+        "zhongshu": Stub([choice(req, "草案1")]),
+        "menxia": Flaky(
+            [
+                LLMCallError("Kimi endpoint returned HTTP 400"),
+                LLMCallError("Kimi endpoint returned HTTP 400"),
+                LLMCallError("Kimi endpoint returned HTTP 400"),
+            ]
+        ),
+        "emperor": Stub([choice(req, "终裁")]),
+    }
+    agent = _build(clients)
+
+    with pytest.raises(LLMCallError):
+        agent(req)
+    with pytest.raises(LLMCallError):
+        agent(req)
+    result = agent(req)
+
+    assert json.loads(result)["reason"] == "终裁"
+    assert len(clients["zhongshu"].requests) == 1
+    assert len(clients["menxia"].requests) == 3
+    assert len(clients["emperor"].requests) == 1
+    emperor_text = "\n".join(message.content for message in clients["emperor"].requests[0].messages)
+    assert "门下省重连次数耗尽，无法做出有效回复，通过当前草案。" in emperor_text
+    outcomes = [(call["role"], call["outcome"]) for call in agent.court_calls()]
+    assert outcomes.count(("menxia", "call_error")) == 3
+    assert ("menxia", "connection_fallback") in outcomes
+    assert ("emperor", "success") in outcomes
 
 
 def test_tang_zhongshu_connection_exhaustion_falls_back_to_default_draft(

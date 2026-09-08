@@ -31,7 +31,7 @@ from monopoly_agent_battle.decision.protocol import (
     parse_and_validate,
     strip_code_fence,
 )
-from monopoly_agent_battle.llm.protocol import LLMClient, LLMMessage, LLMRequest
+from monopoly_agent_battle.llm.protocol import LLMCallError, LLMClient, LLMMessage, LLMRequest
 
 _CHANCELLOR = "chancellor"
 _GRAND_MARSHAL = "grand_marshal"
@@ -282,7 +282,7 @@ class QinCourtAgent:
                 )
             else:
                 normalized = raw
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             normalized = self._connection_fallback(role, request, _ADVICE, error)
         self._responses[role] = normalized
         self._append_own_decision(role, request, normalized)
@@ -313,7 +313,7 @@ class QinCourtAgent:
                     "Error: 御史大夫评价结构非法，请按要求输出包含两项 assessments 的 JSON 对象。",
                 )
                 parsed = _fallback_comment()
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             parsed = self._connection_fallback(_COUNSELLOR, request, _COMMENT, error)
         self._responses[_COUNSELLOR] = parsed
         if self._legacy_performance_generator is not None:
@@ -330,9 +330,13 @@ class QinCourtAgent:
         self._deliver(request, _COUNSELLOR, _COMMENT, parsed, {_EMPEROR})
 
     def _connection_fallback(
-        self, role: str, request: DecisionRequest, content_type: str, error: ConnectionError
+        self,
+        role: str,
+        request: DecisionRequest,
+        content_type: str,
+        error: ConnectionError | LLMCallError,
     ) -> str:
-        """Re-raise until reconnects are exhausted, then assemble a fallback reply.
+        """Re-raise until call failures are exhausted, then assemble a fallback reply.
 
         The first failures propagate so the runner performs its documented
         reconnect-and-retry cycle. Once a role exceeds the retry budget, the
@@ -409,11 +413,15 @@ class QinCourtAgent:
                     decision_request=request,
                 )
             )
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             self._last_llm_call_count += 1
             self._trace.append(
                 QinCallTrace(
-                    request.decision_id, role, caller, "connection_error", error=str(error)
+                    request.decision_id,
+                    role,
+                    caller,
+                    "connection_error" if isinstance(error, ConnectionError) else "call_error",
+                    error=str(error),
                 )
             )
             raise

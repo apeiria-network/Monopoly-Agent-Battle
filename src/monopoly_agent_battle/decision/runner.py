@@ -26,6 +26,7 @@ from monopoly_agent_battle.domain.commands import EndTurn, GameCommand, RollDice
 from monopoly_agent_battle.domain.models import GameEvent, JailStatus, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.game.runner import ScriptedRunResult, state_snapshot
+from monopoly_agent_battle.llm.protocol import LLMCallError
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts
 from monopoly_agent_battle.performance.scoring import PerformanceWindowResult
 from monopoly_agent_battle.performance.tracker import PerformanceTracker, evidence_from_trace
@@ -443,13 +444,13 @@ def _request_response(
     max_connection_retries: int,
     validation_retries: int,
 ) -> tuple[str, int, int, int, list[str]]:
-    """Obtain a validated response, retrying connections and invalid output.
+    """Obtain a validated response, retrying call failures and invalid output.
 
     Returns ``(raw_response, connection_errors, validation_retries_used, llm_calls,
-    validation_errors)``. A connection error retries up to ``max_connection_retries``
-    times; an invalid response records an ``ErrorEntry`` on the conversation
-    (so segment 4 replays ``assistant(bad_reply) + user(feedback)`` for the
-    rest of this turn) and re-sends the same request up to ``validation_retries``
+    validation_errors)``. A connection or LLM call error retries up to
+    ``max_connection_retries`` times; an invalid response records an ``ErrorEntry``
+    on the conversation (so segment 4 replays ``assistant(bad_reply) + user(feedback)``
+    for the rest of this turn) and re-sends the same request up to ``validation_retries``
     times. On the fresh conversation-less path (legacy tests using
     ``DeterministicPolicyController``) the feedback is passed to the
     controller via its ``feedback`` parameter instead.
@@ -463,7 +464,7 @@ def _request_response(
         try:
             raw_response = controller(request, feedback)
             llm_attempts += _last_llm_call_count(controller, request)
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             llm_attempts += _last_llm_call_count(controller, request)
             connection_errors += 1
             if artifacts is not None:

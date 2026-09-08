@@ -19,7 +19,7 @@ from monopoly_agent_battle.decision.protocol import (
     parse_and_validate,
     strip_code_fence,
 )
-from monopoly_agent_battle.llm.protocol import LLMClient, LLMMessage, LLMRequest
+from monopoly_agent_battle.llm.protocol import LLMCallError, LLMClient, LLMMessage, LLMRequest
 
 _SHANGSHU = "shangshu"
 _ZHONGSHU = "zhongshu"
@@ -242,13 +242,13 @@ class TangCourtAgent:
                     decision_request=request,
                 )
             )
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             self._trace.append(
                 TangCallTrace(
                     request.decision_id,
                     _SHANGSHU,
                     caller_role,
-                    "connection_error",
+                    "connection_error" if isinstance(error, ConnectionError) else "call_error",
                     error=str(error),
                 )
             )
@@ -312,7 +312,7 @@ class TangCourtAgent:
             raw = self._validated_engine_call(
                 role, request, self._messages(role, request, round_number), round_number
             )
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             if not self._connection_exhausted(role):
                 raise error
             default = next(option for option in request.options if option.is_default)
@@ -350,7 +350,7 @@ class TangCourtAgent:
                 verdict = "disagree"
             else:
                 verdict, raw = parsed
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             if not self._connection_exhausted(role):
                 raise error
             raw = json.dumps(
@@ -496,14 +496,14 @@ class TangCourtAgent:
                     decision_request=request,
                 )
             )
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             self._last_llm_call_count += 1
             self._trace.append(
                 TangCallTrace(
                     request.decision_id,
                     role,
                     caller,
-                    "connection_error",
+                    "connection_error" if isinstance(error, ConnectionError) else "call_error",
                     error=str(error),
                     round=round_number,
                 )

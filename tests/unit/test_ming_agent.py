@@ -14,7 +14,7 @@ from monopoly_agent_battle.decision.models import DecisionOption, DecisionReques
 from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
-from monopoly_agent_battle.llm.protocol import LLMRequest, LLMResponse, UsageMetrics
+from monopoly_agent_battle.llm.protocol import LLMCallError, LLMRequest, LLMResponse, UsageMetrics
 
 
 class Stub:
@@ -28,17 +28,20 @@ class Stub:
 
 
 class FlakyStub(Stub):
-    """Raise ConnectionError on the configured 1-based call numbers."""
+    """Raise the configured error on the configured 1-based call numbers."""
 
-    def __init__(self, responses: list[str], fail_calls: set[int]) -> None:
+    def __init__(
+        self, responses: list[str], fail_calls: set[int], error: Exception | None = None
+    ) -> None:
         super().__init__(responses)
         self.fail_calls = fail_calls
+        self.error = error if error is not None else ConnectionError("simulated timeout")
         self.calls = 0
 
     def complete(self, request: LLMRequest) -> LLMResponse:
         self.calls += 1
         if self.calls in self.fail_calls:
-            raise ConnectionError("simulated timeout")
+            raise self.error
         return super().complete(request)
 
 
@@ -119,6 +122,40 @@ def make_agent(req: DecisionRequest) -> tuple[MingCourtAgent, dict[str, Stub]]:
         "emperor": Stub([choice(req, options[0], "终裁")]),
     }
     return build_agent(clients)
+
+
+def test_ming_secretary_call_error_exhaustion_falls_back(tmp_path: Path) -> None:
+    req = make_request(tmp_path)
+    option_ids = [item.option_id for item in req.options]
+    secretary_1 = FlakyStub(
+        [choice(req, option_ids[0], "大学士一草案")],
+        fail_calls={1, 2, 3},
+        error=LLMCallError("Kimi endpoint returned HTTP 400"),
+    )
+    clients = {
+        "chief": Stub([choice(req, option_ids[0], "首辅草案"), choice(req, option_ids[0], "汇总")]),
+        "secretary_1": secretary_1,
+        "secretary_2": Stub([choice(req, option_ids[0])] * 3),
+        "emperor": Stub([choice(req, option_ids[0], "终裁")]),
+    }
+    agent, _ = build_agent(clients)
+
+    with pytest.raises(LLMCallError):
+        agent(req)
+    with pytest.raises(LLMCallError):
+        agent(req)
+    reply = agent(req)
+
+    assert json.loads(reply)["reason"] == "终裁"
+    assert secretary_1.calls == 3
+    assert len(clients["emperor"].requests) == 1
+    advice_prompt = "\n".join(message.content for message in clients["chief"].requests[-1].messages)
+    assert "大学士一重连次数耗尽，无法做出有效回复。" in advice_prompt
+    trace_calls = cast(list[dict[str, object]], agent.court_trace()["calls"])
+    outcomes = [(call["role"], call["outcome"]) for call in trace_calls]
+    assert outcomes.count(("grand_secretary_1", "call_error")) == 3
+    assert ("grand_secretary_1", "connection_fallback") in outcomes
+    assert ("emperor", "success") in outcomes
 
 
 def test_ming_secretary_connection_exhaustion_falls_back(tmp_path: Path) -> None:

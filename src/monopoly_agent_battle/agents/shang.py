@@ -11,7 +11,7 @@ from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.context.token_guard import ContextWarning
 from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.prompts import render_decision_question
-from monopoly_agent_battle.llm.protocol import LLMClient, LLMMessage, LLMRequest
+from monopoly_agent_battle.llm.protocol import LLMCallError, LLMClient, LLMMessage, LLMRequest
 
 _GREAT_PRIEST_ROLE = "great_priest"
 _EMPEROR_ROLE = "emperor"
@@ -146,13 +146,15 @@ class ShangCourtAgent:
         self._last_llm_call_count += 1
         try:
             response = self._great_priest_client.complete(llm_request)
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             self._trace.append(
                 CourtCallTrace(
                     decision_id=request.decision_id,
                     role="great_priest",
                     caller_role=caller_role,
-                    outcome="connection_error",
+                    outcome=(
+                        "connection_error" if isinstance(error, ConnectionError) else "call_error"
+                    ),
                     error=str(error),
                 )
             )
@@ -225,13 +227,15 @@ class ShangCourtAgent:
         self._last_llm_call_count += 1
         try:
             response = self._emperor_client.complete(llm_request)
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             self._trace.append(
                 CourtCallTrace(
                     decision_id=request.decision_id,
                     role="emperor",
                     caller_role=caller_role,
-                    outcome="connection_error",
+                    outcome=(
+                        "connection_error" if isinstance(error, ConnectionError) else "call_error"
+                    ),
                     error=str(error),
                 )
             )

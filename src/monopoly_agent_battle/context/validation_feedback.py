@@ -25,6 +25,10 @@ from monopoly_agent_battle.decision.protocol import strip_code_fence
 def build_feedback(validation: DecisionValidation, request: DecisionRequest) -> str:
     """Return the user-facing validation-failure message for a retry."""
     category = validation.error_category
+    if category == "empty_reply":
+        return (
+            "Error: 上一条回复为空（思考可能耗尽了输出 token 额度），请直接输出合法 JSON 决策回复。"
+        )
     if category == "not_json":
         return "Error: 决策回复必须是一个JSON"
     if category == "missing_reason":

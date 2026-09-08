@@ -16,7 +16,7 @@ from monopoly_agent_battle.context.validation_feedback import build_feedback
 from monopoly_agent_battle.decision.models import DecisionRequest, DecisionValidation
 from monopoly_agent_battle.decision.prompts import render_decision_question
 from monopoly_agent_battle.decision.protocol import default_option_json, parse_and_validate
-from monopoly_agent_battle.llm.protocol import LLMClient, LLMRequest
+from monopoly_agent_battle.llm.protocol import LLMCallError, LLMClient, LLMRequest
 
 _CHIEF = "chief_grand_secretary"
 _SECRETARY_1 = "grand_secretary_1"
@@ -275,7 +275,7 @@ class MingCourtAgent:
     def _draft(self, role: str, request: DecisionRequest, phase: str) -> str:
         try:
             raw = self._validated_call(role, request, phase)
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             raw = self._member_connection_fallback(role, request, phase, error)
         self._append_own(role, request, raw)
         return raw
@@ -283,15 +283,19 @@ class MingCourtAgent:
     def _redraft(self, role: str, request: DecisionRequest) -> str:
         try:
             raw = self._validated_call(role, request, "redraft")
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             raw = self._member_connection_fallback(role, request, "redraft", error)
         self._append_own(role, request, raw)
         return raw
 
     def _member_connection_fallback(
-        self, role: str, request: DecisionRequest, phase: str, error: ConnectionError
+        self,
+        role: str,
+        request: DecisionRequest,
+        phase: str,
+        error: ConnectionError | LLMCallError,
     ) -> str:
-        """Re-raise until reconnects are exhausted, then draft a system fallback."""
+        """Re-raise until call failures are exhausted, then draft a system fallback."""
         self._connection_failures[role] += 1
         if self._connection_failures[role] <= self._max_connection_retries:
             raise error
@@ -354,7 +358,7 @@ class MingCourtAgent:
                     "系统采用内阁一致结果。" if self._vote is None else "系统采用内阁加权投票结果。"
                 )
             outcome = "advice_normalized"
-        except ConnectionError:
+        except (ConnectionError, LLMCallError):
             self._connection_failures[_CHIEF] += 1
             if self._connection_failures[_CHIEF] <= self._max_connection_retries:
                 raise
@@ -461,14 +465,14 @@ class MingCourtAgent:
                     decision_request=request,
                 )
             )
-        except ConnectionError as error:
+        except (ConnectionError, LLMCallError) as error:
             self._last_llm_call_count += 1
             self._trace.append(
                 MingCallTrace(
                     request.decision_id,
                     role,
                     caller,
-                    "connection_error",
+                    "connection_error" if isinstance(error, ConnectionError) else "call_error",
                     error=str(error),
                     phase=phase,
                 )

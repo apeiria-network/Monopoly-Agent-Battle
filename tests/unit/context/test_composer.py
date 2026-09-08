@@ -221,6 +221,33 @@ def test_same_decision_id_folds_question_but_keeps_multiple_assistants(tmp_path:
     assert "合法候选操作" in trailing_user.content
 
 
+def test_empty_bad_reply_replays_as_placeholder(tmp_path: Path) -> None:
+    """A blank bad reply must not be sent as an empty assistant message.
+
+    Some vendors (e.g. Kimi) reject an assistant message whose content is an
+    empty string with HTTP 400, so the composer replays a placeholder instead.
+    """
+    engine = _make_engine(tmp_path)
+    conv = AgentConversation(agent_id="a", window_turns=1)
+    conv.start_turn(1)
+    conv.append_error(
+        decision_id="d-empty",
+        question_summary="## 当前决策\n你需要选一个合法选项。",
+        bad_reply="",
+        feedback_text=(
+            "Error: 上一条回复为空（思考可能耗尽了输出 token 额度），请直接输出合法 JSON 决策回复。"
+        ),
+    )
+
+    request = build_decision_request(engine, sequence=1)
+    messages, _warning = compose_prompt(conv, request)
+
+    roles = [m.role for m in messages]
+    assert roles == ["system", "user", "assistant", "user"]
+    assert messages[2].content == "（空回复）"
+    assert "上一条回复为空" in messages[-1].content
+
+
 def test_error_entries_persist_across_multi_decisions_within_turn(tmp_path: Path) -> None:
     """A validation-failed reply stays visible in segment 4 for the whole turn."""
     engine = _make_engine(tmp_path)
