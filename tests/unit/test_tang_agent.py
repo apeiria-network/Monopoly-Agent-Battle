@@ -140,6 +140,78 @@ def test_tang_menxia_accepts_code_fenced_review(tmp_path: Path) -> None:
     assert [len(clients[role].requests) for role in ("zhongshu", "menxia", "emperor")] == [1, 1, 1]
 
 
+def test_tang_zhongshu_connection_exhaustion_falls_back_to_default_draft(
+    tmp_path: Path,
+) -> None:
+    req = request(tmp_path)
+    clients: dict[str, Any] = {
+        "shangshu": Stub(["全局信息摘要"]),
+        "zhongshu": Flaky(
+            [
+                LLMConnectionError("zhongshu down"),
+                LLMConnectionError("zhongshu down"),
+                LLMConnectionError("zhongshu down"),
+            ]
+        ),
+        "menxia": Stub([review("agree")]),
+        "emperor": Stub([choice(req, "终裁")]),
+    }
+    agent = _build(clients)
+
+    with pytest.raises(LLMConnectionError):
+        agent(req)
+    with pytest.raises(LLMConnectionError):
+        agent(req)
+    result = agent(req)
+
+    assert json.loads(result)["reason"] == "终裁"
+    assert len(clients["zhongshu"].requests) == 3
+    assert len(clients["menxia"].requests) == 1
+    assert len(clients["emperor"].requests) == 1
+    menxia_text = "\n".join(message.content for message in clients["menxia"].requests[0].messages)
+    assert "中书省重连次数耗尽，无法做出有效回复，采用默认合法草案。" in menxia_text
+    outcomes = [(call["role"], call["outcome"]) for call in agent.court_calls()]
+    assert outcomes.count(("zhongshu", "connection_error")) == 3
+    assert ("zhongshu", "connection_fallback") in outcomes
+    assert ("emperor", "success") in outcomes
+
+
+def test_tang_menxia_connection_exhaustion_passes_draft(tmp_path: Path) -> None:
+    req = request(tmp_path)
+    clients: dict[str, Any] = {
+        "shangshu": Stub(["全局信息摘要"]),
+        "zhongshu": Stub([choice(req, "草案1")]),
+        "menxia": Flaky(
+            [
+                LLMConnectionError("menxia down"),
+                LLMConnectionError("menxia down"),
+                LLMConnectionError("menxia down"),
+            ]
+        ),
+        "emperor": Stub([choice(req, "终裁")]),
+    }
+    agent = _build(clients)
+
+    with pytest.raises(LLMConnectionError):
+        agent(req)
+    with pytest.raises(LLMConnectionError):
+        agent(req)
+    result = agent(req)
+
+    assert json.loads(result)["reason"] == "终裁"
+    assert len(clients["zhongshu"].requests) == 1
+    assert len(clients["menxia"].requests) == 3
+    assert len(clients["emperor"].requests) == 1
+    emperor_text = "\n".join(message.content for message in clients["emperor"].requests[0].messages)
+    assert "门下省重连次数耗尽，无法做出有效回复，通过当前草案。" in emperor_text
+    outcomes = [(call["role"], call["outcome"]) for call in agent.court_calls()]
+    assert outcomes.count(("menxia", "connection_error")) == 3
+    assert ("menxia", "connection_fallback") in outcomes
+    assert ("emperor", "success") in outcomes
+    # The fallback review passes the draft, so no redraft round happens.
+    assert len(clients["zhongshu"].requests) == 1
+
+
 def test_tang_three_disagree_has_no_fourth_round(tmp_path: Path) -> None:
     req = request(tmp_path)
     agent, clients = make(req, tmp_path, [review("disagree")] * 3)

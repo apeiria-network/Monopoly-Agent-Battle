@@ -142,6 +142,34 @@ def test_priest_connection_failure_retries_priest_stage(tmp_path: Path) -> None:
     ]
 
 
+def test_priest_connection_exhaustion_falls_back_and_emperor_decides(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    expected = _valid_response(request)
+    priest = StubClient([LLMConnectionError("priest down")] * 3)
+    emperor = StubClient([expected])
+    agent = _agent(request, priest, emperor)
+
+    with pytest.raises(LLMConnectionError):
+        agent(request)
+    with pytest.raises(LLMConnectionError):
+        agent(request)
+    response = agent(request)
+
+    assert response == expected
+    assert len(priest.requests) == 3
+    assert len(emperor.requests) == 1
+    emperor_text = "\n".join(message.content for message in emperor.requests[0].messages)
+    assert "大祭司重连次数耗尽，无法做出有效回复。" in emperor_text
+    outcomes = [call["outcome"] for call in agent.court_calls()]
+    assert outcomes == [
+        "connection_error",
+        "connection_error",
+        "connection_error",
+        "connection_fallback",
+        "success",
+    ]
+
+
 def test_emperor_connection_failure_does_not_repeat_priest(tmp_path: Path) -> None:
     request = _request(tmp_path)
     priest = StubClient(["神谕"])

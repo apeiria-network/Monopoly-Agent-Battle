@@ -121,6 +121,70 @@ def make_agent(req: DecisionRequest) -> tuple[MingCourtAgent, dict[str, Stub]]:
     return build_agent(clients)
 
 
+def test_ming_secretary_connection_exhaustion_falls_back(tmp_path: Path) -> None:
+    req = make_request(tmp_path)
+    option_ids = [item.option_id for item in req.options]
+    secretary_1 = FlakyStub([choice(req, option_ids[0], "大学士一草案")], fail_calls={1, 2, 3})
+    clients = {
+        "chief": Stub([choice(req, option_ids[0], "首辅草案"), choice(req, option_ids[0], "汇总")]),
+        "secretary_1": secretary_1,
+        "secretary_2": Stub([choice(req, option_ids[0])] * 3),
+        "emperor": Stub([choice(req, option_ids[0], "终裁")]),
+    }
+    agent, _ = build_agent(clients)
+
+    with pytest.raises(ConnectionError):
+        agent(req)
+    with pytest.raises(ConnectionError):
+        agent(req)
+    reply = agent(req)
+
+    assert json.loads(reply)["reason"] == "终裁"
+    assert secretary_1.calls == 3
+    assert len(clients["emperor"].requests) == 1
+    # The chief's advice call sees the secretary's system-assembled fallback.
+    advice_prompt = "\n".join(message.content for message in clients["chief"].requests[-1].messages)
+    assert "大学士一重连次数耗尽，无法做出有效回复。" in advice_prompt
+    trace_calls = cast(list[dict[str, object]], agent.court_trace()["calls"])
+    outcomes = [(call["role"], call["outcome"]) for call in trace_calls]
+    assert outcomes.count(("grand_secretary_1", "connection_error")) == 3
+    assert ("grand_secretary_1", "connection_fallback") in outcomes
+    assert ("emperor", "success") in outcomes
+
+
+def test_ming_chief_advice_connection_exhaustion_uses_vote_result(tmp_path: Path) -> None:
+    req = make_request(tmp_path)
+    option_ids = [item.option_id for item in req.options]
+    # Draft succeeds; the three advice calls all fail.
+    chief = FlakyStub([choice(req, option_ids[0], "首辅草案")], fail_calls={2, 3, 4})
+    clients = {
+        "chief": chief,
+        "secretary_1": Stub([choice(req, option_ids[0], "大学士一草案")]),
+        "secretary_2": Stub([choice(req, option_ids[0], "大学士二草案")]),
+        "emperor": Stub([choice(req, option_ids[0], "终裁")]),
+    }
+    agent, _ = build_agent(clients)
+
+    with pytest.raises(ConnectionError):
+        agent(req)
+    with pytest.raises(ConnectionError):
+        agent(req)
+    reply = agent(req)
+
+    assert json.loads(reply)["reason"] == "终裁"
+    assert chief.calls == 4
+    assert len(clients["emperor"].requests) == 1
+    emperor_prompt = "\n".join(
+        message.content for message in clients["emperor"].requests[0].messages
+    )
+    assert "首辅重连次数耗尽，无法汇总内阁意见，以内阁一致结果作为内阁决策意见。" in emperor_prompt
+    trace_calls = cast(list[dict[str, object]], agent.court_trace()["calls"])
+    outcomes = [(call["role"], call["outcome"]) for call in trace_calls]
+    assert outcomes.count(("chief_grand_secretary", "connection_error")) == 3
+    assert ("chief_grand_secretary", "connection_fallback") in outcomes
+    assert ("emperor", "success") in outcomes
+
+
 def test_ming_unanimous_workflow_and_emperor_visibility(tmp_path: Path) -> None:
     req = make_request(tmp_path)
     agent, clients = make_agent(req)

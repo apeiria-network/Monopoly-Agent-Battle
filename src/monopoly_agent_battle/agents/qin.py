@@ -41,6 +41,11 @@ _ADVICE = "advice"
 _COMMENT = "comment"
 _FINAL = "final_decision"
 _MAX_REASON_CHARS = 400
+_ROLE_LABELS = {
+    _CHANCELLOR: "丞相",
+    _GRAND_MARSHAL: "太尉",
+    _COUNSELLOR: "御史大夫",
+}
 
 _PROMPT_ROOT = Path(__file__).resolve().parent / "agent_prompt_list"
 
@@ -91,6 +96,7 @@ class QinCourtAgent:
         emperor_profile: ModelProfile,
         conversations: dict[str, AgentConversation],
         validation_retries: int = 2,
+        max_connection_retries: int = 2,
         performance_generator: Callable[[DecisionRequest], str | None] | None = None,
     ) -> None:
         self._player_id = player_id
@@ -108,6 +114,8 @@ class QinCourtAgent:
         }
         self._conversations = conversations
         self._validation_retries = validation_retries
+        self._max_connection_retries = max_connection_retries
+        self._connection_failures = {role: 0 for role in _ROLE_LABELS}
         self._performance_context: str | None = None
         self._legacy_performance_generator = performance_generator
         self._decision_id: str | None = None
@@ -238,68 +246,75 @@ class QinCourtAgent:
         self._responses = {}
         self._trace = []
         self._last_warning = None
+        self._connection_failures = {role: 0 for role in _ROLE_LABELS}
         for conversation in self._conversations.values():
             if conversation.current_turn is None:
                 conversation.start_turn(1)
 
     def _call_adviser(self, role: str, request: DecisionRequest) -> None:
-        raw = self._call(role, request, self._messages(role, request))
-        validation = parse_and_validate(raw, request)
-        attempts = 0
-        while not validation.valid and attempts < self._validation_retries:
-            self._record_validation(
-                role,
-                request,
-                raw,
-                validation.error or "回复非法",
-                build_feedback(validation, request),
-            )
+        try:
             raw = self._call(role, request, self._messages(role, request))
             validation = parse_and_validate(raw, request)
-            attempts += 1
-        if not validation.valid:
-            self._record_validation(
-                role,
-                request,
-                raw,
-                validation.error or "回复非法",
-                build_feedback(validation, request),
-            )
-            default = next(option for option in request.options if option.is_default)
-            normalized = json.dumps(
-                {"selected_option": default_option_json(default), "reason": _truncate(raw)},
-                ensure_ascii=False,
-            )
-        else:
-            normalized = raw
+            attempts = 0
+            while not validation.valid and attempts < self._validation_retries:
+                self._record_validation(
+                    role,
+                    request,
+                    raw,
+                    validation.error or "回复非法",
+                    build_feedback(validation, request),
+                )
+                raw = self._call(role, request, self._messages(role, request))
+                validation = parse_and_validate(raw, request)
+                attempts += 1
+            if not validation.valid:
+                self._record_validation(
+                    role,
+                    request,
+                    raw,
+                    validation.error or "回复非法",
+                    build_feedback(validation, request),
+                )
+                default = next(option for option in request.options if option.is_default)
+                normalized = json.dumps(
+                    {"selected_option": default_option_json(default), "reason": _truncate(raw)},
+                    ensure_ascii=False,
+                )
+            else:
+                normalized = raw
+        except ConnectionError as error:
+            normalized = self._connection_fallback(role, request, _ADVICE, error)
         self._responses[role] = normalized
         self._append_own_decision(role, request, normalized)
         self._deliver(request, role, _ADVICE, normalized, {_COUNSELLOR, _EMPEROR})
 
     def _call_counsellor(self, request: DecisionRequest) -> None:
-        raw = self._call(_COUNSELLOR, request, self._messages(_COUNSELLOR, request))
-        parsed = _parse_counsellor(raw)
-        attempts = 0
-        while parsed is None and attempts < self._validation_retries:
-            self._record_validation(
-                _COUNSELLOR,
-                request,
-                raw,
-                "御史大夫评价结构非法",
-                "Error: 御史大夫评价结构非法，请按要求输出包含两项 assessments 的 JSON 对象。",
-            )
+        try:
             raw = self._call(_COUNSELLOR, request, self._messages(_COUNSELLOR, request))
             parsed = _parse_counsellor(raw)
-            attempts += 1
-        if parsed is None:
-            self._record_validation(
-                _COUNSELLOR,
-                request,
-                raw,
-                "御史大夫评价结构非法",
-                "Error: 御史大夫评价结构非法，请按要求输出包含两项 assessments 的 JSON 对象。",
-            )
-            parsed = _fallback_comment()
+            attempts = 0
+            while parsed is None and attempts < self._validation_retries:
+                self._record_validation(
+                    _COUNSELLOR,
+                    request,
+                    raw,
+                    "御史大夫评价结构非法",
+                    "Error: 御史大夫评价结构非法，请按要求输出包含两项 assessments 的 JSON 对象。",
+                )
+                raw = self._call(_COUNSELLOR, request, self._messages(_COUNSELLOR, request))
+                parsed = _parse_counsellor(raw)
+                attempts += 1
+            if parsed is None:
+                self._record_validation(
+                    _COUNSELLOR,
+                    request,
+                    raw,
+                    "御史大夫评价结构非法",
+                    "Error: 御史大夫评价结构非法，请按要求输出包含两项 assessments 的 JSON 对象。",
+                )
+                parsed = _fallback_comment()
+        except ConnectionError as error:
+            parsed = self._connection_fallback(_COUNSELLOR, request, _COMMENT, error)
         self._responses[_COUNSELLOR] = parsed
         if self._legacy_performance_generator is not None:
             performance = self._legacy_performance_generator(request)
@@ -313,6 +328,43 @@ class QinCourtAgent:
                     self._conversations[_COUNSELLOR].append_context(performance)
         self._append_own_decision(_COUNSELLOR, request, parsed)
         self._deliver(request, _COUNSELLOR, _COMMENT, parsed, {_EMPEROR})
+
+    def _connection_fallback(
+        self, role: str, request: DecisionRequest, content_type: str, error: ConnectionError
+    ) -> str:
+        """Re-raise until reconnects are exhausted, then assemble a fallback reply.
+
+        The first failures propagate so the runner performs its documented
+        reconnect-and-retry cycle. Once a role exceeds the retry budget, the
+        court degrades to a system-assembled reply so the emperor still makes
+        the final decision instead of the whole turn falling back.
+        """
+        self._connection_failures[role] += 1
+        if self._connection_failures[role] <= self._max_connection_retries:
+            raise error
+        if role == _COUNSELLOR:
+            fallback = _connection_fallback_comment()
+        else:
+            default = next(option for option in request.options if option.is_default)
+            fallback = json.dumps(
+                {
+                    "selected_option": default_option_json(default),
+                    "reason": f"{_ROLE_LABELS[role]}重连次数耗尽，无法做出有效回复。",
+                },
+                ensure_ascii=False,
+            )
+        self._trace.append(
+            QinCallTrace(
+                request.decision_id,
+                role,
+                f"{self._player_id}.{role}",
+                "connection_fallback",
+                fallback,
+                decision_maker=role,
+                content_type=content_type,
+            )
+        )
+        return fallback
 
     def _call_emperor(self, request: DecisionRequest) -> str:
         messages = self._messages(_EMPEROR, request)
@@ -497,6 +549,19 @@ def _fallback_comment() -> str:
     return json.dumps(
         {
             "reason": "御史大夫多次重试失败，无法回复",
+            "assessments": [
+                {"officer_id": _CHANCELLOR, "judgement": "neutral", "reason": ""},
+                {"officer_id": _GRAND_MARSHAL, "judgement": "neutral", "reason": ""},
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+
+def _connection_fallback_comment() -> str:
+    return json.dumps(
+        {
+            "reason": "御史大夫重连次数耗尽，无法做出有效回复。",
             "assessments": [
                 {"officer_id": _CHANCELLOR, "judgement": "neutral", "reason": ""},
                 {"officer_id": _GRAND_MARSHAL, "judgement": "neutral", "reason": ""},

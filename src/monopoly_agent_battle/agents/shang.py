@@ -29,6 +29,7 @@ _EMPEROR_ROLE_INSTRUCTION = _load_prompt("Shang/Shang_emperor.txt")
 _NORMAL_OUTPUT = _load_prompt("normal_output_requirement.txt")
 
 _ORACLE_SECTION_HEADER = "## 朝廷内部神谕（仅供皇帝本次决策参考）"
+_PRIEST_CONNECTION_FALLBACK = "大祭司重连次数耗尽，无法做出有效回复。"
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +65,7 @@ class ShangCourtAgent:
         emperor_client: LLMClient,
         emperor_profile: ModelProfile,
         emperor_conversation: AgentConversation,
+        max_connection_retries: int = 2,
     ) -> None:
         self._player_id = player_id
         self._great_priest_client = great_priest_client
@@ -71,8 +73,10 @@ class ShangCourtAgent:
         self._emperor_client = emperor_client
         self._emperor_profile = emperor_profile
         self._emperor_conversation = emperor_conversation
+        self._max_connection_retries = max_connection_retries
         self._current_decision_id: str | None = None
         self._oracle: str | None = None
+        self._priest_failures = 0
         self._trace: list[CourtCallTrace] = []
         self._last_llm_call_count = 0
         self._last_warning: ContextWarning | None = None
@@ -120,6 +124,7 @@ class ShangCourtAgent:
             return
         self._current_decision_id = decision_id
         self._oracle = None
+        self._priest_failures = 0
         self._trace = []
         self._last_warning = None
 
@@ -151,7 +156,28 @@ class ShangCourtAgent:
                     error=str(error),
                 )
             )
-            raise
+            self._priest_failures += 1
+            if self._priest_failures <= self._max_connection_retries:
+                raise
+            oracle = _PRIEST_CONNECTION_FALLBACK
+            self._trace.append(
+                CourtCallTrace(
+                    decision_id=request.decision_id,
+                    role=_GREAT_PRIEST_ROLE,
+                    caller_role=caller_role,
+                    outcome="connection_fallback",
+                    content=oracle,
+                    decision_maker=_GREAT_PRIEST_ROLE,
+                    content_type=_ORACLE_CONTENT_TYPE,
+                )
+            )
+            self._deliver_internal_message(
+                request,
+                decision_maker=_GREAT_PRIEST_ROLE,
+                content_type=_ORACLE_CONTENT_TYPE,
+                raw_content=oracle,
+            )
+            return oracle
         self._trace.append(
             CourtCallTrace(
                 decision_id=request.decision_id,

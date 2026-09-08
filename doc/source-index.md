@@ -19,7 +19,7 @@
 | `configs/experiments/preexperiment_demo/game_a.yaml` / `game_b.yaml` | 两局 Level 0 完全随机、非 LLM 的预实验示例配置。 | 由 `batch.yaml` 按顺序调用；也可作为独立 `play --config` 配置。 |
 | `configs/fake_agent_batch_test/generate_configs.py` | 生成 4 批 × 20 局、50 回合的四朝廷 fake 对局配置及批次清单；座位轮转均衡，种子互异，开局发 3 张机会卡，生成时逐份预校验。 | `.venv/Scripts/python.exe configs/fake_agent_batch_test/generate_configs.py`；批次用 `experiment run --batch configs/fake_agent_batch_test/batchN/batch.yaml` 执行。 |
 | `src/monopoly_agent_battle/config/models.py` | 定义并校验单局配置、控制器及模型绑定；每个玩家或官员的 profile 可独立配置 URL、API Key 环境变量、模型、LLM seed 和调用参数。 | 由配置加载器和对局入口调用；真实 API Key 不进入配置。 |
-| `src/monopoly_agent_battle/config/loader.py` | 加载 YAML 配置，生成规范 JSON 及 SHA-256 `config_hash`。 | 由 CLI 或实验编排调用。 |
+| `src/monopoly_agent_battle/config/loader.py` | 加载 YAML 配置，生成规范 JSON 及 SHA-256 `config_hash`，并校验远程模型白名单（范围外直接报错）。 | 由 CLI 或实验编排调用。 |
 | `.env.example` | 本地凭据模板（占位值），列出通用 `MONOPOLY_API_KEY` 及 `example.yaml` 中 13 名官员的 `api_key_env` 变量名。 | `Copy-Item .env.example .env.local` 后填入真实 API Key；禁止提交真实密钥。 |
 
 ## 使用文档（`doc/`）
@@ -70,13 +70,16 @@
 | `llm/protocol.py` | 供应商无关 LLM 协议，统一消息、模型、LLM seed、采样参数、响应、用量和错误类型。 | 由各客户端与 Agent 使用。 |
 | `llm/mock_client.py` | 确定性可播种的 Mock LLM 客户端（含首项/种子/脚本策略）。 | 无凭据对局、CI 与测试使用。 |
 | `llm/fake_client.py` | 接收完整上下文并本地随机生成协议合法回复，不发送网络请求。 | 配置 `provider: fake` 后由 `play` 创建。 |
-| `llm/openai_compatible_client.py` | 调用 OpenAI 兼容 `/chat/completions` 接口；按 profile 读取独立 URL 和 API Key 环境变量，并归一化响应与 token 用量。 | 配置 `provider: openai_compatible` 后由 `play` 创建。 |
+| `llm/openai_compatible_client.py` | 调用 OpenAI 兼容 `/chat/completions` 接口；按 profile 读取独立 URL 和 API Key 环境变量，归一化响应与 token 用量；作为 `kimi`/`glm`/`gpt` 客户端的基类并提供供应商参数装配钩子。 | 配置 `provider: openai_compatible` 后由 `play` 创建。 |
+| `llm/kimi_client.py` | Kimi 专属客户端，始终显式发送思考开关。 | 配置 `provider: kimi` 后由 `play` 创建。 |
+| `llm/glm_client.py` | GLM 专属客户端，思考开启时注入 `thinking` 与 `reasoning_effort`。 | 配置 `provider: glm` 后由 `play` 创建。 |
+| `llm/gpt_client.py` | GPT 专属客户端，思考开启时注入 `reasoning`。 | 配置 `provider: gpt` 后由 `play` 创建。 |
 | `llm/recording_client.py` | 包装任意客户端，逐次调用（含失败）写入 `llm_calls.jsonl` 并重抛异常。 | 由 `play`/集成测试组装；供调用统计与无效阈值。 |
-| `llm/registry.py` | 按供应商别名注册和创建客户端。 | `play` 注册 `mock`、`fake` 与 `openai_compatible`。 |
+| `llm/registry.py` | 按供应商别名注册和创建客户端。 | `play` 注册 `mock`、`fake` 与四个远程 provider（`openai_compatible`、`kimi`、`glm`、`gpt`）。 |
 | `agents/baseline.py` | BaselineAgent（Stage 4D）：每次决策由 `compose_prompt()` 构造完整消息列表；段 3 告警仅作私有运行时记录，不进入 LLM 消息；标记为 LLM 控制器供运行器计量。 | 由 `play`/实验组装为 `DispatchController` 输入。 |
 | `agents/shang.py` | 商代双角色 CourtAgent：大祭司仅根据当前问题生成神谕，皇帝结合既有上下文和神谕作出最终协议回复；支持分阶段重试与私有审计。提示词为暂定版本，待人工重写审核。 | `play` 为 `shang_court` 玩家组装使用。 |
 | `agents/qin.py` | 秦代四角色 CourtAgent：丞相与太尉并行独立进言，御史大夫综合评价两者建议，皇帝最后裁决并产出唯一引擎决策；已结算的真实绩效仅提供给御史大夫。 | `play` 为 `qin_court` 玩家组装使用。 |
-| `agents/tang.py` | 唐代三角色 CourtAgent：中书省起草、门下省审核、皇帝终裁；最多三轮，皇帝按否决次数读取最后一轮或完整三轮内部记录。内部消息使用可信角色元数据，门下省严格限制为 `agree` / `disagree` 审核 JSON，非法输出按角色重试并安全回退。 | `play` 为 `tang_court` 玩家组装使用。 |
+| `agents/tang.py` | 唐代四角色 CourtAgent：尚书省先生成全局信息摘要（≤400 字）注入中书/门下/皇帝；中书省起草、门下省审核、皇帝终裁；最多三轮，皇帝按否决次数读取最后一轮或完整三轮内部记录。内部消息使用可信角色元数据，门下省严格限制为 `agree` / `disagree` 审核 JSON，非法输出按角色重试并安全回退。 | `play` 为 `tang_court` 玩家组装使用。 |
 | `agents/ming.py` | 明代四角色 CourtAgent：首辅与两名大学士并行草拟，分歧时依据其他已完成草案并行重拟，仍不一致时按首辅 1.5、两名大学士各 1.0 加权投票；首辅 advice 的选项由系统强制采用一致或投票结果并支持重试，皇帝读取 advice 后最终裁决。当前决策与历史决策按角色隔离投递，首辅自身 advice 保留为 assistant 消息。提示词为暂定版本，待人工重写审核。 | `play` 为 `ming_court` 玩家组装使用。 |
 | `performance/random_generator.py` | 保留旧随机官员绩效文本生成逻辑，供兼容或独立测试使用；不参与当前真实绩效生产流程。 | 生产对局不调用。 |
 | `performance/scoring.py` | 定义决策签名、官员意见证据、1 回合/3 回合窗口结果及一致率差评规则。 | 由绩效跟踪器调用，结果可写入 `performance.jsonl`。 |
@@ -164,6 +167,8 @@
 | `tests/manual/render_history_broadcast.py` | 手动验收脚本（Stage 4B）：使用直接状态注入（从 `test_chance_cards.py` 习得的模式）创建 20 个独立场景，通过控制玩家位置、直接注入机会卡、设置产权归属和控制骰子序列，覆盖全部 33 个白名单事件（每个事件≥2次出现）。生成 `tests/manual/history_broadcast_report.txt` 完整事件日志供项目负责人人工审核中文句式质量。2026-08-19 运行通过，exit status 0，33/33 事件达标。 | `.venv/Scripts/python.exe tests/manual/render_history_broadcast.py` |
 | `tests/manual/render_tang_decision_prompt.py` | 唐代十个朝廷上下文场景手动渲染，复用生产 `TangCourtAgent`、`compose_prompt()`、引擎决策请求和角色提示词，输出完整 `LLMMessage` 供人工审核。 | `.venv/Scripts/python.exe tests/manual/render_tang_decision_prompt.py`；报告为 `tests/manual/render_tang_decision_prompt_report.txt`。 |
 | `tests/manual/render_ming_decision_prompt.py` | 明代九个朝廷上下文场景手动渲染，使用固定回复的 fake LLM 驱动真实 `MingCourtAgent`，捕获四个角色每次实际 `LLMRequest.messages`；通过真实 `GameEngine.execute()` 注入第一次决策后的事件，并覆盖首轮一致、分歧重拟、加权投票、同一行动回合第二次决策及角色历史可见性。脚本重复执行并比较完整报告，验证相同引擎状态和相同 LLM 回复产生字节级一致的上下文；报告校验投票标题、第一次汇总指令位置及首辅指令的角色隔离。 | `.venv/Scripts/python.exe tests/manual/render_ming_decision_prompt.py`；报告为 `tests/manual/render_ming_decision_prompt_report.txt`。 |
+| `tests/unit/test_thinking_vendor_clients.py` | 三个供应商客户端的请求装配与校验测试。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_thinking_vendor_clients.py` |
+| `tests/manual/probe_vendor_payloads.py` | 四个远程端点的连通与参数诊断，不打印密钥。 | `.venv/Scripts/python.exe tests/manual/probe_vendor_payloads.py` |
 | `tests/unit/game/test_stage6_integrity.py` | Stage 6 第一批完整性测试：固定种子确定性、32 张卡牌唯一性、产权双向一致性、核心状态不变量及基础资金可追溯性。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/game/test_stage6_integrity.py` |
 | `tests/unit/game/test_board.py` | 40 格棋盘数据完整性与产权数值。 | `python -m pytest tests/unit/game/test_board.py` |
 | `tests/unit/game/test_engine.py` | 移动、租金、抵押、建造和双骰入狱等核心规则。 | `python -m pytest tests/unit/game/test_engine.py` |

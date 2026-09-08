@@ -23,6 +23,7 @@ _SECRETARY_1 = "grand_secretary_1"
 _SECRETARY_2 = "grand_secretary_2"
 _EMPEROR = "emperor"
 _MEMBERS = (_CHIEF, _SECRETARY_1, _SECRETARY_2)
+_ROLE_LABELS = {_CHIEF: "首辅", _SECRETARY_1: "大学士一", _SECRETARY_2: "大学士二"}
 _DRAFT = "draft"
 _ADVICE = "advice"
 _FINAL = "final_decision"
@@ -81,6 +82,7 @@ class MingCourtAgent:
         emperor_profile: ModelProfile,
         conversations: dict[str, AgentConversation],
         validation_retries: int = 2,
+        max_connection_retries: int = 2,
     ) -> None:
         self._player_id = player_id
         self._clients = {
@@ -97,6 +99,8 @@ class MingCourtAgent:
         }
         self._conversations = conversations
         self._validation_retries = validation_retries
+        self._max_connection_retries = max_connection_retries
+        self._connection_failures = {role: 0 for role in _MEMBERS}
         self._decision_id: str | None = None
         self._first: dict[str, str] = {}
         self._redrafted_roles: set[str] = set()
@@ -217,6 +221,7 @@ class MingCourtAgent:
         self._final_raw = None
         self._trace = []
         self._final_recorded = False
+        self._connection_failures = {role: 0 for role in _MEMBERS}
         for conversation in self._conversations.values():
             if conversation.current_turn is None:
                 conversation.start_turn(1)
@@ -268,54 +273,104 @@ class MingCourtAgent:
             )
 
     def _draft(self, role: str, request: DecisionRequest, phase: str) -> str:
-        raw = self._validated_call(role, request, phase)
+        try:
+            raw = self._validated_call(role, request, phase)
+        except ConnectionError as error:
+            raw = self._member_connection_fallback(role, request, phase, error)
         self._append_own(role, request, raw)
         return raw
 
     def _redraft(self, role: str, request: DecisionRequest) -> str:
-        raw = self._validated_call(role, request, "redraft")
+        try:
+            raw = self._validated_call(role, request, "redraft")
+        except ConnectionError as error:
+            raw = self._member_connection_fallback(role, request, "redraft", error)
         self._append_own(role, request, raw)
         return raw
+
+    def _member_connection_fallback(
+        self, role: str, request: DecisionRequest, phase: str, error: ConnectionError
+    ) -> str:
+        """Re-raise until reconnects are exhausted, then draft a system fallback."""
+        self._connection_failures[role] += 1
+        if self._connection_failures[role] <= self._max_connection_retries:
+            raise error
+        option = next(item for item in request.options if item.is_default)
+        fallback = json.dumps(
+            {
+                "selected_option": default_option_json(option),
+                "reason": f"{_ROLE_LABELS[role]}重连次数耗尽，无法做出有效回复。",
+            },
+            ensure_ascii=False,
+        )
+        self._trace.append(
+            MingCallTrace(
+                request.decision_id,
+                role,
+                f"{self._player_id}.{role}",
+                "connection_fallback",
+                fallback,
+                phase=phase,
+                decision_maker=role,
+                content_type=_DRAFT,
+            )
+        )
+        return fallback
 
     def _call_advice(self, request: DecisionRequest) -> str:
         expected = _expected_result(self._final_drafts, self._vote)
         material = ""
-        raw = self._call(_CHIEF, request, "advice", material)
-        validation = parse_and_validate(raw, request)
-        attempts = 0
-        while attempts < self._validation_retries:
-            mismatch = validation.valid and _validation_signature(
-                validation
-            ) != _expected_signature(expected)
-            if validation.valid and not mismatch:
-                break
-            error = (
-                "首辅汇总未采用内阁确定结果。"
-                if mismatch
-                else validation.error or "首辅汇总回复非法"
-            )
-            feedback = (
-                "请严格采用内阁确定的 selected_option。"
-                if mismatch
-                else build_feedback(validation, request)
-            )
-            self._record_error(_CHIEF, request, raw, error, feedback, "advice")
+        outcome: str
+        try:
             raw = self._call(_CHIEF, request, "advice", material)
             validation = parse_and_validate(raw, request)
-            attempts += 1
-        if validation.valid and _validation_signature(validation) == _expected_signature(expected):
-            reason = _response_reason(validation)
-        else:
+            attempts = 0
+            while attempts < self._validation_retries:
+                mismatch = validation.valid and _validation_signature(
+                    validation
+                ) != _expected_signature(expected)
+                if validation.valid and not mismatch:
+                    break
+                error = (
+                    "首辅汇总未采用内阁确定结果。"
+                    if mismatch
+                    else validation.error or "首辅汇总回复非法"
+                )
+                feedback = (
+                    "请严格采用内阁确定的 selected_option。"
+                    if mismatch
+                    else build_feedback(validation, request)
+                )
+                self._record_error(_CHIEF, request, raw, error, feedback, "advice")
+                raw = self._call(_CHIEF, request, "advice", material)
+                validation = parse_and_validate(raw, request)
+                attempts += 1
+            if validation.valid and _validation_signature(validation) == _expected_signature(
+                expected
+            ):
+                reason = _response_reason(validation)
+            else:
+                reason = (
+                    "系统采用内阁一致结果。" if self._vote is None else "系统采用内阁加权投票结果。"
+                )
+            outcome = "advice_normalized"
+        except ConnectionError:
+            self._connection_failures[_CHIEF] += 1
+            if self._connection_failures[_CHIEF] <= self._max_connection_retries:
+                raise
             reason = (
-                "系统采用内阁一致结果。" if self._vote is None else "系统采用内阁加权投票结果。"
+                "首辅重连次数耗尽，无法汇总内阁意见，以内阁一致结果作为内阁决策意见。"
+                if self._vote is None
+                else "首辅重连次数耗尽，无法汇总内阁意见，以投票结果作为内阁决策意见。"
             )
+            outcome = "connection_fallback"
         normalized = json.dumps({"selected_option": expected, "reason": reason}, ensure_ascii=False)
         self._trace.append(
             MingCallTrace(
                 request.decision_id,
                 _CHIEF,
                 f"{self._player_id}.{_CHIEF}",
-                "advice_normalized",
+                outcome,
                 normalized,
                 phase="advice",
                 decision_maker=_CHIEF,

@@ -118,6 +118,7 @@ class TangCourtAgent:
         self._current_draft: str | None = None
         self._summary: str | None = None
         self._summary_failures = 0
+        self._connection_failures = {_ZHONGSHU: 0, _MENXIA: 0}
 
     def player_id(self) -> str:
         return self._player_id
@@ -217,6 +218,7 @@ class TangCourtAgent:
         self._current_draft = None
         self._summary = None
         self._summary_failures = 0
+        self._connection_failures = {_ZHONGSHU: 0, _MENXIA: 0}
         for conversation in self._conversations.values():
             if conversation.current_turn is None:
                 conversation.start_turn(1)
@@ -306,9 +308,33 @@ class TangCourtAgent:
 
     def _call_draft(self, request: DecisionRequest, round_number: int) -> str:
         role = _ZHONGSHU
-        raw = self._validated_engine_call(
-            role, request, self._messages(role, request, round_number), round_number
-        )
+        try:
+            raw = self._validated_engine_call(
+                role, request, self._messages(role, request, round_number), round_number
+            )
+        except ConnectionError as error:
+            if not self._connection_exhausted(role):
+                raise error
+            default = next(option for option in request.options if option.is_default)
+            raw = json.dumps(
+                {
+                    "selected_option": default_option_json(default),
+                    "reason": "中书省重连次数耗尽，无法做出有效回复，采用默认合法草案。",
+                },
+                ensure_ascii=False,
+            )
+            self._trace.append(
+                TangCallTrace(
+                    request.decision_id,
+                    role,
+                    f"{self._player_id}.{role}",
+                    "connection_fallback",
+                    raw,
+                    round=round_number,
+                    decision_maker=role,
+                    content_type=_DRAFT,
+                )
+            )
         self._append_own(role, request, raw)
         self._current_draft = raw
         self._deliver(request, role, _DRAFT, raw, {_MENXIA})
@@ -316,16 +342,45 @@ class TangCourtAgent:
 
     def _call_review(self, request: DecisionRequest, round_number: int) -> tuple[str, str]:
         role = _MENXIA
-        raw = self._validated_review_call(request, round_number)
-        parsed = _parse_review(raw)
-        if parsed is None:
-            raw = _fallback_review()
-            verdict = "disagree"
-        else:
-            verdict, raw = parsed
+        try:
+            raw = self._validated_review_call(request, round_number)
+            parsed = _parse_review(raw)
+            if parsed is None:
+                raw = _fallback_review()
+                verdict = "disagree"
+            else:
+                verdict, raw = parsed
+        except ConnectionError as error:
+            if not self._connection_exhausted(role):
+                raise error
+            raw = json.dumps(
+                {
+                    "reason": "门下省重连次数耗尽，无法做出有效回复，通过当前草案。",
+                    "selected_option": {"option": "agree"},
+                },
+                ensure_ascii=False,
+            )
+            verdict = "agree"
+            self._trace.append(
+                TangCallTrace(
+                    request.decision_id,
+                    role,
+                    f"{self._player_id}.{role}",
+                    "connection_fallback",
+                    raw,
+                    round=round_number,
+                    decision_maker=role,
+                    content_type=_REVIEW,
+                )
+            )
         self._append_own(role, request, raw)
         self._deliver(request, role, _REVIEW, raw, {_ZHONGSHU})
         return raw, verdict
+
+    def _connection_exhausted(self, role: str) -> bool:
+        """Count one connection failure; True once the retry budget is spent."""
+        self._connection_failures[role] += 1
+        return self._connection_failures[role] > self._max_connection_retries
 
     def _validated_review_call(self, request: DecisionRequest, round_number: int) -> str:
         raw = self._call(
