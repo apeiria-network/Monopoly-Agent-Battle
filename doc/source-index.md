@@ -132,6 +132,7 @@
 | `cli/main.py` | 提供 `demo`、完整对局 `play`、单局 `report` 以及预实验批量执行命令；按配置组装随机、普通 LLM、商、秦、唐、明控制器。 | 使用 `.venv/Scripts/monopoly-agent-battle.exe experiment run --batch <批次清单>` 按清单顺序执行多局对局。 |
 | `reporting/single_game.py` | 从单局运行产物生成不包含私有 payload 的安全汇总报告，并渲染 Markdown。 | 调用 `build_single_game_report(run_directory)` 和 `render_single_game_report(report)`。 |
 | `reporting/llm_digest.py` | 从 `decisions.jsonl`（朝廷 trace 与状态快照）+ `llm_calls.jsonl`（基线逐次调用）生成一次调用一行的 LLM 回复摘要 CSV（轮次·玩家·发言者·reason·选项·target·最终执行命令·净资产·机会卡数·是否最终决策者·是否报错回复）。 | 调用 `write_llm_digest(run_directory)`；`play`/`report` 在含 LLM 调用时自动生成 `llm_digest.csv`。 |
+| `reporting/plots.py` | 从 `llm_digest.csv` 读取各玩家逐轮净资产/现金序列，生成对局资金曲线图 `cash_by_round.png`（各玩家现金曲线）与 `net_worth_and_cash_by_round.png`（净资产实线+现金虚线同色）；matplotlib 懒加载，缺失或无可用数据时抛 `PlotGenerationError`。 | 调用 `write_run_curves(run_directory)`；`play` 在含 LLM 调用时对局结束自动生成两张 PNG。 |
 
 ## 自动化测试（`tests/`）
 
@@ -175,6 +176,7 @@
 | `tests/integration/test_cli_demo.py` | CLI 创建可审计运行目录的端到端闭环。 | `python -m pytest tests/integration/test_cli_demo.py` |
 | `tests/unit/test_single_game_report.py` | 可读单局报告的安全聚合、Markdown 渲染及缺失结果拒绝。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_single_game_report.py` |
 | `tests/unit/test_llm_digest.py` | LLM 回复摘要 CSV：基线逐次调用对位、朝廷 trace 行与最终决策标记、校验拒绝/回退/连接失败标记、净资产与机会卡列、围栏与自由文本解析、CSV 转义与 BOM 落盘。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_llm_digest.py` |
+| `tests/unit/test_plots.py` | 资金曲线图自动生成：双图落盘、无 digest 返回空、无可用数据报错、缺净资产列仅出现金图及同轮取末值。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_plots.py` |
 
 ## 常用质量检查
 
