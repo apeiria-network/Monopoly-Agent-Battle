@@ -654,7 +654,7 @@ def test_config_accepts_absolute_output_directory(tmp_path: Path) -> None:
     assert config.output_directory == tmp_path
 
 
-@pytest.mark.parametrize("provider", ["kimi", "glm", "gpt"])
+@pytest.mark.parametrize("provider", ["kimi", "glm", "gpt", "qwen"])
 def test_config_accepts_vendor_thinking_providers(provider: str) -> None:
     data = config_data()
     data["model_profiles"] = {
@@ -673,7 +673,7 @@ def test_config_accepts_vendor_thinking_providers(provider: str) -> None:
     assert config.model_profiles["vendor"].thinking is True
 
 
-@pytest.mark.parametrize("provider", ["kimi", "glm", "gpt"])
+@pytest.mark.parametrize("provider", ["kimi", "glm", "gpt", "qwen"])
 def test_config_rejects_incomplete_vendor_profile(provider: str) -> None:
     data = config_data()
     data["model_profiles"] = {"vendor": {"provider": provider, "model": "model-only"}}
@@ -709,7 +709,12 @@ model_profiles:
 
 @pytest.mark.parametrize(
     ("provider", "model"),
-    [("kimi", "kimi-k2.6"), ("glm", "glm-5.3-flash"), ("gpt", "gpt-5.6-luna")],
+    [
+        ("kimi", "kimi-k2.6"),
+        ("glm", "glm-5.3-flash"),
+        ("gpt", "gpt-5.6-luna"),
+        ("qwen", "qwen3.8-flash"),
+    ],
 )
 def test_load_game_config_accepts_whitelisted_vendor_models(
     tmp_path: Path, provider: str, model: str
@@ -720,7 +725,7 @@ def test_load_game_config_accepts_whitelisted_vendor_models(
     assert load_game_config(config_path).model_profiles["vendor"].model == model
 
 
-@pytest.mark.parametrize("provider", ["kimi", "glm", "gpt"])
+@pytest.mark.parametrize("provider", ["kimi", "glm", "gpt", "qwen"])
 def test_load_game_config_applies_whitelist_to_vendor_providers(
     tmp_path: Path, provider: str
 ) -> None:

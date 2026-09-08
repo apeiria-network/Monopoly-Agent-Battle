@@ -15,6 +15,7 @@ from monopoly_agent_battle.llm.gpt_client import GptClient
 from monopoly_agent_battle.llm.kimi_client import KimiClient
 from monopoly_agent_battle.llm.openai_compatible_client import OpenAICompatibleClient
 from monopoly_agent_battle.llm.protocol import LLMMessage, LLMRequest
+from monopoly_agent_battle.llm.qwen_client import QwenClient
 
 
 class FakeHTTPResponse:
@@ -152,9 +153,36 @@ def test_gpt_sends_reasoning_effort_low_when_opted_in(monkeypatch: pytest.Monkey
     assert "thinking" not in payload
 
 
+def test_qwen_sends_disabled_thinking_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = payload_of(monkeypatch, lambda: QwenClient(profile("qwen", "qwen3.8-flash")))
+
+    assert payload["enable_thinking"] is False
+    assert "thinking" not in payload
+    assert "reasoning" not in payload
+    assert "reasoning_effort" not in payload
+
+
+def test_qwen_sends_enabled_thinking_and_low_effort_when_opted_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = payload_of(
+        monkeypatch, lambda: QwenClient(profile("qwen", "qwen3.8-flash", thinking=True))
+    )
+
+    assert payload["enable_thinking"] is True
+    assert payload["reasoning_effort"] == "low"
+    assert "thinking" not in payload
+    assert "reasoning" not in payload
+
+
 @pytest.mark.parametrize(
     ("client_class", "provider"),
-    [(KimiClient, "kimi"), (GlmClient, "glm"), (GptClient, "gpt")],
+    [
+        (KimiClient, "kimi"),
+        (GlmClient, "glm"),
+        (GptClient, "gpt"),
+        (QwenClient, "qwen"),
+    ],
 )
 def test_vendor_clients_reject_mismatched_provider(
     monkeypatch: pytest.MonkeyPatch,
@@ -173,6 +201,7 @@ def test_vendor_clients_reject_mismatched_provider(
         (KimiClient, "kimi", "kimi-k2.6"),
         (GlmClient, "glm", "glm-5.3-flash"),
         (GptClient, "gpt", "gpt-5.6-luna"),
+        (QwenClient, "qwen", "qwen3.8-flash"),
     ],
 )
 def test_vendor_clients_require_environment_credential(

@@ -36,6 +36,7 @@ from monopoly_agent_battle.llm.gpt_client import GptClient
 from monopoly_agent_battle.llm.kimi_client import KimiClient
 from monopoly_agent_battle.llm.mock_client import MockLLMClient
 from monopoly_agent_battle.llm.openai_compatible_client import OpenAICompatibleClient
+from monopoly_agent_battle.llm.qwen_client import QwenClient
 from monopoly_agent_battle.llm.recording_client import RecordingLLMClient
 from monopoly_agent_battle.llm.registry import create_client, register_client_factory
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts, utc_timestamp
@@ -116,6 +117,7 @@ def run_play(config_path: Path) -> Path:
         "kimi": KimiClient,
         "glm": GlmClient,
         "gpt": GptClient,
+        "qwen": QwenClient,
     }
     for provider, factory in remote_factories.items():
         if any(profile.provider == provider for profile in config.model_profiles.values()):

@@ -22,10 +22,13 @@ SUPPORTED_REMOTE_MODELS: frozenset[str] = frozenset(
         "kimi-k2.6",
         "GPT-5.6-Luna",
         "gpt-5.6-luna",
+        "qwen3.8-flash",
     }
 )
 
-REMOTE_MODEL_PROVIDERS: frozenset[str] = frozenset({"openai_compatible", "kimi", "glm", "gpt"})
+REMOTE_MODEL_PROVIDERS: frozenset[str] = frozenset(
+    {"openai_compatible", "kimi", "glm", "gpt", "qwen"}
+)
 
 
 class ModelProfile(BaseModel):

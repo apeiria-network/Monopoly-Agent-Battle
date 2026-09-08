@@ -6,6 +6,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from typing import Any
 
 from monopoly_agent_battle.config.local_env import load_local_env
 
@@ -23,9 +24,12 @@ def probe(label: str, base_url_env: str, key_env: str, payload: dict[str, object
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
             document = json.loads(response.read().decode("utf-8"))
-            usage = document.get("usage", {})
+            usage: dict[str, Any] = document.get("usage", {})
             out = usage.get("completion_tokens")
-            print(f"{label} -> 200 OK (out={out})")
+            details: dict[str, Any] = usage.get("completion_tokens_details") or {}
+            reasoning = details.get("reasoning_tokens") or details.get("thinking_tokens")
+            suffix = f" reasoning={reasoning}" if reasoning else ""
+            print(f"{label} -> 200 OK (out={out}{suffix})")
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", "replace")[:300]
         print(f"{label} -> HTTP {exc.code} : {body}")
@@ -100,6 +104,42 @@ def main() -> None:
             "seed": 42,
             "temperature": 0.4,
             "thinking": {"type": "enabled"},
+        },
+    )
+    probe(
+        "qwen think on+effort  ",
+        "QWEN_URL",
+        "QWEN_API_KEY",
+        {
+            "model": "qwen3.8-flash",
+            "messages": message,
+            "max_tokens": 2048,
+            "seed": 42,
+            "enable_thinking": True,
+            "reasoning_effort": "low",
+        },
+    )
+    probe(
+        "qwen think off        ",
+        "QWEN_URL",
+        "QWEN_API_KEY",
+        {
+            "model": "qwen3.8-flash",
+            "messages": message,
+            "max_tokens": 2048,
+            "seed": 42,
+            "enable_thinking": False,
+        },
+    )
+    probe(
+        "qwen default(no field)",
+        "QWEN_URL",
+        "QWEN_API_KEY",
+        {
+            "model": "qwen3.8-flash",
+            "messages": message,
+            "max_tokens": 2048,
+            "seed": 42,
         },
     )
 

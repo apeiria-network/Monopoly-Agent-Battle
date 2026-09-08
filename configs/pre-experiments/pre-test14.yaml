@@ -70,10 +70,10 @@ model_profiles:
     timeout_seconds: 60
 
   qin-imperial-counsellor:
-    provider: gpt
-    base_url_env: GPT_URL
-    api_key_env: GPT_API_KEY
-    model: gpt-5.6-luna
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
     seed: 42
     max_tokens: 2048
     thinking: true
@@ -110,10 +110,10 @@ model_profiles:
     timeout_seconds: 60
 
   tang-menxia:
-    provider: gpt
-    base_url_env: GPT_URL
-    api_key_env: GPT_API_KEY
-    model: gpt-5.6-luna
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
     seed: 42
     max_tokens: 2048
     thinking: true
@@ -150,10 +150,10 @@ model_profiles:
     timeout_seconds: 60
 
   ming-grand-secretary-2:
-    provider: gpt
-    base_url_env: GPT_URL
-    api_key_env: GPT_API_KEY
-    model: gpt-5.6-luna
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
     seed: 42
     max_tokens: 2048
     thinking: true

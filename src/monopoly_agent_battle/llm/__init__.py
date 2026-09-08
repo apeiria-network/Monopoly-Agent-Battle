@@ -21,6 +21,7 @@ from monopoly_agent_battle.llm.protocol import (
     LLMResponse,
     UsageMetrics,
 )
+from monopoly_agent_battle.llm.qwen_client import QwenClient
 from monopoly_agent_battle.llm.recording_client import RecordingLLMClient
 from monopoly_agent_battle.llm.registry import create_client, register_client_factory
 
@@ -37,6 +38,7 @@ __all__ = [
     "GptClient",
     "KimiClient",
     "OpenAICompatibleClient",
+    "QwenClient",
     "RecordingLLMClient",
     "UsageMetrics",
     "create_client",
