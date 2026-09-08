@@ -11,6 +11,7 @@ SUPPORTED_REMOTE_MODELS: frozenset[str] = frozenset(
     {
         "GLM-5-Turbo",
         "GLM-5.3-Flash",
+        "glm-5.3-flash",
         "DeepSeek-V4-Flash",
         "DeepSeek-V4-Pro",
         "Qwen3.7-Plus",
@@ -18,7 +19,10 @@ SUPPORTED_REMOTE_MODELS: frozenset[str] = frozenset(
         "Qwen3.8-Flash",
         "Kimi-K2.6",
         "Kimi-K2.7",
+        "kimi-k2.6",
+        "kimi-k2.7-code",
         "GPT-5.6-Luna",
+        "gpt-5.6-luna",
     }
 )
 
@@ -31,6 +35,11 @@ class ModelProfile(BaseModel):
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
     base_url: str | None = Field(default=None, min_length=1)
+    base_url_env: str | None = Field(
+        default=None,
+        min_length=1,
+        pattern=r"^[A-Za-z_][A-Za-z0-9_]*$",
+    )
     api_key_env: str | None = Field(
         default=None,
         min_length=1,
@@ -55,20 +64,17 @@ class ModelProfile(BaseModel):
             msg = f"unsupported model provider: {self.provider}"
             raise ValueError(msg)
         if self.provider == "openai_compatible":
-            missing = [
-                name
-                for name, value in (
-                    ("base_url", self.base_url),
-                    ("api_key_env", self.api_key_env),
-                )
-                if value is None
-            ]
-            if missing:
-                msg = "openai_compatible model profile requires: " + ", ".join(missing)
+            if self.base_url is None and self.base_url_env is None:
+                msg = "openai_compatible model profile requires one of: base_url, base_url_env"
                 raise ValueError(msg)
-            assert self.base_url is not None
-            if not self.base_url.startswith(("http://", "https://")):
+            if self.base_url is not None and self.base_url_env is not None:
+                msg = "openai_compatible model profile cannot set both base_url and base_url_env"
+                raise ValueError(msg)
+            if self.base_url is not None and not self.base_url.startswith(("http://", "https://")):
                 msg = "openai_compatible base_url must use http:// or https://"
+                raise ValueError(msg)
+            if self.api_key_env is None:
+                msg = "openai_compatible model profile requires: api_key_env"
                 raise ValueError(msg)
         return self
 

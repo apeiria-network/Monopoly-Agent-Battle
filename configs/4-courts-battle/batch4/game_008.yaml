@@ -1,0 +1,179 @@
+game_id: game-008
+experiment_id: 4-courts-battle
+seed: 108
+prompt_profile: full-v2
+# 4-courts-battle game-008
+# seats: 1=明 2=商 3=秦 4=唐
+# shang=D qin=C tang=A ming=D
+
+players:
+  - player_id: ming-court
+    seat: 1
+    controller_type: ming_court
+    court_role_profiles:
+      chief_grand_secretary: ming-chief-grand-secretary
+      grand_secretary_1: ming-grand-secretary-1
+      grand_secretary_2: ming-grand-secretary-2
+      emperor: ming-emperor
+  - player_id: shang-court
+    seat: 2
+    controller_type: shang_court
+    court_role_profiles:
+      great_priest: shang-model
+      emperor: shang-model
+  - player_id: qin-court
+    seat: 3
+    controller_type: qin_court
+    court_role_profiles:
+      chancellor: qin-chancellor
+      grand_marshal: qin-grand-marshal
+      imperial_counsellor: qin-imperial-counsellor
+      emperor: qin-emperor
+  - player_id: tang-court
+    seat: 4
+    controller_type: tang_court
+    court_role_profiles:
+      shangshu: tang-shangshu
+      zhongshu: tang-zhongshu
+      menxia: tang-menxia
+      emperor: tang-emperor
+
+model_profiles:
+  shang-model:
+    provider: openai_compatible
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY
+    model: gpt-5.6-luna
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  qin-chancellor:
+    provider: openai_compatible
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY
+    model: gpt-5.6-luna
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  qin-grand-marshal:
+    provider: openai_compatible
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY
+    model: glm-5.3-flash
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  qin-imperial-counsellor:
+    provider: openai_compatible
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY
+    model: DeepSeek-V4-Flash
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  qin-emperor:
+    provider: openai_compatible
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.7-code
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  tang-shangshu:
+    provider: openai_compatible
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY
+    model: DeepSeek-V4-Flash
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  tang-zhongshu:
+    provider: openai_compatible
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.7-code
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  tang-menxia:
+    provider: openai_compatible
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY
+    model: gpt-5.6-luna
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  tang-emperor:
+    provider: openai_compatible
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY
+    model: glm-5.3-flash
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  ming-chief-grand-secretary:
+    provider: openai_compatible
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.7-code
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  ming-grand-secretary-1:
+    provider: openai_compatible
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY
+    model: DeepSeek-V4-Flash
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  ming-grand-secretary-2:
+    provider: openai_compatible
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY
+    model: glm-5.3-flash
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+  ming-emperor:
+    provider: openai_compatible
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY
+    model: gpt-5.6-luna
+    seed: 42
+    temperature: 0.2
+    max_tokens: 500
+    timeout_seconds: 60
+
+initial_cash: 1500
+max_complete_rounds: 50
+initial_chance_cards: 2
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs

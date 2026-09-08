@@ -260,7 +260,55 @@ def test_config_rejects_incomplete_openai_compatible_profile() -> None:
     data = config_data()
     data["model_profiles"] = {"real": {"provider": "openai_compatible", "model": "model-only"}}
 
-    with pytest.raises(ValidationError, match="requires: base_url, api_key_env"):
+    with pytest.raises(ValidationError, match="requires one of: base_url, base_url_env"):
+        GameConfig.model_validate(data)
+
+
+def test_config_accepts_base_url_env_instead_of_base_url() -> None:
+    data = config_data()
+    data["model_profiles"] = {
+        "real": {
+            "provider": "openai_compatible",
+            "base_url_env": "REAL_BASE_URL",
+            "api_key_env": "REAL_API_KEY",
+            "model": "GLM-5-Turbo",
+        }
+    }
+
+    config = GameConfig.model_validate(data)
+
+    assert config.model_profiles["real"].base_url is None
+    assert config.model_profiles["real"].base_url_env == "REAL_BASE_URL"
+
+
+def test_config_rejects_base_url_and_base_url_env_together() -> None:
+    data = config_data()
+    data["model_profiles"] = {
+        "real": {
+            "provider": "openai_compatible",
+            "base_url": "https://example.com/v1",
+            "base_url_env": "REAL_BASE_URL",
+            "api_key_env": "REAL_API_KEY",
+            "model": "GLM-5-Turbo",
+        }
+    }
+
+    with pytest.raises(ValidationError, match="cannot set both base_url and base_url_env"):
+        GameConfig.model_validate(data)
+
+
+def test_config_rejects_invalid_base_url_env_name() -> None:
+    data = config_data()
+    data["model_profiles"] = {
+        "real": {
+            "provider": "openai_compatible",
+            "base_url_env": "REAL-BASE-URL",
+            "api_key_env": "REAL_API_KEY",
+            "model": "GLM-5-Turbo",
+        }
+    }
+
+    with pytest.raises(ValidationError, match="base_url_env"):
         GameConfig.model_validate(data)
 
 

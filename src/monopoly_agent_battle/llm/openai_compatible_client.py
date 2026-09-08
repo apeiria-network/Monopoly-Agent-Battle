@@ -36,13 +36,23 @@ class OpenAICompatibleClient(LLMClient):
         if profile.provider != "openai_compatible":
             msg = "OpenAICompatibleClient requires provider=openai_compatible"
             raise ValueError(msg)
-        assert profile.base_url is not None
         assert profile.api_key_env is not None
         api_key = os.environ.get(profile.api_key_env)
         if not api_key:
             msg = f"required API key environment variable is not set: {profile.api_key_env}"
             raise ValueError(msg)
-        self._endpoint = f"{profile.base_url.rstrip('/')}/chat/completions"
+        if profile.base_url is not None:
+            base_url = profile.base_url
+        else:
+            assert profile.base_url_env is not None
+            base_url = os.environ.get(profile.base_url_env)
+            if not base_url:
+                msg = f"required base URL environment variable is not set: {profile.base_url_env}"
+                raise ValueError(msg)
+        if not base_url.startswith(("http://", "https://")):
+            msg = "openai_compatible base URL must use http:// or https://"
+            raise ValueError(msg)
+        self._endpoint = f"{base_url.rstrip('/')}/chat/completions"
         self._api_key = api_key
         self._default_timeout = profile.timeout_seconds or _DEFAULT_TIMEOUT_SECONDS
         self._thinking = profile.thinking
@@ -54,8 +64,9 @@ class OpenAICompatibleClient(LLMClient):
             "messages": [
                 {"role": message.role, "content": message.content} for message in request.messages
             ],
-            "thinking": {"type": "enabled" if self._thinking else "disabled"},
         }
+        if self._thinking:
+            payload["thinking"] = {"type": "enabled"}
         if request.temperature is not None:
             payload["temperature"] = request.temperature
         if request.max_tokens is not None:

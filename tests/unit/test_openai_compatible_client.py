@@ -111,7 +111,6 @@ def test_client_sends_independent_endpoint_credentials_and_parameters(
             "temperature": 0.3,
             "max_tokens": 123,
             "seed": 42,
-            "thinking": {"type": "disabled"},
         },
         "timeout": 7,
     }
@@ -177,6 +176,48 @@ def test_client_rejects_missing_environment_credential(monkeypatch: pytest.Monke
 
     with pytest.raises(ValueError, match="TEST_LLM_API_KEY"):
         OpenAICompatibleClient(profile())
+
+
+def test_client_resolves_endpoint_from_base_url_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_LLM_API_KEY", "secret")
+    monkeypatch.setenv("TEST_LLM_BASE_URL", "https://env.example/v1/")
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(http_request: urllib.request.Request, timeout: float) -> FakeHTTPResponse:
+        del timeout
+        captured["url"] = http_request.full_url
+        return FakeHTTPResponse(
+            {
+                "model": "actual-model",
+                "choices": [{"message": {"content": "answer"}}],
+                "usage": {},
+            }
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    client = OpenAICompatibleClient(profile(base_url=None, base_url_env="TEST_LLM_BASE_URL"))
+    client.complete(request())
+
+    assert captured["url"] == "https://env.example/v1/chat/completions"
+
+
+def test_client_rejects_missing_base_url_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_LLM_API_KEY", "secret")
+    monkeypatch.delenv("TEST_LLM_BASE_URL", raising=False)
+
+    with pytest.raises(ValueError, match="TEST_LLM_BASE_URL"):
+        OpenAICompatibleClient(profile(base_url=None, base_url_env="TEST_LLM_BASE_URL"))
+
+
+def test_client_rejects_non_http_base_url_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_LLM_API_KEY", "secret")
+    monkeypatch.setenv("TEST_LLM_BASE_URL", "ftp://env.example/v1")
+
+    with pytest.raises(ValueError, match="must use http:// or https://"):
+        OpenAICompatibleClient(profile(base_url=None, base_url_env="TEST_LLM_BASE_URL"))
 
 
 def test_client_classifies_retryable_http_error_without_secret(
