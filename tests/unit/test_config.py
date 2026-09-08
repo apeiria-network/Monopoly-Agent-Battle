@@ -652,3 +652,90 @@ def test_config_accepts_absolute_output_directory(tmp_path: Path) -> None:
 
     config = GameConfig.model_validate(data)
     assert config.output_directory == tmp_path
+
+
+@pytest.mark.parametrize("provider", ["kimi", "glm", "gpt"])
+def test_config_accepts_vendor_thinking_providers(provider: str) -> None:
+    data = config_data()
+    data["model_profiles"] = {
+        "vendor": {
+            "provider": provider,
+            "base_url": "https://vendor.example/v1",
+            "api_key_env": "VENDOR_API_KEY",
+            "model": "vendor-model",
+            "thinking": True,
+        }
+    }
+
+    config = GameConfig.model_validate(data)
+
+    assert config.model_profiles["vendor"].provider == provider
+    assert config.model_profiles["vendor"].thinking is True
+
+
+@pytest.mark.parametrize("provider", ["kimi", "glm", "gpt"])
+def test_config_rejects_incomplete_vendor_profile(provider: str) -> None:
+    data = config_data()
+    data["model_profiles"] = {"vendor": {"provider": provider, "model": "model-only"}}
+
+    with pytest.raises(ValidationError, match="requires one of: base_url, base_url_env"):
+        GameConfig.model_validate(data)
+
+
+def vendor_loader_yaml(provider: str, model: str) -> str:
+    return f"""game_id: game-001
+experiment_id: experiment-001
+seed: 42
+players:
+  - player_id: a
+    seat: 1
+    controller_type: llm_baseline
+    model_profile: vendor
+  - player_id: b
+    seat: 2
+    controller_type: random_baseline
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+model_profiles:
+  vendor:
+    provider: {provider}
+    base_url: https://vendor.example/v1
+    api_key_env: VENDOR_API_KEY
+    model: {model}
+"""
+
+
+@pytest.mark.parametrize(
+    ("provider", "model"),
+    [("kimi", "kimi-k2.6"), ("glm", "glm-5.3-flash"), ("gpt", "gpt-5.6-luna")],
+)
+def test_load_game_config_accepts_whitelisted_vendor_models(
+    tmp_path: Path, provider: str, model: str
+) -> None:
+    config_path = tmp_path / "game.yaml"
+    config_path.write_text(vendor_loader_yaml(provider, model), encoding="utf-8")
+
+    assert load_game_config(config_path).model_profiles["vendor"].model == model
+
+
+@pytest.mark.parametrize("provider", ["kimi", "glm", "gpt"])
+def test_load_game_config_applies_whitelist_to_vendor_providers(
+    tmp_path: Path, provider: str
+) -> None:
+    config_path = tmp_path / "game.yaml"
+    config_path.write_text(vendor_loader_yaml(provider, "some-unlisted-model"), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unsupported model 'some-unlisted-model'"):
+        load_game_config(config_path)
+
+
+def test_load_game_config_rejects_removed_kimi_k2_7_code(tmp_path: Path) -> None:
+    config_path = tmp_path / "game.yaml"
+    config_path.write_text(
+        vendor_loader_yaml("openai_compatible", "kimi-k2.7-code"), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="unsupported model 'kimi-k2.7-code'"):
+        load_game_config(config_path)

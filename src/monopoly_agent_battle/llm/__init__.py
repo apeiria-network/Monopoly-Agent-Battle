@@ -1,6 +1,9 @@
 """Provider-agnostic LLM abstraction and mock/recording clients."""
 
 from monopoly_agent_battle.llm.fake_client import FakeLLMClient
+from monopoly_agent_battle.llm.glm_client import GlmClient
+from monopoly_agent_battle.llm.gpt_client import GptClient
+from monopoly_agent_battle.llm.kimi_client import KimiClient
 from monopoly_agent_battle.llm.mock_client import (
     MockLLMClient,
     estimate_tokens,
@@ -30,6 +33,9 @@ __all__ = [
     "LLMResponse",
     "MockLLMClient",
     "FakeLLMClient",
+    "GlmClient",
+    "GptClient",
+    "KimiClient",
     "OpenAICompatibleClient",
     "RecordingLLMClient",
     "UsageMetrics",

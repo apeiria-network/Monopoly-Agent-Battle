@@ -31,6 +31,9 @@ from monopoly_agent_battle.decision.runner import (
 from monopoly_agent_battle.experiments.runner import render_batch_summary, run_batch
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.fake_client import FakeLLMClient
+from monopoly_agent_battle.llm.glm_client import GlmClient
+from monopoly_agent_battle.llm.gpt_client import GptClient
+from monopoly_agent_battle.llm.kimi_client import KimiClient
 from monopoly_agent_battle.llm.mock_client import MockLLMClient
 from monopoly_agent_battle.llm.openai_compatible_client import OpenAICompatibleClient
 from monopoly_agent_battle.llm.recording_client import RecordingLLMClient
@@ -108,8 +111,15 @@ def run_play(config_path: Path) -> Path:
         register_client_factory("mock", lambda profile: MockLLMClient(seed=profile.seed))
     if any(profile.provider == "fake" for profile in config.model_profiles.values()):
         register_client_factory("fake", lambda profile: FakeLLMClient(seed=profile.seed))
-    if any(profile.provider == "openai_compatible" for profile in config.model_profiles.values()):
-        register_client_factory("openai_compatible", OpenAICompatibleClient)
+    remote_factories = {
+        "openai_compatible": OpenAICompatibleClient,
+        "kimi": KimiClient,
+        "glm": GlmClient,
+        "gpt": GptClient,
+    }
+    for provider, factory in remote_factories.items():
+        if any(profile.provider == provider for profile in config.model_profiles.values()):
+            register_client_factory(provider, factory)
     for player in config.players:
         if _is_random_baseline(player.controller_type):
             controllers[player.player_id] = RandomBaselineController(

@@ -6,7 +6,7 @@ import json
 import os
 import urllib.error
 import urllib.request
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from monopoly_agent_battle.config.models import ModelProfile
 from monopoly_agent_battle.llm.protocol import (
@@ -32,9 +32,12 @@ _USER_AGENT = (
 class OpenAICompatibleClient(LLMClient):
     """Call one independently configured OpenAI-compatible endpoint."""
 
+    provider_name: ClassVar[str] = "openai_compatible"
+    error_label: ClassVar[str] = "OpenAI-compatible endpoint"
+
     def __init__(self, profile: ModelProfile) -> None:
-        if profile.provider != "openai_compatible":
-            msg = "OpenAICompatibleClient requires provider=openai_compatible"
+        if profile.provider != self.provider_name:
+            msg = f"{type(self).__name__} requires provider={self.provider_name}"
             raise ValueError(msg)
         assert profile.api_key_env is not None
         api_key = os.environ.get(profile.api_key_env)
@@ -50,7 +53,7 @@ class OpenAICompatibleClient(LLMClient):
                 msg = f"required base URL environment variable is not set: {profile.base_url_env}"
                 raise ValueError(msg)
         if not base_url.startswith(("http://", "https://")):
-            msg = "openai_compatible base URL must use http:// or https://"
+            msg = f"{self.provider_name} base URL must use http:// or https://"
             raise ValueError(msg)
         self._endpoint = f"{base_url.rstrip('/')}/chat/completions"
         self._api_key = api_key
@@ -65,8 +68,7 @@ class OpenAICompatibleClient(LLMClient):
                 {"role": message.role, "content": message.content} for message in request.messages
             ],
         }
-        if self._thinking:
-            payload["thinking"] = {"type": "enabled"}
+        self._apply_vendor_parameters(payload)
         if request.temperature is not None:
             payload["temperature"] = request.temperature
         if request.max_tokens is not None:
@@ -90,25 +92,23 @@ class OpenAICompatibleClient(LLMClient):
             with urllib.request.urlopen(http_request, timeout=timeout) as response:
                 loaded: Any = json.loads(response.read().decode("utf-8"))
                 if not isinstance(loaded, dict):
-                    raise LLMCallError(
-                        "OpenAI-compatible endpoint returned an invalid response schema"
-                    )
+                    raise LLMCallError(f"{self.error_label} returned an invalid response schema")
                 document = cast(dict[str, Any], loaded)
         except urllib.error.HTTPError as exc:
-            message = f"OpenAI-compatible endpoint returned HTTP {exc.code}"
+            message = f"{self.error_label} returned HTTP {exc.code}"
             if exc.code in _RETRYABLE_HTTP_STATUS:
                 raise LLMConnectionError(message) from None
             raise LLMCallError(message) from None
         except (urllib.error.URLError, TimeoutError) as exc:
             raise LLMConnectionError(
-                f"OpenAI-compatible endpoint connection failed: {type(exc).__name__}"
+                f"{self.error_label} connection failed: {type(exc).__name__}"
             ) from None
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             # A 2xx response whose body is empty, truncated, or non-JSON is a
             # transport/gateway hiccup (e.g. an unstable upstream channel), not a
             # permanent call error. Treat it as retryable so the runner can retry.
             raise LLMConnectionError(
-                f"OpenAI-compatible endpoint returned invalid JSON: {type(exc).__name__}"
+                f"{self.error_label} returned invalid JSON: {type(exc).__name__}"
             ) from None
 
         try:
@@ -128,9 +128,7 @@ class OpenAICompatibleClient(LLMClient):
             if not isinstance(response_model, str):
                 raise TypeError
         except (KeyError, IndexError, TypeError):
-            raise LLMCallError(
-                "OpenAI-compatible endpoint returned an invalid response schema"
-            ) from None
+            raise LLMCallError(f"{self.error_label} returned an invalid response schema") from None
 
         return LLMResponse(
             content=content,
@@ -142,6 +140,11 @@ class OpenAICompatibleClient(LLMClient):
             ),
             model=response_model,
         )
+
+    def _apply_vendor_parameters(self, payload: dict[str, Any]) -> None:
+        """Attach provider-specific thinking/sampling fields to the payload."""
+        if self._thinking:
+            payload["thinking"] = {"type": "enabled"}
 
 
 def _integer_usage(usage: dict[str, Any], field: str) -> int:

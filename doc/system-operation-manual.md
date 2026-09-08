@@ -72,8 +72,8 @@ python -m venv .venv
 - 玩家 2–4 名，`seat` 取 1–4 且唯一。`controller_type` ∈ `random_baseline` / `llm_baseline` / `shang_court` / `qin_court` / `tang_court` / `ming_court`。
 - `random_baseline` 禁止 `model_profile`；`llm_baseline` 必须引用一个 `model_profile`；朝廷玩家必须为每名官员填写 `court_role_profiles`。
 - 每个 `model_profile` 可独立配置 `provider`、`base_url`、`api_key_env`、`model`、`seed`、采样参数与超时；真实密钥绝不写入 YAML。
-- **模型白名单**：`openai_compatible` 只接受十个实测支持思考开关的模型——`GLM-5-Turbo`、`GLM-5.3-Flash`、`DeepSeek-V4-Flash`、`DeepSeek-V4-Pro`、`Qwen3.7-Plus`、`Qwen3.8-Max`、`Qwen3.8-Flash`、`Kimi-K2.6`、`Kimi-K2.7`、`GPT-5.6-Luna`；范围外模型在 YAML 加载时报错（全局生效，不区分 URL）。白名单定义在 `config/models.py::SUPPORTED_REMOTE_MODELS`，校验在 `config/loader.py`；校验置于 loader 层而非 profile 层，因此旧对局（含非白名单模型）的回放不受影响。
-- **思考模式默认关闭**：每个 profile 可独立设置 `thinking`（布尔，默认 `false`）；客户端统一注入思考开关参数，仅显式 `thinking: true` 时启用。开启后思考 token 计入输出，`max_tokens` 需调大。字段参与 `config_hash`。详见[配置教程](game-config-tutorial.md) 7.1/7.2 节。
+- **模型白名单**：真实接口 provider（`openai_compatible`、`kimi`、`glm`、`gpt`）只接受白名单模型——`GLM-5-Turbo`、`GLM-5.3-Flash`、`glm-5.3-flash`、`DeepSeek-V4-Flash`、`DeepSeek-V4-Pro`、`Qwen3.7-Plus`、`Qwen3.8-Max`、`Qwen3.8-Flash`、`Kimi-K2.6`、`Kimi-K2.7`、`kimi-k2.6`、`GPT-5.6-Luna`、`gpt-5.6-luna`（`kimi-k2.7-code` 已移除）；范围外模型在 YAML 加载时报错（全局生效，不区分 URL）。白名单定义在 `config/models.py::SUPPORTED_REMOTE_MODELS`，校验在 `config/loader.py`；校验置于 loader 层而非 profile 层，因此旧对局（含非白名单模型）的回放不受影响。
+- **思考模式默认关闭**：每个 profile 可独立设置 `thinking`（布尔，默认 `false`），仅显式 `thinking: true` 时启用。各 provider 的思考参数装配不同：`openai_compatible` 开启时发送 `thinking: {"type": "enabled"}`；`kimi` 始终显式发送 enabled/disabled（该接口默认开启思考，必须显式禁用）；`glm` 开启时发送 `thinking: {"type": "enabled"}` 并固定 `reasoning_effort: "low"`（暂不支持禁用，关闭时不发送相关字段）；`gpt` 开启时发送 `reasoning: {"effort": "low"}`。开启后思考 token 计入输出，`max_tokens` 需调大。字段参与 `config_hash`。详见[配置教程](game-config-tutorial.md) 7.1/7.2 节。
 - LLM 运行参数（`validation_retries`、`window_turns`、`prompt_profile`、`context_token_cap` 等）也会冻结进 `config.json`，参与 `config_hash`。
 - **开局发牌（可选）**：`initial_chance_cards`（整数，默认 `0`，上限 `3`，与机会卡手牌上限一致）控制开局按座位顺序为每位玩家从洗好的机会牌堆顶部发放的卡数。发牌不产生事件与播报，手牌内容遵守信息隔离；相同 `seed` 下发牌确定。填 `0` 或省略时行为与旧版完全一致，旧对局回放不受影响；字段参与 `config_hash`，详见[配置教程](game-config-tutorial.md) 第 3 节。
 
@@ -105,8 +105,8 @@ $env:MONOPOLY_TANG_EMPEROR_API_KEY = "临时Key"
 
 - 变量名建议统一前缀（如 `MONOPOLY_<朝廷>_<角色>_API_KEY`），并在 YAML 的 `api_key_env` 中逐一对应。多个角色可共用同一变量。
 - `.env.local` 已被 `.gitignore` 忽略。**不要**把真实密钥提交到版本库。
-- 仅 `provider: openai_compatible` 需要凭据；`mock` 和 `fake` 均为本地、无网络、无凭据。
-- 若 `api_key_env` 指向的变量未设置，创建 OpenAI 兼容客户端时会失败——先确认变量已注入且命令在根目录执行。
+- 仅真实接口 provider（`openai_compatible`、`kimi`、`glm`、`gpt`）需要凭据；`mock` 和 `fake` 均为本地、无网络、无凭据。
+- 若 `api_key_env` 指向的变量未设置，创建真实客户端时会失败——先确认变量已注入且命令在根目录执行。
 
 > 已确认的运行产物策略：`llm_calls.jsonl` 的响应摘要**保留原长、不脱敏**（真实密钥本就不进入 `config.json`、`llm_calls.jsonl` 或错误信息）；`output_directory` 拒绝含 `..` 的路径穿越，允许相对与绝对路径；**日志保留周期由人工管理，系统不做程序化自动清理**；并发运行时同名目录冲突由 `mkdir(exist_ok=False)` 天然拒绝，不覆盖既有产物。
 
@@ -280,8 +280,8 @@ Select-String -Path runs/<experiment_id>/<game_id>/events.jsonl -Pattern 'proper
 | `LLM baseline player ... requires model_profile` | 为 `llm_baseline` 填写已定义的 profile。 |
 | `... requires court_role_profiles` | 为朝廷玩家填全部官员 profile。 |
 | `player model_profile not defined` | 在 `model_profiles` 中补充或修正引用名。 |
-| `no client factory registered for provider: ...` | `provider` 只能是 `mock` / `fake` / `openai_compatible`。 |
-| `unsupported model '...' for provider openai_compatible` | `model` 必须是白名单六模型之一（见第 3 节），错误信息会列出全部可选值。 |
+| `no client factory registered for provider: ...` | `provider` 只能是 `mock` / `fake` / `openai_compatible` / `kimi` / `glm` / `gpt`。 |
+| `unsupported model '...' for provider ...` | `model` 必须是白名单模型之一（见第 3 节），错误信息会列出全部可选值；`kimi-k2.7-code` 已移除，改用 `kimi-k2.6`。 |
 | 拒绝 Level 1/2 或未支持版本 | 当前只支持 Level 0 与受支持的规则/数据版本。 |
 
 ### 8.2 凭据与网络
