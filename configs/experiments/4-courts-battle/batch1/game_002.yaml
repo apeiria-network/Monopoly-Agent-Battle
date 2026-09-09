@@ -5,7 +5,7 @@ prompt_profile: full-v2
 # 4-courts-battle game-002
 # seats: 1=商 2=秦 3=唐 4=明
 # shang=B qin=B tang=C ming=D
-# models: A=glm-5.3-flash B=DeepSeek-V4-Pro C=kimi-k2.6 D=gpt-5.6-luna
+# models: A=qwen3.8-flash B=DeepSeek-V4-Pro C=kimi-k2.6 D=gpt-5.6-luna
 
 players:
   - player_id: shang-court
@@ -61,10 +61,10 @@ model_profiles:
     timeout_seconds: 120
 
   qin-chancellor:
-    provider: glm
-    base_url_env: GLM_URL
-    api_key_env: GLM_API_KEY
-    model: glm-5.3-flash
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -111,10 +111,10 @@ model_profiles:
     timeout_seconds: 120
 
   tang-zhongshu:
-    provider: glm
-    base_url_env: GLM_URL
-    api_key_env: GLM_API_KEY
-    model: glm-5.3-flash
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -161,10 +161,10 @@ model_profiles:
     timeout_seconds: 120
 
   ming-grand-secretary-2:
-    provider: glm
-    base_url_env: GLM_URL
-    api_key_env: GLM_API_KEY
-    model: glm-5.3-flash
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
     thinking: true

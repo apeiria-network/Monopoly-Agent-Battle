@@ -5,7 +5,7 @@ prompt_profile: full-v2
 # 4-courts-battle game-006
 # seats: 1=明 2=商 3=秦 4=唐
 # shang=B qin=A tang=D ming=C
-# models: A=glm-5.3-flash B=DeepSeek-V4-Pro C=kimi-k2.6 D=gpt-5.6-luna
+# models: A=qwen3.8-flash B=DeepSeek-V4-Pro C=kimi-k2.6 D=gpt-5.6-luna
 
 players:
   - player_id: ming-court
@@ -91,10 +91,10 @@ model_profiles:
     timeout_seconds: 120
 
   qin-emperor:
-    provider: glm
-    base_url_env: GLM_URL
-    api_key_env: GLM_API_KEY
-    model: glm-5.3-flash
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -121,10 +121,10 @@ model_profiles:
     timeout_seconds: 120
 
   tang-menxia:
-    provider: glm
-    base_url_env: GLM_URL
-    api_key_env: GLM_API_KEY
-    model: glm-5.3-flash
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -151,10 +151,10 @@ model_profiles:
     timeout_seconds: 120
 
   ming-grand-secretary-1:
-    provider: glm
-    base_url_env: GLM_URL
-    api_key_env: GLM_API_KEY
-    model: glm-5.3-flash
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
     thinking: true
