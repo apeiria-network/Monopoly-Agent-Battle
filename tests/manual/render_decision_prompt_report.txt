@@ -7,7 +7,7 @@ STAGE 4D BASELINE 上下文确认清单（供项目负责人逐项人工审核�
 - 2. 每次实际决策字段与候选格式：动态末尾包含最新的你的状态、其他玩家状态、棋盘状态、当前决策和仅由引擎 给出的合法候选；每项候选保留 response_format。决策/运行审计 ID、牌堆顺序、RNG 与冻结命令参数不在 Prompt 中。见 A。
 - 3. 私有会话与窗口：每玩家一条独立 AgentConversation；window_turns=1 时，段 4 在本玩家新行动回合 开始一次性建立并在该回合内保持不变，段 5 只保留当前行动回合。见 B、C；四玩家独立实例见端到端集成测试。
 - 4. 历史播报与可见性：段 4 只使用 4B 白名单的 viewer-scoped 固定中文句式；段 5 的朝廷内部意见 仅由授权 CourtAgent 私有写入，以 user 上下文重放，不进入公开历史或其他玩家会话。本人可见自己的机会卡名称，旁观者对机会卡只见泛称；社区基金卡公开，抢夺选择是协议层单次受控例外。见 B、C、F；播报细节由 render_history_broadcast.py 已验收。
-- 5. 500-token 历史上限：仅段 4 独立严格限制为 500 估算 token；从最早完整播报事件开始删除，规则、当前状态、候选和段 5 均不截断。裁剪警告仅供 runtime 审计。见 D。
+- 5. 750-token 历史上限：仅段 4 独立严格限制为 750 估算 token；从最早完整播报事件开始删除，规则、当前状态、候选和段 5 均不截断。裁剪警告仅供 runtime 审计。见 D。
 - 6. 校验反馈生命周期：非法输出仅在出错 Agent 的当前行动回合内以 user(问题) → assistant(错误回复) → user(Error: …) 重放；下一行动回合的段 4 跳过 ErrorEntry。重试耗尽后，后续 上下文看到合成的默认候选 assistant 回复及其原因。见 E。
 - 7. 运行时基础设施隔离：断线、超时、重连次数、segment3_overflow 和回退机制记录到 runtime.jsonl / result.json，但绝不进入 Agent message；实际执行动作产生的游戏事件照常播报。见 E 与端到端集成测试。
 - 8. 冻结与审计边界：window_turns、sentence_template_version、validation_retries 和 ModelProfile 随 GameConfig/config_hash 冻结；每次调用的模型、用量、耗时和错误写入 llm_calls.jsonl，决策与回放产物可追溯。见 A–F 和端到端集成测试。
@@ -839,6 +839,21 @@ SCENARIO D: 段 4 溢出 — 真实回合历史触发裁剪与警告
 
 --- Message 2 [user] ---
 ## 历史事件播报
+[第12轮] 玩家b移动到第6格（Oriental Avenue）。
+[第12轮] 玩家b经过起点，获得200资金。
+[第12轮] 玩家b购买第6格（Oriental Avenue），支付100。
+[第12轮] 玩家b结束行动回合。
+[第13轮] 玩家a开始行动回合。
+[第13轮] 玩家a掷出2+3=5点。
+[第13轮] 玩家a移动到第32格（North Carolina Avenue）。
+[第13轮] 玩家a支付130给玩家b（原因：租金）。
+[第13轮] 玩家a结束行动回合。
+[第13轮] 玩家b开始行动回合。
+[第13轮] 玩家b掷出1+2=3点。
+[第13轮] 玩家b移动到第9格（Connecticut Avenue）。
+[第13轮] 玩家b支付40给玩家a（原因：租金）。
+[第13轮] 玩家b结束行动回合。
+[第14轮] 玩家a开始行动回合。
 [第14轮] 玩家a掷出4+5=9点。
 [第14轮] 玩家a移动到第1格（Mediterranean Avenue）。
 [第14轮] 玩家a经过起点，获得200资金。
@@ -941,7 +956,7 @@ SCENARIO D: 段 4 溢出 — 真实回合历史触发裁剪与警告
 ]
 
 --- 以下为私有审计/运行时信息，供负责人人工审阅，绝不进入 Agent 的 LLM 消息 ---
-[ContextWarning] ContextWarning(kind='segment3_overflow', detail='dropped 146 of 176 segment-3 events to fit strict budget 500 (estimated 489)')
+[ContextWarning] ContextWarning(kind='segment3_overflow', detail='dropped 131 of 176 segment-3 events to fit strict budget 750 (estimated 739)')
 --- BaselineAgent 只向 LLMRequest.messages 传入上面的 system/user/assistant 消息 ---
 
 ============================================================

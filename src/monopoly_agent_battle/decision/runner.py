@@ -104,7 +104,7 @@ def run_decision_game(
     When ``conversations`` is provided, each engine event is dispatched to every
     Agent's conversation for Stage 4C history tracking; ``turn_started`` events
     trigger ``start_turn`` on the matching Agent (rebuilding its segment-3 cache
-    with its independent fixed 500-token cap). Validation-failure feedback is
+    with its independent fixed 750-token cap). Validation-failure feedback is
     stashed on the conversation for the composer to render on retries.
     """
     events: list[GameEvent] = []

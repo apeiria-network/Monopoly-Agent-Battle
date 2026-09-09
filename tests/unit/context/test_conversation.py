@@ -80,17 +80,17 @@ def test_segment3_cache_renders_completed_turn_events_with_viewer_scope() -> Non
     assert conv.segment3_warning is None
 
 
-def test_segment3_cache_strictly_caps_history_at_500_tokens_and_keeps_tail() -> None:
+def test_segment3_cache_strictly_caps_history_at_750_tokens_and_keeps_tail() -> None:
     conv = AgentConversation(agent_id="a", window_turns=1)
     conv.start_turn(1)
-    for _ in range(50):
+    for _ in range(90):
         conv.append_event(_event("dice_rolled", player_id="a", dice=(6, 6)))
     conv.start_turn(2)
 
     sentences = conv.segment3_sentences
-    assert len(sentences) < 50
+    assert len(sentences) < 90
     assert sentences[-1].endswith("玩家a掷出6+6=12点。")
-    assert estimate_tokens("\n".join(sentences)) <= 500
+    assert estimate_tokens("\n".join(sentences)) <= 750
     assert conv.segment3_warning is not None
     assert conv.segment3_warning.kind == "segment3_overflow"
 

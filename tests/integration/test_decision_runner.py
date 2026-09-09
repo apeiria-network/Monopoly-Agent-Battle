@@ -166,7 +166,7 @@ def test_segment3_overflow_is_logged_once_per_action_turn(tmp_path: Path) -> Non
         player_id: AgentConversation(agent_id=player_id, window_turns=1) for player_id in ("a", "b")
     }
     conversations["a"].start_turn(0)
-    for _ in range(50):
+    for _ in range(90):
         conversations["a"].append_event(
             GameEvent(event_type="dice_rolled", payload={"player_id": "a", "dice": (6, 6)})
         )

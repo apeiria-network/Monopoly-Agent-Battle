@@ -118,11 +118,11 @@
 |---|---|---|
 | `context/broadcast.py` | 固定句式事件播报器（Stage 4B）。将 `GameEvent` 确定性渲染为中文固定句式；白名单 33 个事件、豁免 16 个事件，覆盖全部 49 个引擎事件类型。按 `viewer_id` 区分涉己/旁观渲染（机会卡抽取、弃置、被抢夺对观察者隐藏卡名；社区基金卡全员可见）。`BROADCAST_VERSION="v1"` 供 `sentence_template_version` 参考；未注册事件抛 `UnregisteredEventError`。 | `render_event(event, viewer_id) -> str \| None`；白名单事件返回句式，豁免事件返回 None。 |
 | `context/rules.py` | Stage 4C 段 2 游戏规则文本加载器。运行时读 `doc/monopoly_rules_basic.md`，模块级缓存。`GAME_RULES_VERSION="v1"`；测试用 `reset_cache()` 清缓存。 | `load_game_rules() -> str`。 |
-| `context/conversation.py` | 每 Agent 独立会话，按行动回合保存事件、决策和校验错误；回合开始重建段 3 历史缓存，独立严格限制为 500 token，并保持至该行动回合结束。 | 创建 `AgentConversation(agent_id, window_turns=1)`；runner 在行动回合开始调用 `start_turn()`，composer 读取其历史和当回合记录。 |
+| `context/conversation.py` | 每 Agent 独立会话，按行动回合保存事件、决策和校验错误；回合开始重建段 3 历史缓存，独立严格限制为 750 token，并保持至该行动回合结束。 | 创建 `AgentConversation(agent_id, window_turns=1)`；runner 在行动回合开始调用 `start_turn()`，composer 读取其历史和当回合记录。 |
 | `context/token_guard.py` | 估算文本 token 并裁剪段 3 历史：计入事件间换行，从最旧完整事件开始删除，确保保留内容严格满足预算；发生裁剪时返回运行时警告。 | `estimate_tokens(text)` 用于检查估算长度；`truncate_events_to_budget(rendered, budget)` 返回保留事件及可选 `ContextWarning`。 |
 | `context/composer.py` | 将私有会话与当前决策组合为角色分离的 LLM messages：system 放固定指令，user 放历史、回放和当前请求；连续可见事件用单换行，语义块之间保留空行；重试按 assistant 回复后接 user 反馈回放；同一决策 ID 的历史问题只渲染一次，同时保留各条 assistant 回复、可信内部消息、错误反馈和事件顺序。 | BaselineAgent 每次请求调用 `compose_prompt(conversation, request)`，取得 messages 及段 3 的可选运行时警告。 |
 | `context/validation_feedback.py` | Stage 4C 校验失败用户可见反馈模板；依据 `DecisionValidation.error_category` 选择模板。 | `build_feedback(validation, request) -> str`。 |
-| `MonopolyAgentBattle_developer_docs/history_context_supplement.md` | Stage 4 历史上下文规范及 4C-remake 确认设计：system/user 消息归属、段 3 独立严格 500-token 裁剪、事件换行、运行时告警隔离和校验反馈生命周期。 | 作为 4C-remake 的实现与人工审核依据；4D 开发前应先查阅。 |
+| `MonopolyAgentBattle_developer_docs/history_context_supplement.md` | Stage 4 历史上下文规范及 4C-remake 确认设计：system/user 消息归属、段 3 独立严格 750-token 裁剪、事件换行、运行时告警隔离和校验反馈生命周期。 | 作为 4C-remake 的实现与人工审核依据；4D 开发前应先查阅。 |
 
 ## 预实验编排（`src/monopoly_agent_battle/experiments/`）
 
@@ -168,7 +168,7 @@
 | `tests/unit/test_llm_protocol.py` | LLM 协议及 Mock、Fake、录制客户端；覆盖成功/失败记录和调用 ID 连续性。 | `python -m pytest tests/unit/test_llm_protocol.py` |
 | `tests/unit/test_baseline_agent.py` / `tests/integration/test_llm_runner.py` / `tests/integration/test_decision_runner.py` | 覆盖真实 LLM 请求的 system/user 边界、候选格式、运行时信息隔离、完整 Mock 对局，以及段 3 溢出警告的私有且按行动回合去重记录。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_baseline_agent.py tests/integration/test_llm_runner.py tests/integration/test_decision_runner.py` |
 | `tests/unit/context/test_broadcast.py` | 上下文播报器单元测试（Stage 4B）：豁免事件返回 None、全引擎事件类型穷举（白名单+豁免覆盖全部 49 个事件）、未注册事件抛异常、确定性渲染、涉己/旁观差异（card_drawn、card_discarded、chance_card_stolen）、payment_made 银行/玩家、player_jailed 原因映射、棋盘名称回退。 | `python -m pytest tests/unit/context/test_broadcast.py` |
-| `tests/unit/context/test_rules.py` / `test_token_guard.py` / `test_conversation.py` / `test_composer.py` / `test_validation_feedback.py` | 覆盖规则加载、段 3 严格 500-token 裁剪及同回合缓存稳定性、system/user 消息归属、相邻事件换行、重试消息顺序、校验反馈、同一决策 ID 的问题折叠及多条 assistant 回复保留。 | `.venv/Scripts/python.exe -m pytest tests/unit/context/` |
+| `tests/unit/context/test_rules.py` / `test_token_guard.py` / `test_conversation.py` / `test_composer.py` / `test_validation_feedback.py` | 覆盖规则加载、段 3 严格 750-token 裁剪及同回合缓存稳定性、system/user 消息归属、相邻事件换行、重试消息顺序、校验反馈、同一决策 ID 的问题折叠及多条 assistant 回复保留。 | `.venv/Scripts/python.exe -m pytest tests/unit/context/` |
 | `tests/manual/render_decision_prompt.py` | Stage 4D 人工审阅脚本：生成 Baseline 上下文确认清单及 A–G 实际 messages；覆盖角色边界、历史裁剪、校验重试与运行时隔离。`ContextWarning` 仅作为报告中的私有审计证据展示。 | 运行 `.venv/Scripts/python.exe tests/manual/render_decision_prompt.py` 后审阅生成的 `tests/manual/render_decision_prompt_report.txt`。 |
 | `tests/manual/render_history_broadcast.py` | 手动验收脚本（Stage 4B）：使用直接状态注入（从 `test_chance_cards.py` 习得的模式）创建 20 个独立场景，通过控制玩家位置、直接注入机会卡、设置产权归属和控制骰子序列，覆盖全部 33 个白名单事件（每个事件≥2次出现）。生成 `tests/manual/history_broadcast_report.txt` 完整事件日志供项目负责人人工审核中文句式质量。2026-08-19 运行通过，exit status 0，33/33 事件达标。 | `.venv/Scripts/python.exe tests/manual/render_history_broadcast.py` |
 | `tests/manual/render_tang_decision_prompt.py` | 唐代十个朝廷上下文场景手动渲染，复用生产 `TangCourtAgent`、`compose_prompt()`、引擎决策请求和角色提示词，输出完整 `LLMMessage` 供人工审核。 | `.venv/Scripts/python.exe tests/manual/render_tang_decision_prompt.py`；报告为 `tests/manual/render_tang_decision_prompt_report.txt`。 |
