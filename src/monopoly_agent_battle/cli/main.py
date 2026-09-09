@@ -12,12 +12,14 @@ from monopoly_agent_battle.agents.ming import MingCourtAgent
 from monopoly_agent_battle.agents.qin import QinCourtAgent
 from monopoly_agent_battle.agents.random_baseline import RandomBaselineController
 from monopoly_agent_battle.agents.shang import ShangCourtAgent
+from monopoly_agent_battle.agents.shang2 import Shang2CourtAgent
 from monopoly_agent_battle.agents.tang import TangCourtAgent
 from monopoly_agent_battle.config.loader import config_hash, load_game_config
 from monopoly_agent_battle.config.local_env import load_local_env
 from monopoly_agent_battle.config.models import (
     MingCourtRoleProfiles,
     QinCourtRoleProfiles,
+    Shang2CourtRoleProfiles,
     ShangCourtRoleProfiles,
     TangCourtRoleProfiles,
 )
@@ -153,6 +155,40 @@ def run_play(config_path: Path) -> Path:
                 emperor_conversation=conversation,
             )
             continue
+        if player.controller_type == "shang2_court":
+            assert isinstance(player.court_role_profiles, Shang2CourtRoleProfiles)
+            roles = {
+                role: config.model_profiles[getattr(player.court_role_profiles, role)]
+                for role in ("minister_1", "minister_2", "minister_3", "emperor")
+            }
+            role_clients = {
+                role: RecordingLLMClient(create_client(profile), artifacts, _current_round)
+                for role, profile in roles.items()
+            }
+            role_conversations = {
+                role: AgentConversation(
+                    agent_id=f"{player.player_id}.{role}",
+                    window_turns=config.window_turns,
+                    prompt_profile=config.prompt_profile,
+                )
+                for role in roles
+            }
+            conversations[player.player_id] = role_conversations
+            controllers[player.player_id] = Shang2CourtAgent(
+                player_id=player.player_id,
+                seed=config.seed,
+                minister_1_client=role_clients["minister_1"],
+                minister_1_profile=roles["minister_1"],
+                minister_2_client=role_clients["minister_2"],
+                minister_2_profile=roles["minister_2"],
+                minister_3_client=role_clients["minister_3"],
+                minister_3_profile=roles["minister_3"],
+                emperor_client=role_clients["emperor"],
+                emperor_profile=roles["emperor"],
+                conversations=role_conversations,
+                validation_retries=config.validation_retries,
+            )
+            continue
         if player.controller_type == "qin_court":
             assert isinstance(player.court_role_profiles, QinCourtRoleProfiles)
             roles = {
@@ -277,7 +313,8 @@ def run_play(config_path: Path) -> Path:
     court_types = {
         player.player_id: str(player.controller_type)
         for player in config.players
-        if player.controller_type in {"shang_court", "qin_court", "tang_court", "ming_court"}
+        if player.controller_type
+        in {"shang_court", "shang2_court", "qin_court", "tang_court", "ming_court"}
     }
     tracker = PerformanceTracker(engine, court_types)
     run_decision_game(

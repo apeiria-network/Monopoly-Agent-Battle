@@ -92,6 +92,17 @@ class ShangCourtRoleProfiles(BaseModel):
     emperor: str = Field(min_length=1)
 
 
+class Shang2CourtRoleProfiles(BaseModel):
+    """Independent model-profile bindings for the redesigned Shang court roles."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    minister_1: str = Field(min_length=1)
+    minister_2: str = Field(min_length=1)
+    minister_3: str = Field(min_length=1)
+    emperor: str = Field(min_length=1)
+
+
 class QinCourtRoleProfiles(BaseModel):
     """Independent model-profile bindings for the four Qin court roles."""
 
@@ -140,6 +151,7 @@ class PlayerConfig(BaseModel):
             "llm_baseline",
             "random_baseline",
             "shang_court",
+            "shang2_court",
             "qin_court",
             "tang_court",
             "ming_court",
@@ -148,6 +160,7 @@ class PlayerConfig(BaseModel):
     ) = None
     court_role_profiles: (
         ShangCourtRoleProfiles
+        | Shang2CourtRoleProfiles
         | QinCourtRoleProfiles
         | TangCourtRoleProfiles
         | MingCourtRoleProfiles
@@ -248,6 +261,16 @@ class GameConfig(BaseModel):
                     msg = (
                         f"Shang court player {player.player_id} "
                         "requires court_role_profiles of Shang roles"
+                    )
+                    raise ValueError(msg)
+            elif player.controller_type == "shang2_court":
+                if player.model_profile is not None:
+                    msg = f"Shang2 court player {player.player_id} must not set model_profile"
+                    raise ValueError(msg)
+                if not isinstance(player.court_role_profiles, Shang2CourtRoleProfiles):
+                    msg = (
+                        f"Shang2 court player {player.player_id} "
+                        "requires court_role_profiles of Shang2 roles"
                     )
                     raise ValueError(msg)
             elif player.controller_type == "qin_court":

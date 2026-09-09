@@ -8,6 +8,7 @@ from monopoly_agent_battle.config.models import (
     SUPPORTED_REMOTE_MODELS,
     GameConfig,
     QinCourtRoleProfiles,
+    Shang2CourtRoleProfiles,
     ShangCourtRoleProfiles,
 )
 
@@ -481,6 +482,100 @@ def test_config_rejects_undefined_shang_role_profile() -> None:
     ]
 
     with pytest.raises(ValidationError, match="model_profile not defined"):
+        GameConfig.model_validate(data)
+
+
+def _shang2_model_profiles() -> dict[str, object]:
+    return {
+        role: {"provider": "mock", "model": f"mock-{role}-v1"}
+        for role in ("minister_1", "minister_2", "minister_3", "emperor")
+    }
+
+
+def _shang2_role_profiles() -> dict[str, str]:
+    return {
+        "minister_1": "minister_1",
+        "minister_2": "minister_2",
+        "minister_3": "minister_3",
+        "emperor": "emperor",
+    }
+
+
+def test_config_accepts_shang2_court_with_four_role_profiles() -> None:
+    data = config_data()
+    data["model_profiles"] = _shang2_model_profiles()
+    data["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "shang2_court",
+            "court_role_profiles": _shang2_role_profiles(),
+        },
+        {"player_id": "b", "seat": 2},
+    ]
+
+    config = GameConfig.model_validate(data)
+
+    assert config.players[0].model_profile is None
+    profiles = config.players[0].court_role_profiles
+    assert isinstance(profiles, Shang2CourtRoleProfiles)
+    assert profiles.minister_1 == "minister_1"
+    assert profiles.minister_2 == "minister_2"
+    assert profiles.minister_3 == "minister_3"
+    assert profiles.emperor == "emperor"
+
+
+def test_config_rejects_shang2_court_without_role_profiles() -> None:
+    data = config_data()
+    data["players"] = [
+        {"player_id": "a", "seat": 1, "controller_type": "shang2_court"},
+        {"player_id": "b", "seat": 2},
+    ]
+
+    with pytest.raises(ValidationError, match="requires court_role_profiles"):
+        GameConfig.model_validate(data)
+
+
+def test_config_rejects_shang2_court_with_legacy_role_profiles() -> None:
+    data = config_data()
+    data["model_profiles"] = {
+        "priest": {"provider": "mock", "model": "mock-priest-v1"},
+        "emperor": {"provider": "mock", "model": "mock-emperor-v1"},
+    }
+    data["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "shang2_court",
+            "court_role_profiles": {"great_priest": "priest", "emperor": "emperor"},
+        },
+        {"player_id": "b", "seat": 2},
+    ]
+
+    with pytest.raises(ValidationError, match="requires court_role_profiles of Shang2 roles"):
+        GameConfig.model_validate(data)
+
+
+def test_config_rejects_shang2_court_with_model_profile_set() -> None:
+    data = config_data()
+    data["model_profiles"] = {"mock": {"provider": "mock", "model": "mock-v1"}}
+    data["players"] = [
+        {
+            "player_id": "a",
+            "seat": 1,
+            "controller_type": "shang2_court",
+            "model_profile": "mock",
+            "court_role_profiles": {
+                "minister_1": "mock",
+                "minister_2": "mock",
+                "minister_3": "mock",
+                "emperor": "mock",
+            },
+        },
+        {"player_id": "b", "seat": 2},
+    ]
+
+    with pytest.raises(ValidationError, match="must not set model_profile"):
         GameConfig.model_validate(data)
 
 
