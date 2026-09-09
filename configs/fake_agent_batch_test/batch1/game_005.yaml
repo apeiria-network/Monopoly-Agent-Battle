@@ -2,12 +2,14 @@ game_id: b1-game-005
 experiment_id: fake-batch-1
 seed: 105
 players:
-- player_id: shang-court
+- player_id: shang2-court
   seat: 1
-  controller_type: shang_court
+  controller_type: shang2_court
   court_role_profiles:
-    great_priest: shang-great-priest
-    emperor: shang-emperor
+    minister_1: shang2-minister-1
+    minister_2: shang2-minister-2
+    minister_3: shang2-minister-3
+    emperor: shang2-emperor
 - player_id: qin-court
   seat: 2
   controller_type: qin_court
@@ -33,62 +35,70 @@ players:
     grand_secretary_2: ming-grand-secretary-2
     emperor: ming-emperor
 model_profiles:
-  shang-great-priest:
+  shang2-minister-1:
     provider: fake
     model: fake-random-v1
     seed: 10501
-  shang-emperor:
+  shang2-minister-2:
     provider: fake
     model: fake-random-v1
     seed: 10502
-  qin-chancellor:
+  shang2-minister-3:
     provider: fake
     model: fake-random-v1
     seed: 10503
-  qin-grand-marshal:
+  shang2-emperor:
     provider: fake
     model: fake-random-v1
     seed: 10504
-  qin-imperial-counsellor:
+  qin-chancellor:
     provider: fake
     model: fake-random-v1
     seed: 10505
-  qin-emperor:
+  qin-grand-marshal:
     provider: fake
     model: fake-random-v1
     seed: 10506
-  tang-shangshu:
+  qin-imperial-counsellor:
     provider: fake
     model: fake-random-v1
     seed: 10507
-  tang-zhongshu:
+  qin-emperor:
     provider: fake
     model: fake-random-v1
     seed: 10508
-  tang-menxia:
+  tang-shangshu:
     provider: fake
     model: fake-random-v1
     seed: 10509
-  tang-emperor:
+  tang-zhongshu:
     provider: fake
     model: fake-random-v1
     seed: 10510
-  ming-chief-grand-secretary:
+  tang-menxia:
     provider: fake
     model: fake-random-v1
     seed: 10511
-  ming-grand-secretary-1:
+  tang-emperor:
     provider: fake
     model: fake-random-v1
     seed: 10512
-  ming-grand-secretary-2:
+  ming-chief-grand-secretary:
     provider: fake
     model: fake-random-v1
     seed: 10513
-  ming-emperor:
+  ming-grand-secretary-1:
     provider: fake
     model: fake-random-v1
     seed: 10514
+  ming-grand-secretary-2:
+    provider: fake
+    model: fake-random-v1
+    seed: 10515
+  ming-emperor:
+    provider: fake
+    model: fake-random-v1
+    seed: 10516
 initial_cash: 1500
 initial_chance_cards: 3
 max_complete_rounds: 50
