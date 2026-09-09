@@ -90,11 +90,12 @@ def strip_code_fence(raw_response: str) -> str:
 
 
 def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionValidation:
-    """Parse an untrusted controller reply into one of the six outcomes.
+    """Parse an untrusted controller reply into one of the seven outcomes.
 
     Sets ``DecisionValidation.error_category`` on failure so the feedback
     renderer can pick the right template:
 
+    - ``empty_reply``       — the reply is empty or whitespace only.
     - ``not_json``          — JSON parsing or top-level structure is broken.
     - ``missing_reason``    — ``reason`` is absent or not a string.
     - ``missing_option``    — ``selected_option`` block or its ``option`` field
@@ -107,6 +108,8 @@ def parse_and_validate(raw_response: str, request: DecisionRequest) -> DecisionV
     ``target`` on an option that does not need one are all silently ignored.
     ``reason`` longer than ``_MAX_REASON_CHARS`` is truncated (not an error).
     """
+    if not raw_response.strip():
+        return _fail("empty_reply", "response is empty", raw_response)
     try:
         document = json.loads(strip_code_fence(raw_response))
     except json.JSONDecodeError:

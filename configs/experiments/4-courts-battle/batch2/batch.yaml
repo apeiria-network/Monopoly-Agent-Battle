@@ -1,0 +1,7 @@
+# 4-courts-battle batch 2 of 8: game-003 (seed 103), game-004 (seed 104)
+# Run from the repository root with:
+#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/4-courts-battle/batch2/batch.yaml
+# tasks.jsonl is written next to this manifest.
+games:
+  - game_003.yaml
+  - game_004.yaml

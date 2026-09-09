@@ -105,7 +105,10 @@ def compose_prompt(
                 if history_context:
                     messages.append(LLMMessage(role="user", content=history_context))
                 buffer.clear()
-                messages.append(LLMMessage(role="assistant", content=entry.bad_reply))
+                # Some vendors (e.g. Kimi) reject an assistant message whose
+                # content is empty, so replay a blank bad reply as a placeholder.
+                bad_reply = entry.bad_reply if entry.bad_reply.strip() else "（空回复）"
+                messages.append(LLMMessage(role="assistant", content=bad_reply))
                 buffer.append(entry.feedback_text)
             elif isinstance(entry, ContextEntry):
                 flush_event_block()

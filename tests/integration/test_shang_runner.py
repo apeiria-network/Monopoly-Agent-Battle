@@ -256,20 +256,35 @@ def test_priest_connection_exhaustion_falls_back_and_is_auditable(tmp_path: Path
     llm_calls = _records(run_directory / "llm_calls.jsonl")
     result = _result(run_directory)
 
-    assert first_shang["fallback"] is True
-    assert first_shang["connection_retries"] == 3
-    assert [call["role"] for call in first_shang["court_trace"]["calls"]] == [
+    # After the runner's initial call plus two reconnect attempts, the priest
+    # stage degrades to a system-assembled oracle and the emperor still decides,
+    # so the turn must not fall back to the default option.
+    assert first_shang["fallback"] is False
+    assert first_shang["connection_retries"] == 2
+    calls = first_shang["court_trace"]["calls"]
+    assert [call["role"] for call in calls] == [
         "great_priest",
         "great_priest",
         "great_priest",
+        "great_priest",
+        "emperor",
     ]
-    assert [record["caller_role"] for record in llm_calls[:3]] == [
+    assert [call["outcome"] for call in calls] == [
+        "connection_error",
+        "connection_error",
+        "connection_error",
+        "connection_fallback",
+        "success",
+    ]
+    assert "大祭司重连次数耗尽，无法做出有效回复。" in calls[3]["content"]
+    assert [record["caller_role"] for record in llm_calls[:4]] == [
         "shang.great_priest",
         "shang.great_priest",
         "shang.great_priest",
+        "shang.emperor",
     ]
     assert result["llm_calls"] == len(llm_calls)
-    assert result["reconnect_events"] >= 3
-    assert result["llm_fallbacks"] >= 1
-    assert result["validity_status"] == "invalid"
+    assert result["reconnect_events"] >= 2
+    assert result["llm_fallbacks"] == 0
+    assert result["validity_status"] == "valid"
     verify_run(run_directory)

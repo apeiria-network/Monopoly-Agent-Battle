@@ -78,6 +78,16 @@ def test_not_json_template(tmp_path: Path) -> None:
     assert build_feedback(validation, request) == "Error: 决策回复必须是一个JSON"
 
 
+def test_empty_reply_template(tmp_path: Path) -> None:
+    engine = _make_engine(tmp_path)
+    request = build_decision_request(engine, sequence=1)
+    validation = parse_and_validate("", request)
+    assert validation.error_category == "empty_reply"
+    assert build_feedback(validation, request) == (
+        "Error: 上一条回复为空（思考可能耗尽了输出 token 额度），请直接输出合法 JSON 决策回复。"
+    )
+
+
 def test_missing_reason_template(tmp_path: Path) -> None:
     engine = _make_engine(tmp_path)
     request = build_decision_request(engine, sequence=1)

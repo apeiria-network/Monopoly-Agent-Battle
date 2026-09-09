@@ -9,7 +9,11 @@ from typing import Any
 
 import yaml
 
-from monopoly_agent_battle.config.models import SUPPORTED_REMOTE_MODELS, GameConfig
+from monopoly_agent_battle.config.models import (
+    REMOTE_MODEL_PROVIDERS,
+    SUPPORTED_REMOTE_MODELS,
+    GameConfig,
+)
 
 
 def load_game_config(path: Path) -> GameConfig:
@@ -27,12 +31,12 @@ def load_game_config(path: Path) -> GameConfig:
 def _reject_unsupported_remote_models(config: GameConfig) -> None:
     allowed = ", ".join(sorted(SUPPORTED_REMOTE_MODELS))
     for name, profile in config.model_profiles.items():
-        if profile.provider != "openai_compatible":
+        if profile.provider not in REMOTE_MODEL_PROVIDERS:
             continue
         if profile.model not in SUPPORTED_REMOTE_MODELS:
             msg = (
                 f"model profile '{name}' uses unsupported model '{profile.model}' "
-                f"for provider openai_compatible; supported models: {allowed}"
+                f"for provider {profile.provider}; supported models: {allowed}"
             )
             raise ValueError(msg)
 
