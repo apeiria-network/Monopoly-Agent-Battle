@@ -38,15 +38,23 @@ def build_prefix(tag: str) -> str:
     return f"You are a strict game master. Rules: {body}"
 
 
-def call(label: str, system: str, question: str, extra: dict[str, Any] | None = None) -> None:
+def call(
+    label: str,
+    system: str,
+    question: str,
+    extra: dict[str, Any] | None = None,
+    extra_messages: list[dict[str, str]] | None = None,
+) -> None:
     """Send one chat-completions request and print its cache usage."""
     url = os.environ["GLM_URL"].rstrip("/") + "/chat/completions"
+    messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+    if extra_messages:
+        messages.extend(extra_messages)
+    if question:
+        messages.append({"role": "user", "content": question})
     payload: dict[str, Any] = {
         "model": "glm-5.3-flash",
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": question},
-        ],
+        "messages": messages,
         "max_tokens": 512,
     }
     if extra:
@@ -73,33 +81,51 @@ def call(label: str, system: str, question: str, extra: dict[str, Any] | None = 
     )
 
 
+def build_chinese_system() -> str:
+    """Build a ~4k-token Chinese system prompt (production-like density)."""
+    body = " ".join(
+        f"规则第{i}条：玩家必须在每个阶段严格遵守第{i}号条例，不得违反。" for i in range(300)
+    )
+    return f"你是严格的大富翁裁判。规则如下：{body}"
+
+
+def build_history() -> list[dict[str, str]]:
+    """Build a small multi-turn history (production-like shape)."""
+    return [
+        {"role": "user", "content": "当前局面：玩家甲持有现金1400，位于第6格。请给出决策。"},
+        {"role": "assistant", "content": '{"reason": "现金充裕，结束回合。", "selected_option": {"option": "end_turn"}}'},
+        {"role": "user", "content": "当前局面：玩家甲掷骰后移动到第14格，现金1254。请给出决策。"},
+    ]
+
+
 def main() -> None:
     load_local_env()
-    prefix_p = build_prefix("P")
-    prefix_q = build_prefix("Q")
-    prefix_r = build_prefix("R")
-    question = "State rule 12 in one short sentence."
+    system = build_chinese_system()
+    history = build_history()
 
-    print("Phase A: TTL bracket, production params (thinking+effort+seed)", flush=True)
-    call("A1 cold", prefix_p, question, _FULL_PARAMS)
-    call("A2 repeat +0s", prefix_p, question, _FULL_PARAMS)
-    time.sleep(5)
-    call("A3 repeat +5s", prefix_p, question, _FULL_PARAMS)
-    time.sleep(5)
-    call("A4 repeat +10s", prefix_p, question, _FULL_PARAMS)
-    time.sleep(10)
-    call("A5 repeat +20s", prefix_p, question, _FULL_PARAMS)
-    time.sleep(20)
-    call("A6 repeat +40s", prefix_p, question, _FULL_PARAMS)
+    print("Phase F: TTL upper bound, identical multi-turn payload", flush=True)
+    call("F1 cold", system, "", _FULL_PARAMS, extra_messages=history)
+    call("F2 identical +0s", system, "", _FULL_PARAMS, extra_messages=history)
+    time.sleep(60)
+    call("F3 identical +60s", system, "", _FULL_PARAMS, extra_messages=history)
+    time.sleep(120)
+    call("F4 identical +180s", system, "", _FULL_PARAMS, extra_messages=history)
+    time.sleep(120)
+    call("F5 identical +300s", system, "", _FULL_PARAMS, extra_messages=history)
 
-    print("Phase B: eviction by a different prefix (back-to-back)", flush=True)
-    call("B0 re-warm P", prefix_p, question, _FULL_PARAMS)
-    call("B1 other prefix Q", prefix_q, question, _FULL_PARAMS)
-    call("B2 P after Q +0s", prefix_p, question, _FULL_PARAMS)
+    print("Phase G: single system+user pairs, replication of E anomaly", flush=True)
+    for pair in range(3):
+        tagged = build_prefix(f"G{pair}")
+        call(f"G{pair}a cold", tagged, f"Question {pair}: summarize rule 5.", _FULL_PARAMS)
+        call(f"G{pair}b identical +0s", tagged, f"Question {pair}: summarize rule 5.", _FULL_PARAMS)
 
-    print("Phase C: bare params (no seed / no thinking), fresh prefix", flush=True)
-    call("C1 bare cold", prefix_r, question)
-    call("C2 bare repeat +0s", prefix_r, question)
+    print("Phase H: segment-3-style front truncation breaks prefix?", flush=True)
+    lines = [f"[Round {i}] Player moved to square {i} and paid rent {i}." for i in range(20)]
+    base = [{"role": "user", "content": "\n".join(lines)}]
+    call("H1 base cold", system, "Decide now.", _FULL_PARAMS, extra_messages=base)
+    call("H2 base +0s", system, "Decide now.", _FULL_PARAMS, extra_messages=base)
+    shifted = [{"role": "user", "content": "\n".join(lines[1:] + ["[Round 20] New event happened."])}]
+    call("H3 front-truncated", system, "Decide again.", _FULL_PARAMS, extra_messages=shifted)
 
 
 if __name__ == "__main__":

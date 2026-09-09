@@ -141,7 +141,10 @@ def test_gpt_omits_reasoning_by_default(monkeypatch: pytest.MonkeyPatch) -> None
     payload = payload_of(monkeypatch, lambda: GptClient(profile("gpt", "gpt-5.6-luna")))
 
     assert "reasoning" not in payload
+    assert "reasoning_effort" not in payload
     assert "thinking" not in payload
+    assert payload["max_completion_tokens"] == 123
+    assert "max_tokens" not in payload
 
 
 def test_gpt_sends_reasoning_effort_low_when_opted_in(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -149,8 +152,11 @@ def test_gpt_sends_reasoning_effort_low_when_opted_in(monkeypatch: pytest.Monkey
         monkeypatch, lambda: GptClient(profile("gpt", "gpt-5.6-luna", thinking=True))
     )
 
-    assert payload["reasoning"] == {"effort": "low"}
+    assert payload["reasoning_effort"] == "low"
+    assert "reasoning" not in payload
     assert "thinking" not in payload
+    assert payload["max_completion_tokens"] == 123
+    assert "max_tokens" not in payload
 
 
 def test_qwen_sends_disabled_thinking_by_default(monkeypatch: pytest.MonkeyPatch) -> None:

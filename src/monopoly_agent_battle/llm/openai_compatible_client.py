@@ -34,6 +34,8 @@ class OpenAICompatibleClient(LLMClient):
 
     provider_name: ClassVar[str] = "openai_compatible"
     error_label: ClassVar[str] = "OpenAI-compatible endpoint"
+    # GPT-5-style endpoints require the max_completion_tokens field name.
+    max_tokens_field: ClassVar[str] = "max_tokens"
 
     def __init__(self, profile: ModelProfile) -> None:
         if profile.provider != self.provider_name:
@@ -72,7 +74,7 @@ class OpenAICompatibleClient(LLMClient):
         if request.temperature is not None:
             payload["temperature"] = request.temperature
         if request.max_tokens is not None:
-            payload["max_tokens"] = request.max_tokens
+            payload[self.max_tokens_field] = request.max_tokens
         if request.seed is not None:
             payload["seed"] = request.seed
 
@@ -95,7 +97,7 @@ class OpenAICompatibleClient(LLMClient):
                     raise LLMCallError(f"{self.error_label} returned an invalid response schema")
                 document = cast(dict[str, Any], loaded)
         except urllib.error.HTTPError as exc:
-            message = f"{self.error_label} returned HTTP {exc.code}"
+            message = f"{self.error_label} returned HTTP {exc.code}{_http_error_detail(exc)}"
             if exc.code in _RETRYABLE_HTTP_STATUS:
                 raise LLMConnectionError(message) from None
             raise LLMCallError(message) from None
@@ -145,6 +147,24 @@ class OpenAICompatibleClient(LLMClient):
         """Attach provider-specific thinking/sampling fields to the payload."""
         if self._thinking:
             payload["thinking"] = {"type": "enabled"}
+
+
+def _http_error_detail(exc: urllib.error.HTTPError) -> str:
+    """Return a compact, whitespace-collapsed excerpt of the error body.
+
+    The vendor's error JSON names the offending parameter (e.g. an unknown
+    ``reasoning`` field), which is essential for diagnosing rejected payloads;
+    without it an HTTP 400 carries no actionable detail. Reading the body is
+    best-effort: transport problems while reading degrade to no detail.
+    """
+    try:
+        body = exc.read().decode("utf-8", "replace")
+    except (OSError, ValueError):
+        return ""
+    collapsed = " ".join(body.split())
+    if not collapsed:
+        return ""
+    return f": {collapsed[:300]}"
 
 
 def _integer_usage(usage: dict[str, Any], field: str) -> int:

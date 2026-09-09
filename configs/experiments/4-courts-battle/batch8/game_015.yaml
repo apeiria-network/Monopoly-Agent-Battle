@@ -1,0 +1,190 @@
+game_id: game-015
+experiment_id: 4-courts-battle
+seed: 115
+prompt_profile: full-v2
+# 4-courts-battle game-015
+# seats: 1=秦 2=唐 3=明 4=商
+# shang=C qin=B tang=A ming=C
+# models: A=glm-5.3-flash B=DeepSeek-V4-Pro C=kimi-k2.6 D=gpt-5.6-luna
+
+players:
+  - player_id: qin-court
+    seat: 1
+    controller_type: qin_court
+    court_role_profiles:
+      chancellor: qin-chancellor
+      grand_marshal: qin-grand-marshal
+      imperial_counsellor: qin-imperial-counsellor
+      emperor: qin-emperor
+  - player_id: tang-court
+    seat: 2
+    controller_type: tang_court
+    court_role_profiles:
+      shangshu: tang-shangshu
+      zhongshu: tang-zhongshu
+      menxia: tang-menxia
+      emperor: tang-emperor
+  - player_id: ming-court
+    seat: 3
+    controller_type: ming_court
+    court_role_profiles:
+      chief_grand_secretary: ming-chief-grand-secretary
+      grand_secretary_1: ming-grand-secretary-1
+      grand_secretary_2: ming-grand-secretary-2
+      emperor: ming-emperor
+  - player_id: shang-court
+    seat: 4
+    controller_type: shang_court
+    court_role_profiles:
+      great_priest: shang-great-priest
+      emperor: shang-emperor
+
+model_profiles:
+  shang-great-priest:
+    provider: kimi
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.6
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  shang-emperor:
+    provider: kimi
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.6
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  qin-chancellor:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY
+    model: glm-5.3-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  qin-grand-marshal:
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY
+    model: gpt-5.6-luna
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  qin-imperial-counsellor:
+    provider: kimi
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.6
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  qin-emperor:
+    provider: openai_compatible
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY
+    model: DeepSeek-V4-Pro
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  tang-shangshu:
+    provider: openai_compatible
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY
+    model: DeepSeek-V4-Pro
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  tang-zhongshu:
+    provider: kimi
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.6
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  tang-menxia:
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY
+    model: gpt-5.6-luna
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  tang-emperor:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY
+    model: glm-5.3-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  ming-chief-grand-secretary:
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY
+    model: gpt-5.6-luna
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  ming-grand-secretary-1:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY
+    model: glm-5.3-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  ming-grand-secretary-2:
+    provider: openai_compatible
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY
+    model: DeepSeek-V4-Pro
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  ming-emperor:
+    provider: kimi
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.6
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+initial_cash: 1500
+max_complete_rounds: 50
+initial_chance_cards: 2
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs

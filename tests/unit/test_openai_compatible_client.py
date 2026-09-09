@@ -243,6 +243,29 @@ def test_client_classifies_retryable_http_error_without_secret(
     assert "secret-must-not-leak" not in str(exc_info.value)
 
 
+def test_client_includes_http_error_body_excerpt(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_LLM_API_KEY", "secret")
+
+    def fake_urlopen(_request: urllib.request.Request, timeout: float) -> FakeHTTPResponse:
+        del timeout
+        raise urllib.error.HTTPError(
+            "https://example.test/v1/chat/completions",
+            400,
+            "bad request",
+            Message(),
+            BytesIO(
+                b'{"error": {"message": "Unknown parameter: \'reasoning\'.",\n'
+                b'  "type": "invalid_request_error"}}'
+            ),
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    client = OpenAICompatibleClient(profile())
+
+    with pytest.raises(LLMCallError, match="Unknown parameter"):
+        client.complete(request())
+
+
 def test_client_rejects_invalid_response_schema(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TEST_LLM_API_KEY", "secret")
 
