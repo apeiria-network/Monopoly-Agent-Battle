@@ -44,7 +44,7 @@ players:
 
 model_profiles:
   shang-minister-1:
-    provider: openai_compatible
+    provider: deepseek
     base_url_env: DEEPSEEK_URL
     api_key_env: DEEPSEEK_API_KEY
     model: DeepSeek-V4-Flash
@@ -114,7 +114,7 @@ model_profiles:
     timeout_seconds: 120
 
   qin-emperor:
-    provider: openai_compatible
+    provider: deepseek
     base_url_env: DEEPSEEK_URL
     api_key_env: DEEPSEEK_API_KEY
     model: DeepSeek-V4-Flash
@@ -154,7 +154,7 @@ model_profiles:
     timeout_seconds: 120
 
   tang-emperor:
-    provider: openai_compatible
+    provider: deepseek
     base_url_env: DEEPSEEK_URL
     api_key_env: DEEPSEEK_API_KEY
     model: DeepSeek-V4-Flash
@@ -194,7 +194,7 @@ model_profiles:
     timeout_seconds: 120
 
   ming-emperor:
-    provider: openai_compatible
+    provider: deepseek
     base_url_env: DEEPSEEK_URL
     api_key_env: DEEPSEEK_API_KEY
     model: DeepSeek-V4-Flash

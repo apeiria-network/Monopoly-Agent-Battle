@@ -27,7 +27,7 @@ SUPPORTED_REMOTE_MODELS: frozenset[str] = frozenset(
 )
 
 REMOTE_MODEL_PROVIDERS: frozenset[str] = frozenset(
-    {"openai_compatible", "kimi", "glm", "gpt", "qwen"}
+    {"openai_compatible", "kimi", "glm", "gpt", "qwen", "deepseek"}
 )
 
 

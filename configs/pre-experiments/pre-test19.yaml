@@ -1,8 +1,8 @@
-game_id: game-001
-experiment_id: 4-courts-battle
+game_id: pre-test-19
+experiment_id: pre-test
 seed: 101
 prompt_profile: full-v2
-# 4-courts-battle game-001
+# pre-test-19: 4-courts-battle game-001 config, 2 complete rounds, validates deepseek provider
 # seats: 1=商 2=秦 3=唐 4=明
 # shang(base)=A qin=A tang=A ming=A
 # shang2 posts expanded per Courts-Battle-config-details.md 1.3: ministers B/C/D, emperor A
@@ -204,7 +204,7 @@ model_profiles:
     timeout_seconds: 120
 
 initial_cash: 1500
-max_complete_rounds: 50
+max_complete_rounds: 2
 initial_chance_cards: 2
 rules_version: classic-level0-v1
 rules_level: 0

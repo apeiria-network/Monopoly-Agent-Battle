@@ -32,6 +32,7 @@ from monopoly_agent_battle.decision.runner import (
 )
 from monopoly_agent_battle.experiments.runner import render_batch_summary, run_batch
 from monopoly_agent_battle.game.engine import GameEngine
+from monopoly_agent_battle.llm.deepseek_client import DeepSeekClient
 from monopoly_agent_battle.llm.fake_client import FakeLLMClient
 from monopoly_agent_battle.llm.glm_client import GlmClient
 from monopoly_agent_battle.llm.gpt_client import GptClient
@@ -120,6 +121,7 @@ def run_play(config_path: Path) -> Path:
         "glm": GlmClient,
         "gpt": GptClient,
         "qwen": QwenClient,
+        "deepseek": DeepSeekClient,
     }
     for provider, factory in remote_factories.items():
         if any(profile.provider == provider for profile in config.model_profiles.values()):
