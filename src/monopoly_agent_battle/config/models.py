@@ -13,6 +13,7 @@ SUPPORTED_REMOTE_MODELS: frozenset[str] = frozenset(
         "GLM-5.3-Flash",
         "glm-5.3-flash",
         "DeepSeek-V4-Flash",
+        "deepseek-v4-flash",
         "DeepSeek-V4-Pro",
         "Qwen3.7-Plus",
         "Qwen3.8-Max",

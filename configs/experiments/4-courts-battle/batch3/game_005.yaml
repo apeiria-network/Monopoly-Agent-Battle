@@ -6,7 +6,7 @@ prompt_profile: full-v2
 # seats: 1=明 2=商 3=秦 4=唐
 # shang(base)=A qin=B tang=B ming=B
 # shang2 posts expanded per Courts-Battle-config-details.md 1.3: ministers B/C/D, emperor A
-# models: A=qwen3.8-flash B=DeepSeek-V4-Flash C=kimi-k2.6 D=GLM-5.3-Flash
+# models: A=qwen3.8-flash B=deepseek-v4-flash C=kimi-k2.6 D=GLM-5.3-Flash
 
 players:
   - player_id: ming-court
@@ -47,7 +47,7 @@ model_profiles:
     provider: deepseek
     base_url_env: DEEPSEEK_URL
     api_key_env: DEEPSEEK_API_KEY
-    model: DeepSeek-V4-Flash
+    model: deepseek-v4-flash
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -117,7 +117,7 @@ model_profiles:
     provider: deepseek
     base_url_env: DEEPSEEK_URL
     api_key_env: DEEPSEEK_API_KEY
-    model: DeepSeek-V4-Flash
+    model: deepseek-v4-flash
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -157,7 +157,7 @@ model_profiles:
     provider: deepseek
     base_url_env: DEEPSEEK_URL
     api_key_env: DEEPSEEK_API_KEY
-    model: DeepSeek-V4-Flash
+    model: deepseek-v4-flash
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -197,7 +197,7 @@ model_profiles:
     provider: deepseek
     base_url_env: DEEPSEEK_URL
     api_key_env: DEEPSEEK_API_KEY
-    model: DeepSeek-V4-Flash
+    model: deepseek-v4-flash
     seed: 42
     max_tokens: 4096
     thinking: true
