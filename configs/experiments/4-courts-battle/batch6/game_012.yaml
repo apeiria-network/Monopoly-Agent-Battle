@@ -46,7 +46,7 @@ model_profiles:
   shang-minister-1:
     provider: kimi
     base_url_env: KIMI_URL
-    api_key_env: KIMI_API_KEY
+    api_key_env: KIMI_API_KEY3
     model: kimi-k2.6
     seed: 42
     max_tokens: 4096
@@ -56,7 +56,7 @@ model_profiles:
   shang-minister-2:
     provider: deepseek
     base_url_env: DEEPSEEK_URL
-    api_key_env: DEEPSEEK_API_KEY
+    api_key_env: DEEPSEEK_API_KEY3
     model: deepseek-v4-flash
     seed: 42
     max_tokens: 4096
@@ -66,7 +66,7 @@ model_profiles:
   shang-minister-3:
     provider: qwen
     base_url_env: QWEN_URL
-    api_key_env: QWEN_API_KEY
+    api_key_env: QWEN_API_KEY3
     model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
@@ -76,7 +76,7 @@ model_profiles:
   shang-emperor:
     provider: glm
     base_url_env: GLM_URL
-    api_key_env: GLM_API_KEY
+    api_key_env: GLM_API_KEY3
     model: GLM-5.3-Flash
     seed: 42
     max_tokens: 4096
@@ -86,7 +86,7 @@ model_profiles:
   qin-chancellor:
     provider: qwen
     base_url_env: QWEN_URL
-    api_key_env: QWEN_API_KEY
+    api_key_env: QWEN_API_KEY3
     model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
@@ -96,7 +96,7 @@ model_profiles:
   qin-grand-marshal:
     provider: glm
     base_url_env: GLM_URL
-    api_key_env: GLM_API_KEY
+    api_key_env: GLM_API_KEY3
     model: GLM-5.3-Flash
     seed: 42
     max_tokens: 4096
@@ -106,7 +106,7 @@ model_profiles:
   qin-imperial-counsellor:
     provider: kimi
     base_url_env: KIMI_URL
-    api_key_env: KIMI_API_KEY
+    api_key_env: KIMI_API_KEY3
     model: kimi-k2.6
     seed: 42
     max_tokens: 4096
@@ -116,7 +116,7 @@ model_profiles:
   qin-emperor:
     provider: deepseek
     base_url_env: DEEPSEEK_URL
-    api_key_env: DEEPSEEK_API_KEY
+    api_key_env: DEEPSEEK_API_KEY3
     model: deepseek-v4-flash
     seed: 42
     max_tokens: 4096
@@ -126,7 +126,7 @@ model_profiles:
   tang-shangshu:
     provider: kimi
     base_url_env: KIMI_URL
-    api_key_env: KIMI_API_KEY
+    api_key_env: KIMI_API_KEY3
     model: kimi-k2.6
     seed: 42
     max_tokens: 4096
@@ -136,7 +136,7 @@ model_profiles:
   tang-zhongshu:
     provider: deepseek
     base_url_env: DEEPSEEK_URL
-    api_key_env: DEEPSEEK_API_KEY
+    api_key_env: DEEPSEEK_API_KEY3
     model: deepseek-v4-flash
     seed: 42
     max_tokens: 4096
@@ -146,7 +146,7 @@ model_profiles:
   tang-menxia:
     provider: qwen
     base_url_env: QWEN_URL
-    api_key_env: QWEN_API_KEY
+    api_key_env: QWEN_API_KEY3
     model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
@@ -156,7 +156,7 @@ model_profiles:
   tang-emperor:
     provider: glm
     base_url_env: GLM_URL
-    api_key_env: GLM_API_KEY
+    api_key_env: GLM_API_KEY3
     model: GLM-5.3-Flash
     seed: 42
     max_tokens: 4096
@@ -166,7 +166,7 @@ model_profiles:
   ming-chief-grand-secretary:
     provider: deepseek
     base_url_env: DEEPSEEK_URL
-    api_key_env: DEEPSEEK_API_KEY
+    api_key_env: DEEPSEEK_API_KEY3
     model: deepseek-v4-flash
     seed: 42
     max_tokens: 4096
@@ -176,7 +176,7 @@ model_profiles:
   ming-grand-secretary-1:
     provider: kimi
     base_url_env: KIMI_URL
-    api_key_env: KIMI_API_KEY
+    api_key_env: KIMI_API_KEY3
     model: kimi-k2.6
     seed: 42
     max_tokens: 4096
@@ -186,7 +186,7 @@ model_profiles:
   ming-grand-secretary-2:
     provider: glm
     base_url_env: GLM_URL
-    api_key_env: GLM_API_KEY
+    api_key_env: GLM_API_KEY3
     model: GLM-5.3-Flash
     seed: 42
     max_tokens: 4096
@@ -196,7 +196,7 @@ model_profiles:
   ming-emperor:
     provider: qwen
     base_url_env: QWEN_URL
-    api_key_env: QWEN_API_KEY
+    api_key_env: QWEN_API_KEY3
     model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
