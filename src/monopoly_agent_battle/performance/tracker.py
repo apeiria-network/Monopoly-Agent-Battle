@@ -176,7 +176,7 @@ def evidence_from_trace(
             item
             for item in typed_calls
             if item.get("role") == role
-            and item.get("outcome") in {"success", "advice_normalized"}
+            and item.get("outcome") in {"success", "advice_normalized", "connection_fallback"}
             and isinstance(item.get("content"), str)
         ]
         if court == "tang" and role == "zhongshu":

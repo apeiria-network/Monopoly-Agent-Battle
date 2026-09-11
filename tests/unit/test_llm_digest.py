@@ -133,8 +133,8 @@ def test_baseline_decision_row_values(tmp_path: Path) -> None:
     assert row["reason"] == "掷骰推进。"
     assert row["选项"] == "roll_dice"
     assert row["最终执行命令"] == "RollDice"
-    # cash 1500 + 60 (pos 1) + 50*2 (buildings) + 60 - 30 (mortgaged pos 3, half-up) = 1690
-    assert row["当前玩家净资产"] == "1690"
+    # cash 1500 + 60 (pos 1) + 50*2 (buildings) + 60 - 60 (mortgaged pos 3, full) = 1660
+    assert row["当前玩家净资产"] == "1660"
     assert row["当前玩家现金持有量"] == "1500"
     assert row["当前玩家持有机会卡数"] == "2"
     assert row["是否是最终决策者"] == "True"
@@ -200,7 +200,7 @@ def test_random_baseline_decision_emits_row(tmp_path: Path) -> None:
     assert row["选项"] == "buy_property"
     assert row["target"] == "6"
     assert row["最终执行命令"] == "BuyProperty"
-    assert row["当前玩家净资产"] == "1690"
+    assert row["当前玩家净资产"] == "1660"
     assert row["当前玩家现金持有量"] == "1500"
     assert row["是否是最终决策者"] == "True"
     assert row["是否报错回复"] == "False"
@@ -218,7 +218,7 @@ def test_decision_row_without_response_keeps_empty_reply_fields(tmp_path: Path) 
     assert row["选项"] == ""
     assert row["target"] == ""
     assert row["是否报错回复"] == "True"
-    assert row["当前玩家净资产"] == "1690"
+    assert row["当前玩家净资产"] == "1660"
     assert row["最终执行命令"] == "EndTurn"
 
 
