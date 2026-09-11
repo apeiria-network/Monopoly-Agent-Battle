@@ -6,7 +6,7 @@ prompt_profile: full-v2
 # seats: 1=商 2=秦 3=唐 4=明
 # shang(base)=C qin=C tang=D ming=B
 # shang2 posts expanded per Courts-Battle-config-details.md 1.3: ministers D/A/B, emperor C
-# models: A=qwen3.8-flash B=deepseek-v4-flash C=kimi-k2.6 D=GLM-5.3-Flash
+# models: A=qwen3.8-flash B=deepseek-v4-flash C=gpt-5.6-luna D=GLM-5.3-Flash
 
 players:
   - player_id: shang-court
@@ -74,10 +74,10 @@ model_profiles:
     timeout_seconds: 120
 
   shang-emperor:
-    provider: kimi
-    base_url_env: KIMI_URL
-    api_key_env: KIMI_API_KEY3
-    model: kimi-k2.6
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY3
+    model: gpt-5.6-luna
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -114,20 +114,20 @@ model_profiles:
     timeout_seconds: 120
 
   qin-emperor:
-    provider: kimi
-    base_url_env: KIMI_URL
-    api_key_env: KIMI_API_KEY3
-    model: kimi-k2.6
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY3
+    model: gpt-5.6-luna
     seed: 42
     max_tokens: 4096
     thinking: true
     timeout_seconds: 120
 
   tang-shangshu:
-    provider: kimi
-    base_url_env: KIMI_URL
-    api_key_env: KIMI_API_KEY3
-    model: kimi-k2.6
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY3
+    model: gpt-5.6-luna
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -184,10 +184,10 @@ model_profiles:
     timeout_seconds: 120
 
   ming-grand-secretary-2:
-    provider: kimi
-    base_url_env: KIMI_URL
-    api_key_env: KIMI_API_KEY3
-    model: kimi-k2.6
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY3
+    model: gpt-5.6-luna
     seed: 42
     max_tokens: 4096
     thinking: true
