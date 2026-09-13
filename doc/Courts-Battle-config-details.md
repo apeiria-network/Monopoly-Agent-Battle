@@ -13,6 +13,17 @@
 
 四个候选 AI 模型暂记为 **A、B、C、D**。实际执行前，应将代号固定映射到具体供应商及模型版本；实验过程中不得更换映射。
 
+**已冻结映射（2026-09-10，实验一/二共用）：**
+
+| 代号 | 模型 | provider | 思考模式 |
+|---|---|---|---|
+| A | qwen3.8-flash | qwen | 开启（enable_thinking + reasoning_effort low） |
+| B | deepseek-v4-flash | deepseek | 开启（thinking enabled + reasoning_effort low） |
+| C | gpt-5.6-luna | gpt | 开启（thinking enabled） |
+| D | GLM-5.3-Flash | glm | 开启（thinking enabled + reasoning_effort low） |
+
+冻结说明：D 档原定 gpt-5.6-luna，因端点无法为对局规模请求提供稳定连接（2026-09-09 实测）曾改为 GLM-5.3-Flash；C 档原 kimi-k2.6，因 kimi 长 latency（~62s/call）与高撞顶率（24% 撞 4096）于 2026-09-10 改为 gpt-5.6-luna（gpt 端点经稳定代理节点重测通过）。B 档为控制成本与 4096 max_tokens 撞顶风险，由 DeepSeek-V4-Pro 改为 deepseek-v4-flash 并经 `deepseek` provider 固定 low 思考强度（pre-test19 验证：平均思考 580 token，0 撞顶）。端点对模型名大小写敏感：DeepSeek 端点只接受小写 `deepseek-v4-flash`（驼峰会 404），GLM 端点只接受驼峰 `GLM-5.3-Flash`（小写报无健康部署），gpt 用小写 `gpt-5.6-luna`；白名单两形态均登记以保证加载与回放兼容。多 key 并发：每个 provider 配 4 把 key（`<PROV>_API_KEY1/2/3/4`，无下划线），按 `(局号-1)%4+1` 循环分配，任意 4 个连续局号分到 4 把不同 key，避免 4 并发共用单 key 抢缓存/限速；每 provider 单一默认 URL（`<PROV>_URL`），gpt 经稳定代理节点。映射以 16 份已冻结配置文件（`configs/experiments/4-courts-battle/`）为准，实验期间不得更换。
+
 ### 1.2 朝廷岗位
 
 | 配置列 | 商朝 | 秦朝 | 唐朝 | 明朝 |
