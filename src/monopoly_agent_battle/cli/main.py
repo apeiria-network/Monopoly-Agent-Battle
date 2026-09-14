@@ -8,6 +8,7 @@ import random
 from pathlib import Path
 
 from monopoly_agent_battle.agents.baseline import BaselineAgent
+from monopoly_agent_battle.agents.greedy_script import GreedyScriptController
 from monopoly_agent_battle.agents.ming import MingCourtAgent
 from monopoly_agent_battle.agents.qin import QinCourtAgent
 from monopoly_agent_battle.agents.random_baseline import (
@@ -141,6 +142,16 @@ def run_play(config_path: Path) -> Path:
                     player.seat,
                     player.player_id,
                     prefix="sane-random-v1",
+                )
+            )
+            continue
+        if player.controller_type == "greedy_script":
+            controllers[player.player_id] = GreedyScriptController(
+                _random_baseline_rng(
+                    config.seed,
+                    player.seat,
+                    player.player_id,
+                    prefix="greedy-script-v1",
                 )
             )
             continue

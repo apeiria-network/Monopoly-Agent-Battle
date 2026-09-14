@@ -160,6 +160,9 @@
 | `tests/integration/test_random_baseline_runner.py` | 纯随机和随机/Mock-LLM 混合完整对局：审计、回放、跨运行复现、无 LLM 产物、LLM 计量隔离及连接失败阈值。 | `python -m pytest tests/integration/test_random_baseline_runner.py` |
 | `tests/unit/test_sane_random.py` | 理智随机控制器的过滤行为：资产管理阶段不选主动出售/抵押、赎回保留、支付结算节点不屏蔽、全屏蔽兜底、确定性与非 LLM 标识。 | `python -m pytest tests/unit/test_sane_random.py` |
 | `tests/integration/test_sane_random_runner.py` | 四理智随机完整对局：无 LLM 产物、全程处置命令仅出现在被迫支付结算节点、回放审计与跨运行复现。 | `python -m pytest tests/integration/test_sane_random_runner.py` |
+| `agents/greedy_script.py` | 确定性贪心脚本非 LLM 控制器：出牌选顺时针最近目标（出租车固定 6 格）、无卡时按现金安全垫赎回、监狱出狱卡优先、被迫处置先抵押后卖房且按最低建筑等级（铁路/公共财产按 1 级）随机破平局。 | `play` 为 `greedy_script` 玩家以独立前缀派生 RNG 组装。 |
+| `tests/unit/test_greedy_script.py` | 贪心脚本的监狱优先级、最近目标、出租车满距、赎回条件与排序、处置等级排序及平局复现。 | `python -m pytest tests/unit/test_greedy_script.py` |
+| `tests/integration/test_greedy_script_runner.py` | 四贪心脚本完整对局：无 LLM 产物、处置命令仅出现于被迫支付结算节点、回放审计与跨运行复现。 | `python -m pytest tests/integration/test_greedy_script_runner.py` |
 | `tests/integration/test_decision_runner.py` | 决策驱动完整对局、自动普通掷骰事件审计/回放、监狱掷骰 Prompt 选择、监狱等待的自动推进、连接重试、回退及原始校验错误保留。 | `python -m pytest tests/integration/test_decision_runner.py` |
 | `tests/integration/test_stage6_fault_audit.py` | Stage 6 决策故障审计：非法响应、重试、回退、跨产物关联、统计隔离、10% 阈值及无效局完成和回放。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/integration/test_stage6_fault_audit.py` |
 | `tests/integration/test_stage6_security_timeout.py` | Stage 6 全产物安全与超时审计：使用安全占位标记验证凭据值不进入运行产物，校验配置 timeout 传递、TimeoutError 重试、LLM 调用/runtime/决策/result 统计一致性及回退审计。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/integration/test_stage6_security_timeout.py` |
