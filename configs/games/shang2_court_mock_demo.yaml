@@ -1,0 +1,39 @@
+game_id: shang2-court-demo
+experiment_id: shang2-court-demo
+seed: 0
+players:
+  - player_id: shang2
+    seat: 1
+    controller_type: shang2_court
+    court_role_profiles:
+      minister_1: mock-minister
+      minister_2: mock-minister
+      minister_3: mock-minister
+      emperor: mock-emperor
+  - player_id: random-b
+    seat: 2
+    controller_type: random_baseline
+  - player_id: random-c
+    seat: 3
+    controller_type: random_baseline
+  - player_id: random-d
+    seat: 4
+    controller_type: random_baseline
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+max_complete_rounds: 2
+model_profiles:
+  mock-minister:
+    provider: mock
+    model: mock-shang2-minister-v1
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  mock-emperor:
+    provider: mock
+    model: mock-shang2-emperor-v1
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320

@@ -1,0 +1,213 @@
+game_id: pre-test-19
+experiment_id: pre-test
+seed: 101
+prompt_profile: full-v2
+# pre-test-19: 4-courts-battle game-001 config, 2 complete rounds, validates deepseek provider
+# seats: 1=商 2=秦 3=唐 4=明
+# shang(base)=A qin=A tang=A ming=A
+# shang2 posts expanded per Courts-Battle-config-details.md 1.3: ministers B/C/D, emperor A
+# models: A=qwen3.8-flash B=deepseek-v4-flash C=kimi-k2.6 D=GLM-5.3-Flash
+
+players:
+  - player_id: shang-court
+    seat: 1
+    controller_type: shang2_court
+    court_role_profiles:
+      minister_1: shang-minister-1
+      minister_2: shang-minister-2
+      minister_3: shang-minister-3
+      emperor: shang-emperor
+  - player_id: qin-court
+    seat: 2
+    controller_type: qin_court
+    court_role_profiles:
+      chancellor: qin-chancellor
+      grand_marshal: qin-grand-marshal
+      imperial_counsellor: qin-imperial-counsellor
+      emperor: qin-emperor
+  - player_id: tang-court
+    seat: 3
+    controller_type: tang_court
+    court_role_profiles:
+      shangshu: tang-shangshu
+      zhongshu: tang-zhongshu
+      menxia: tang-menxia
+      emperor: tang-emperor
+  - player_id: ming-court
+    seat: 4
+    controller_type: ming_court
+    court_role_profiles:
+      chief_grand_secretary: ming-chief-grand-secretary
+      grand_secretary_1: ming-grand-secretary-1
+      grand_secretary_2: ming-grand-secretary-2
+      emperor: ming-emperor
+
+model_profiles:
+  shang-minister-1:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  shang-minister-2:
+    provider: kimi
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.6
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  shang-minister-3:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  shang-emperor:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  qin-chancellor:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  qin-grand-marshal:
+    provider: kimi
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.6
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  qin-imperial-counsellor:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  qin-emperor:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  tang-shangshu:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  tang-zhongshu:
+    provider: kimi
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.6
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  tang-menxia:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  tang-emperor:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  ming-chief-grand-secretary:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  ming-grand-secretary-1:
+    provider: kimi
+    base_url_env: KIMI_URL
+    api_key_env: KIMI_API_KEY
+    model: kimi-k2.6
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  ming-grand-secretary-2:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  ming-emperor:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+initial_cash: 1500
+max_complete_rounds: 2
+initial_chance_cards: 2
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs

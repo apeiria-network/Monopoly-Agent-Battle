@@ -71,8 +71,8 @@ def call(
     started = time.monotonic()
     with urllib.request.urlopen(request, timeout=120) as response:
         document = json.loads(response.read().decode("utf-8"))
-    usage = document["usage"]
-    details = usage.get("prompt_tokens_details") or {}
+    usage: dict[str, Any] = document["usage"]
+    details: dict[str, Any] = usage.get("prompt_tokens_details") or {}
     print(
         f"{label:<24} prompt={usage.get('prompt_tokens')}"
         f" cached={details.get('cached_tokens')}"
@@ -91,9 +91,10 @@ def build_chinese_system() -> str:
 
 def build_history() -> list[dict[str, str]]:
     """Build a small multi-turn history (production-like shape)."""
+    prior_reply = '{"reason": "现金充裕，结束回合。", "selected_option": {"option": "end_turn"}}'
     return [
         {"role": "user", "content": "当前局面：玩家甲持有现金1400，位于第6格。请给出决策。"},
-        {"role": "assistant", "content": '{"reason": "现金充裕，结束回合。", "selected_option": {"option": "end_turn"}}'},
+        {"role": "assistant", "content": prior_reply},
         {"role": "user", "content": "当前局面：玩家甲掷骰后移动到第14格，现金1254。请给出决策。"},
     ]
 
@@ -124,7 +125,12 @@ def main() -> None:
     base = [{"role": "user", "content": "\n".join(lines)}]
     call("H1 base cold", system, "Decide now.", _FULL_PARAMS, extra_messages=base)
     call("H2 base +0s", system, "Decide now.", _FULL_PARAMS, extra_messages=base)
-    shifted = [{"role": "user", "content": "\n".join(lines[1:] + ["[Round 20] New event happened."])}]
+    shifted = [
+        {
+            "role": "user",
+            "content": "\n".join([*lines[1:], "[Round 20] New event happened."]),
+        }
+    ]
     call("H3 front-truncated", system, "Decide again.", _FULL_PARAMS, extra_messages=shifted)
 
 

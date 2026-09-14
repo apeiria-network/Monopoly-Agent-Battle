@@ -114,7 +114,7 @@ def test_mock_baseline_completes_full_game_with_audit(tmp_path: Path) -> None:
         for message in request.messages
     )
     assert all(
-        estimate_tokens("\n".join(conversation.segment3_sentences)) <= 500
+        estimate_tokens("\n".join(conversation.segment3_sentences)) <= 750
         for conversation in conversations.values()
     )
     stats = result_document["llm_token_stats"]

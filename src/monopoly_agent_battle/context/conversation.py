@@ -110,7 +110,7 @@ class ErrorEntry:
 
 TurnEntry = EventEntry | DecisionEntry | InternalDecisionEntry | ContextEntry | ErrorEntry
 
-_SEGMENT3_TOKEN_CAP = 500
+_SEGMENT3_TOKEN_CAP = 750
 
 
 @dataclass(slots=True)
@@ -145,7 +145,7 @@ class AgentConversation:
     def start_turn(self, turn_num: int) -> None:
         """Begin a new Agent action turn and rebuild its fixed segment-3 cache.
 
-        Segment 3 is independently capped at 500 estimated tokens. It is
+        Segment 3 is independently capped at 750 estimated tokens. It is
         rebuilt only at this action-turn boundary, so subsequent decisions in
         the same turn observe an identical history cache.
         """

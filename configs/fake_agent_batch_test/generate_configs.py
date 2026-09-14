@@ -1,7 +1,8 @@
 """Generate fake-agent batch test configs (4 batches x 20 games).
 
-Court seat order rotates per game so each court occupies every seat equally
-often.
+Each game pits the four current courts (Shang2, Qin, Tang, Ming) against each
+other with fake LLM clients.  Court seat order rotates per game so each court
+occupies every seat equally often.
 
 Usage: python configs/fake_agent_batch_test/generate_configs.py
 """
@@ -20,11 +21,13 @@ ROUNDS_PER_GAME = 50
 
 COURTS: list[tuple[str, str, dict[str, str]]] = [
     (
-        "shang-court",
-        "shang_court",
+        "shang2-court",
+        "shang2_court",
         {
-            "great_priest": "shang-great-priest",
-            "emperor": "shang-emperor",
+            "minister_1": "shang2-minister-1",
+            "minister_2": "shang2-minister-2",
+            "minister_3": "shang2-minister-3",
+            "emperor": "shang2-emperor",
         },
     ),
     (

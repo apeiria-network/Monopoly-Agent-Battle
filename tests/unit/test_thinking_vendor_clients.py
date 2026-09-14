@@ -10,6 +10,7 @@ from typing import Any, cast
 import pytest
 
 from monopoly_agent_battle.config.models import ModelProfile
+from monopoly_agent_battle.llm.deepseek_client import DeepSeekClient
 from monopoly_agent_battle.llm.glm_client import GlmClient
 from monopoly_agent_battle.llm.gpt_client import GptClient
 from monopoly_agent_battle.llm.kimi_client import KimiClient
@@ -137,6 +138,27 @@ def test_glm_sends_thinking_and_low_reasoning_effort_when_opted_in(
     assert payload["reasoning_effort"] == "low"
 
 
+def test_deepseek_omits_thinking_fields_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = payload_of(
+        monkeypatch, lambda: DeepSeekClient(profile("deepseek", "DeepSeek-V4-Flash"))
+    )
+
+    assert "thinking" not in payload
+    assert "reasoning_effort" not in payload
+
+
+def test_deepseek_sends_thinking_and_low_reasoning_effort_when_opted_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = payload_of(
+        monkeypatch,
+        lambda: DeepSeekClient(profile("deepseek", "DeepSeek-V4-Flash", thinking=True)),
+    )
+
+    assert payload["thinking"] == {"type": "enabled"}
+    assert payload["reasoning_effort"] == "low"
+
+
 def test_gpt_omits_reasoning_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = payload_of(monkeypatch, lambda: GptClient(profile("gpt", "gpt-5.6-luna")))
 
@@ -188,6 +210,7 @@ def test_qwen_sends_enabled_thinking_and_low_effort_when_opted_in(
         (GlmClient, "glm"),
         (GptClient, "gpt"),
         (QwenClient, "qwen"),
+        (DeepSeekClient, "deepseek"),
     ],
 )
 def test_vendor_clients_reject_mismatched_provider(
@@ -208,6 +231,7 @@ def test_vendor_clients_reject_mismatched_provider(
         (GlmClient, "glm", "glm-5.3-flash"),
         (GptClient, "gpt", "gpt-5.6-luna"),
         (QwenClient, "qwen", "qwen3.8-flash"),
+        (DeepSeekClient, "deepseek", "DeepSeek-V4-Flash"),
     ],
 )
 def test_vendor_clients_require_environment_credential(

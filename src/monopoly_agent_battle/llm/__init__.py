@@ -1,5 +1,6 @@
 """Provider-agnostic LLM abstraction and mock/recording clients."""
 
+from monopoly_agent_battle.llm.deepseek_client import DeepSeekClient
 from monopoly_agent_battle.llm.fake_client import FakeLLMClient
 from monopoly_agent_battle.llm.glm_client import GlmClient
 from monopoly_agent_battle.llm.gpt_client import GptClient
@@ -34,6 +35,7 @@ __all__ = [
     "LLMResponse",
     "MockLLMClient",
     "FakeLLMClient",
+    "DeepSeekClient",
     "GlmClient",
     "GptClient",
     "KimiClient",

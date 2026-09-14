@@ -99,8 +99,8 @@ def _write_confirmation_checklist(buf: StringIO) -> None:
             "render_history_broadcast.py 已验收。",
         ),
         (
-            "5. 500-token 历史上限",
-            "仅段 4 独立严格限制为 500 估算 token；从最早完整播报事件开始删除，规则、"
+            "5. 750-token 历史上限",
+            "仅段 4 独立严格限制为 750 估算 token；从最早完整播报事件开始删除，规则、"
             "当前状态、候选和段 5 均不截断。裁剪警告仅供 runtime 审计。见 D。",
         ),
         (
@@ -553,7 +553,7 @@ def scenario_d(buf: StringIO, directory: str) -> None:
         for complete_round, event in history_events
         if (sentence := render_event(event, conversation.agent_id)) is not None
     )
-    if estimate_tokens("\n".join(full_history)) <= 500:
+    if estimate_tokens("\n".join(full_history)) <= 750:
         raise AssertionError("Scenario D complete history must exceed the segment-4 token cap")
 
     # Start a new action turn to rebuild the capped history cache and emit its warning.
@@ -562,8 +562,8 @@ def scenario_d(buf: StringIO, directory: str) -> None:
     retained_history = conversation.segment3_sentences
     if warning is None or warning.kind != "segment3_overflow":
         raise AssertionError("Scenario D must emit a segment-4 overflow warning")
-    if estimate_tokens("\n".join(retained_history)) > 500:
-        raise AssertionError("Scenario D segment 4 must stay within the fixed 500-token cap")
+    if estimate_tokens("\n".join(retained_history)) > 750:
+        raise AssertionError("Scenario D segment 4 must stay within the fixed 750-token cap")
     if retained_history[0] == full_history[0]:
         raise AssertionError("Scenario D must drop earliest historical events")
     if retained_history[-1] != full_history[-1]:

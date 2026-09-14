@@ -4,8 +4,9 @@ seed: 116
 prompt_profile: full-v2
 # 4-courts-battle game-016
 # seats: 1=秦 2=唐 3=明 4=商
-# shang=D qin=A tang=C ming=B
-# models: A=qwen3.8-flash B=DeepSeek-V4-Pro C=kimi-k2.6 D=gpt-5.6-luna
+# shang(base)=D qin=A tang=C ming=B
+# shang2 posts expanded per Courts-Battle-config-details.md 1.3: ministers C/B/A, emperor D
+# models: A=qwen3.8-flash B=deepseek-v4-flash C=gpt-5.6-luna D=GLM-5.3-Flash
 
 players:
   - player_id: qin-court
@@ -34,57 +35,79 @@ players:
       emperor: ming-emperor
   - player_id: shang-court
     seat: 4
-    controller_type: shang_court
+    controller_type: shang2_court
     court_role_profiles:
-      great_priest: shang-great-priest
+      minister_1: shang-minister-1
+      minister_2: shang-minister-2
+      minister_3: shang-minister-3
       emperor: shang-emperor
 
 model_profiles:
-  shang-great-priest:
+  shang-minister-1:
     provider: gpt
     base_url_env: GPT_URL
-    api_key_env: GPT_API_KEY
+    api_key_env: GPT_API_KEY4
     model: gpt-5.6-luna
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  shang-minister-2:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY4
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+
+  shang-minister-3:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY4
+    model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
     thinking: true
     timeout_seconds: 120
 
   shang-emperor:
-    provider: gpt
-    base_url_env: GPT_URL
-    api_key_env: GPT_API_KEY
-    model: gpt-5.6-luna
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
     seed: 42
     max_tokens: 4096
     thinking: true
     timeout_seconds: 120
 
   qin-chancellor:
-    provider: openai_compatible
+    provider: deepseek
     base_url_env: DEEPSEEK_URL
-    api_key_env: DEEPSEEK_API_KEY
-    model: DeepSeek-V4-Pro
+    api_key_env: DEEPSEEK_API_KEY4
+    model: deepseek-v4-flash
     seed: 42
     max_tokens: 4096
     thinking: true
     timeout_seconds: 120
 
   qin-grand-marshal:
-    provider: kimi
-    base_url_env: KIMI_URL
-    api_key_env: KIMI_API_KEY
-    model: kimi-k2.6
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY4
+    model: gpt-5.6-luna
     seed: 42
     max_tokens: 4096
     thinking: true
     timeout_seconds: 120
 
   qin-imperial-counsellor:
-    provider: gpt
-    base_url_env: GPT_URL
-    api_key_env: GPT_API_KEY
-    model: gpt-5.6-luna
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -93,7 +116,7 @@ model_profiles:
   qin-emperor:
     provider: qwen
     base_url_env: QWEN_URL
-    api_key_env: QWEN_API_KEY
+    api_key_env: QWEN_API_KEY4
     model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
@@ -101,10 +124,10 @@ model_profiles:
     timeout_seconds: 120
 
   tang-shangshu:
-    provider: gpt
-    base_url_env: GPT_URL
-    api_key_env: GPT_API_KEY
-    model: gpt-5.6-luna
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -113,7 +136,7 @@ model_profiles:
   tang-zhongshu:
     provider: qwen
     base_url_env: QWEN_URL
-    api_key_env: QWEN_API_KEY
+    api_key_env: QWEN_API_KEY4
     model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
@@ -121,20 +144,20 @@ model_profiles:
     timeout_seconds: 120
 
   tang-menxia:
-    provider: openai_compatible
+    provider: deepseek
     base_url_env: DEEPSEEK_URL
-    api_key_env: DEEPSEEK_API_KEY
-    model: DeepSeek-V4-Pro
+    api_key_env: DEEPSEEK_API_KEY4
+    model: deepseek-v4-flash
     seed: 42
     max_tokens: 4096
     thinking: true
     timeout_seconds: 120
 
   tang-emperor:
-    provider: kimi
-    base_url_env: KIMI_URL
-    api_key_env: KIMI_API_KEY
-    model: kimi-k2.6
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY4
+    model: gpt-5.6-luna
     seed: 42
     max_tokens: 4096
     thinking: true
@@ -143,7 +166,7 @@ model_profiles:
   ming-chief-grand-secretary:
     provider: qwen
     base_url_env: QWEN_URL
-    api_key_env: QWEN_API_KEY
+    api_key_env: QWEN_API_KEY4
     model: qwen3.8-flash
     seed: 42
     max_tokens: 4096
@@ -151,30 +174,30 @@ model_profiles:
     timeout_seconds: 120
 
   ming-grand-secretary-1:
-    provider: gpt
-    base_url_env: GPT_URL
-    api_key_env: GPT_API_KEY
-    model: gpt-5.6-luna
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
     seed: 42
     max_tokens: 4096
     thinking: true
     timeout_seconds: 120
 
   ming-grand-secretary-2:
-    provider: kimi
-    base_url_env: KIMI_URL
-    api_key_env: KIMI_API_KEY
-    model: kimi-k2.6
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY4
+    model: gpt-5.6-luna
     seed: 42
     max_tokens: 4096
     thinking: true
     timeout_seconds: 120
 
   ming-emperor:
-    provider: openai_compatible
+    provider: deepseek
     base_url_env: DEEPSEEK_URL
-    api_key_env: DEEPSEEK_API_KEY
-    model: DeepSeek-V4-Pro
+    api_key_env: DEEPSEEK_API_KEY4
+    model: deepseek-v4-flash
     seed: 42
     max_tokens: 4096
     thinking: true

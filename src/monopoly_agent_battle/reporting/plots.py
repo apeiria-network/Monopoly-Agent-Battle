@@ -7,12 +7,19 @@ player. The charts match the manual ``stat/plot_cash.py`` and
 ``stat/plot_net_worth_and_cash.py`` renderings. matplotlib is imported lazily;
 environments without it get ``PlotGenerationError`` so callers can treat
 plotting as best-effort and never fail a finished run over a chart.
+
+Bankrupt players stop receiving decisions, so the digest carries no rows for
+them after their bankruptcy; their last recorded value would otherwise be
+forward-filled to the final round.  When the run directory also holds
+``events.jsonl`` and ``config.json``, each bankrupt player's series is forced
+to zero from the complete round its bankruptcy concluded in.
 """
 
 # pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false
 from __future__ import annotations
 
 import csv
+import json
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
@@ -42,6 +49,7 @@ def write_run_curves(run_directory: Path) -> list[Path]:
     figure_cls = _figure_class()
     net, cash = read_series(csv_path)
     rounds = sorted({item for values in (*net.values(), *cash.values()) for item in values})
+    _apply_bankruptcy_zeros(net, cash, rounds, _bankruptcy_rounds(run_directory))
     outputs: list[Path] = []
     if cash:
         outputs.append(_plot_cash(csv_path, rounds, cash, figure_cls))
@@ -83,6 +91,86 @@ def _store_last(series: Series, player: str, round_number: int, raw: str | None)
         series.setdefault(player, OrderedDict())[round_number] = int((raw or "").strip())
     except ValueError:
         return
+
+
+def _bankruptcy_rounds(run_directory: Path) -> dict[str, int]:
+    """Map each bankrupt player to the complete round its bankruptcy ended in.
+
+    Turn order cycles through seats, so a ``turn_started`` whose seat does not
+    advance past the previous one starts a new complete round; events after the
+    latest ``turn_started`` belong to that turn's round.  Requires the run's
+    ``config.json`` (seat assignment) and ``events.jsonl``; returns an empty
+    mapping when either artifact is absent or unreadable so plotting falls
+    back to digest-only behaviour.
+    """
+    config_path = run_directory / "config.json"
+    events_path = run_directory / "events.jsonl"
+    if not config_path.exists() or not events_path.exists():
+        return {}
+    try:
+        document = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    config = document.get("config") if isinstance(document, dict) else None
+    players = config.get("players") if isinstance(config, dict) else None
+    if not isinstance(players, list):
+        return {}
+    seats: dict[str, int] = {}
+    for entry in players:
+        if isinstance(entry, dict):
+            player_id = entry.get("player_id")
+            seat = entry.get("seat")
+            if isinstance(player_id, str) and isinstance(seat, int):
+                seats[player_id] = seat
+    if not seats:
+        return {}
+    bankruptcies: dict[str, int] = {}
+    current_round = 0
+    last_seat: int | None = None
+    try:
+        lines = events_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        event_type = event.get("event_type")
+        payload = event.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        if event_type == "turn_started":
+            seat = seats.get(str(payload.get("player_id")))
+            if seat is None:
+                continue
+            if last_seat is not None and seat <= last_seat:
+                current_round += 1
+            last_seat = seat
+        elif event_type == "player_bankrupt":
+            player_id = payload.get("player_id")
+            if isinstance(player_id, str) and player_id:
+                bankruptcies[player_id] = current_round
+    return bankruptcies
+
+
+def _apply_bankruptcy_zeros(
+    net: Series, cash: Series, rounds: list[int], bankruptcies: dict[str, int]
+) -> None:
+    """Force bankrupt players' series to zero from their bankruptcy round on."""
+    if not bankruptcies or not rounds:
+        return
+    final_round = rounds[-1]
+    for player, bankruptcy_round in bankruptcies.items():
+        for series in (net.get(player), cash.get(player)):
+            if series is None:
+                continue
+            for round_number in range(bankruptcy_round, final_round + 1):
+                series[round_number] = 0
 
 
 def _build_xy(rounds: list[int], values: OrderedDict[int, int]) -> tuple[list[int], list[float]]:

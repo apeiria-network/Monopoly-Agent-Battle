@@ -12,12 +12,14 @@ from monopoly_agent_battle.agents.ming import MingCourtAgent
 from monopoly_agent_battle.agents.qin import QinCourtAgent
 from monopoly_agent_battle.agents.random_baseline import RandomBaselineController
 from monopoly_agent_battle.agents.shang import ShangCourtAgent
+from monopoly_agent_battle.agents.shang2 import Shang2CourtAgent
 from monopoly_agent_battle.agents.tang import TangCourtAgent
 from monopoly_agent_battle.config.loader import config_hash, load_game_config
 from monopoly_agent_battle.config.local_env import load_local_env
 from monopoly_agent_battle.config.models import (
     MingCourtRoleProfiles,
     QinCourtRoleProfiles,
+    Shang2CourtRoleProfiles,
     ShangCourtRoleProfiles,
     TangCourtRoleProfiles,
 )
@@ -30,6 +32,7 @@ from monopoly_agent_battle.decision.runner import (
 )
 from monopoly_agent_battle.experiments.runner import render_batch_summary, run_batch
 from monopoly_agent_battle.game.engine import GameEngine
+from monopoly_agent_battle.llm.deepseek_client import DeepSeekClient
 from monopoly_agent_battle.llm.fake_client import FakeLLMClient
 from monopoly_agent_battle.llm.glm_client import GlmClient
 from monopoly_agent_battle.llm.gpt_client import GptClient
@@ -42,7 +45,6 @@ from monopoly_agent_battle.llm.registry import create_client, register_client_fa
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts, utc_timestamp
 from monopoly_agent_battle.performance.tracker import PerformanceTracker
 from monopoly_agent_battle.reporting.llm_digest import write_llm_digest
-from monopoly_agent_battle.reporting.plots import PlotGenerationError, write_run_curves
 from monopoly_agent_battle.reporting.single_game import write_single_game_report
 
 
@@ -118,6 +120,7 @@ def run_play(config_path: Path) -> Path:
         "glm": GlmClient,
         "gpt": GptClient,
         "qwen": QwenClient,
+        "deepseek": DeepSeekClient,
     }
     for provider, factory in remote_factories.items():
         if any(profile.provider == provider for profile in config.model_profiles.values()):
@@ -151,6 +154,40 @@ def run_play(config_path: Path) -> Path:
                 emperor_client=emperor_client,
                 emperor_profile=emperor_profile,
                 emperor_conversation=conversation,
+            )
+            continue
+        if player.controller_type == "shang2_court":
+            assert isinstance(player.court_role_profiles, Shang2CourtRoleProfiles)
+            roles = {
+                role: config.model_profiles[getattr(player.court_role_profiles, role)]
+                for role in ("minister_1", "minister_2", "minister_3", "emperor")
+            }
+            role_clients = {
+                role: RecordingLLMClient(create_client(profile), artifacts, _current_round)
+                for role, profile in roles.items()
+            }
+            role_conversations = {
+                role: AgentConversation(
+                    agent_id=f"{player.player_id}.{role}",
+                    window_turns=config.window_turns,
+                    prompt_profile=config.prompt_profile,
+                )
+                for role in roles
+            }
+            conversations[player.player_id] = role_conversations
+            controllers[player.player_id] = Shang2CourtAgent(
+                player_id=player.player_id,
+                seed=config.seed,
+                minister_1_client=role_clients["minister_1"],
+                minister_1_profile=roles["minister_1"],
+                minister_2_client=role_clients["minister_2"],
+                minister_2_profile=roles["minister_2"],
+                minister_3_client=role_clients["minister_3"],
+                minister_3_profile=roles["minister_3"],
+                emperor_client=role_clients["emperor"],
+                emperor_profile=roles["emperor"],
+                conversations=role_conversations,
+                validation_retries=config.validation_retries,
             )
             continue
         if player.controller_type == "qin_court":
@@ -277,7 +314,8 @@ def run_play(config_path: Path) -> Path:
     court_types = {
         player.player_id: str(player.controller_type)
         for player in config.players
-        if player.controller_type in {"shang_court", "qin_court", "tang_court", "ming_court"}
+        if player.controller_type
+        in {"shang_court", "shang2_court", "qin_court", "tang_court", "ming_court"}
     }
     tracker = PerformanceTracker(engine, court_types)
     run_decision_game(
@@ -290,10 +328,11 @@ def run_play(config_path: Path) -> Path:
     # Emit the condensed LLM reply digest when the game used any LLM controller.
     if (artifacts.run_directory / "llm_calls.jsonl").exists():
         write_llm_digest(artifacts.run_directory)
-        try:
-            write_run_curves(artifacts.run_directory)
-        except PlotGenerationError as error:
-            print(f"curve plots skipped: {error}")
+    # Per-game cash/net-worth curve PNGs are intentionally NOT auto-generated
+    # here: matplotlib -> numpy -> OpenBLAS can abort() the whole process under
+    # memory pressure, killing the batch before the next game runs. Regenerate
+    # offline via stat/plot_cash.py and stat/plot_net_worth_and_cash.py from the
+    # persisted llm_digest.csv.
     return artifacts.run_directory
 
 
