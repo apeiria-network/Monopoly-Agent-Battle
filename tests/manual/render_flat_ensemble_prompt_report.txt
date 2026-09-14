@@ -1,10 +1,10 @@
 FLAT-ENSEMBLE 上下文确认清单（供项目负责人逐项人工审核）
 ============================================================
 
-审阅范围：以下 messages 均由 compose_prompt() 生成，与单 LLM Baseline 走完全相同的 10 段装配路径（不传 role_instruction、不传 segment3_prompt）。每个会话使用玩家 id 作为 viewer，因此可见性与 Baseline 一致。四会话并行调用、加权投票、兜底参与投票与端到端回放由 test_flat_ensemble_agent.py / test_flat_ensemble_runner.py 覆盖。
+审阅范围：以下 messages 均由 compose_prompt() 生成，与单 LLM Baseline 走完全相同的 10 段装配路径（不传 role_instruction、不传 segment3_prompt）。每个会话使用玩家 id 作为 viewer，因此可见性与 Baseline 一致。所有场景均通过真实 GameEngine推进（RollDice / command_from_option），与朝廷渲染脚本同源。四会话并行调用、加权投票、兜底参与投票与端到端回放由 test_flat_ensemble_agent.py / test_flat_ensemble_runner.py 覆盖。
 
 - 1. 与 Baseline 同构的 10 段：段 1（角色与目标）+ 段 2（游戏规则）+ 段 3（固定 JSON 输出要求）仅在 system；段 4–10 属于动态 user；同回合既有模型回复严格作为 assistant。四会话均使用Baseline 默认提示词，无任何朝廷角色设定。见 A。
-- 2. 可见性与 Baseline 一致：每个会话以玩家 id 为 viewer，因此本人可见自己的机会卡名称、旁观者只见泛称，与 Baseline 完全相同（不像朝廷官员那样只看泛称）。见 B。
+- 2. 可见性与 Baseline 一致：每个会话以玩家 id 为 viewer，引擎真实掷骰抽卡后，本人可见自己的机会卡名称、旁观者只见泛称，与 Baseline 完全相同（不像朝廷官员那样只看泛称）。见 B。
 - 3. 四会话互相不可见：每个会话只记录自己的回复；投票结果不回传任何会话；任一会话的历史中不含其他会话的回复。见 C；互不可见由单元测试 test_each_session_records_only_own_reply_and_never_the_vote_result 覆盖。
 - 4. 投票结果不进入上下文：最终决策的 reason 为系统生成的投票摘要，但绝不写入任何会话的历史；各会话的自身 reason 留在 court_trace 供审计。见 C。
 - 5. 无朝廷内部消息泄露：flat_ensemble 无朝廷角色、无内部意见传递；任何会话的 Prompt 中均不出现 oracle、decision_maker 等朝廷专有字段。见 A。
@@ -248,7 +248,7 @@ SCENARIO A: 首次决策 — 持有多张机会卡，无任何历史（段 4、�
 ]
 
 ============================================================
-SCENARIO B: 新一轮行动回合 — 段 3 历史含本人抽卡，可见机会卡名称（与 Baseline 一致）
+SCENARIO B: 引擎真实掷骰并落在机会格抽卡 — 本人可见机会卡名称（与 Baseline 一致）
 ============================================================
 
 --- Message 1 [system] ---
@@ -389,17 +389,17 @@ SCENARIO B: 新一轮行动回合 — 段 3 历史含本人抽卡，可见机会
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
-## 历史事件播报
-[第0轮] 玩家a抽得机会卡「换地卡」。
-[第0轮] 玩家a结束行动回合。
+[第0轮] 玩家a掷出1+3=4点。
+[第0轮] 玩家a移动到第7格（Chance）。
+[第0轮] 玩家a抽得机会卡「免费卡」。
 
 ## 当前局面
 当前为第 0 回合，处于玩家「a」的行动回合。
 
 你的状态
 现金：1500
-位置：格子 0（GO，起点）
-持有机会卡：chance-swap-property
+位置：格子 7（Chance，机会）
+持有机会卡：chance-swap-property、chance-waiver
 持有出狱卡数量：0
 持有地产：格子 1（Mediterranean Avenue）
 
@@ -458,13 +458,24 @@ SCENARIO B: 新一轮行动回合 — 段 3 历史含本人抽卡，可见机会
           "swap_in_position": "填写换入的目标格子id",
           "swap_out_position": "填写换出的目标格子id"
         }
+      }
+    }
+  },
+  {
+    "option_id": "use_chance_card-chance-waiver",
+    "title": "使用机会卡「免费卡」",
+    "preview": "获得 2 次租金支付豁免，可累计。",
+    "response_format": {
+      "reason": "填写选择使用免费卡的理由。",
+      "selected_option": {
+        "option": "use_chance_card-chance-waiver"
       }
     }
   }
 ]
 
 ============================================================
-SCENARIO C: 同回合第二次决策 — 段 5 仅回放本人首次回复，无投票结果、无他人回复
+SCENARIO C: 同回合第二次决策 — 引擎推进后，段 5 仅回放本人首次回复，无投票结果
 ============================================================
 
 --- Message 1 [system] ---
@@ -605,21 +616,20 @@ SCENARIO C: 同回合第二次决策 — 段 5 仅回放本人首次回复，无
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
-[第0轮] 玩家a掷出2+3=5点。
-[第0轮] 玩家a移动到第5格（Reading Railroad）。
-
 ## 决策
 现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
 
 --- Message 3 [assistant] ---
-{"selected_option":{"option":"end_turn"},"reason":"选择候选操作 end_turn。"}
+{"reason": "选择抵押地产以筹集现金。", "selected_option": {"option": "mortgage", "target": 1}}
 
 --- Message 4 [user] ---
+[第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得30。
+
 ## 当前局面
 当前为第 0 回合，处于玩家「a」的行动回合。
 
 你的状态
-现金：1500
+现金：1530
 位置：格子 0（GO，起点）
 持有机会卡：chance-swap-property
 持有出狱卡数量：0
@@ -636,7 +646,7 @@ SCENARIO C: 同回合第二次决策 — 段 5 仅回放本人首次回复，无
 棋盘状态
 | 格 | 类型 | 所有者 | 建筑 | 状态 | 当前租金 |
 |---|---|---|---|---|---|
-| 1 | 街道 | a | 0 | - | 5 |
+| 1 | 街道 | a | 0 | 抵押 | 0（抵押） |
 | 3 | 街道 | b | 0 | - | 10 |
 （未列出的地产均无主。）
 
@@ -657,29 +667,14 @@ SCENARIO C: 同回合第二次决策 — 段 5 仅回放本人首次回复，无
     }
   },
   {
-    "option_id": "mortgage",
-    "title": "抵押地产",
-    "preview": "抵押一处你拥有的地产，获得其购买价的 50%；抵押期间该地产不收租，不能建造房屋，但是可以享受地产增益。赎回时需支付购买价的 55%。",
+    "option_id": "redeem_mortgage",
+    "title": "赎回抵押地产",
+    "preview": "赎回一处你抵押地产，支付该地产购买价的55%，恢复收取租金。",
     "response_format": {
-      "reason": "填写选择抵押该地产的理由。",
+      "reason": "填写选择赎回该抵押地产的理由。",
       "selected_option": {
-        "option": "mortgage",
-        "target": "填写需要抵押的目标格子编号"
-      }
-    }
-  },
-  {
-    "option_id": "use_chance_card-chance-swap-property",
-    "title": "使用机会卡「换地卡」",
-    "preview": "指定距自身 5 格以内的一处其他玩家无建筑且未抵押的普通地块，与自己的一处同条件地块交换所有权。",
-    "response_format": {
-      "reason": "填写选择使用换地卡的理由。",
-      "selected_option": {
-        "option": "use_chance_card-chance-swap-property",
-        "target": {
-          "swap_in_position": "填写换入的目标格子id",
-          "swap_out_position": "填写换出的目标格子id"
-        }
+        "option": "redeem_mortgage",
+        "target": "填写选择赎回的目标格子编号；"
       }
     }
   }

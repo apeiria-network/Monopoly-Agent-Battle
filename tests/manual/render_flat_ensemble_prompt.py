@@ -9,20 +9,23 @@ short summary to stdout.
 
 The ``flat_ensemble`` agent is the "organized structure removed" control: four
 sessions, each running the **same** baseline-level ``compose_prompt`` and
-context system as the single-LLM baseline, aggregated by a weighted vote.  The
-scenarios below render one session's composed messages and assert that they
-behave exactly like the baseline (Stage 4D report):
+context system as the single-LLM baseline, aggregated by a weighted vote.
+The scenarios below advance the real ``GameEngine`` (``RollDice`` /
+``command_from_option``), exactly like the court render scripts
+(render_ming/qin/tang_decision_prompt.py), so the rendered prompts reflect
+real post-decision state and real engine events:
 
-  A – First decision of the game with several held Chance cards (no completed
-      turns; no in-turn history).  Expected: messages =
-      [system(段 1+2+3+固定输出约定), user(段 6-10)], byte-identical to the
-      baseline, with no court artifacts (oracle / decision_maker) leaking.
-  B – Fresh action turn after a prior completed turn whose history contains a
-      card_drawn event for this very player.  Expected: segment 3 renders the
-      player's OWN chance-card name (本人可见自己的机会卡名称), not the generic
-      observer form — because each session's conversation uses the player id as
-      the viewer, exactly like the baseline.
-  C – Same action turn, second decision.  Expected: segment 5 replays this
+  A – First decision of the game with several held Chance cards (no in-turn
+      history).  Expected: messages = [system(段 1+2+3+固定输出约定),
+      user(段 6-10)], byte-identical to the baseline, with no court artifacts
+      (oracle / decision_maker) leaking.
+  B – The engine really rolls dice and lands on a Chance square, so a
+      ``card_drawn`` event is produced.  Expected: the session (viewer = player
+      id) sees its OWN chance-card name in history (本人可见自己的机会卡名称),
+      not the generic observer form — matching the baseline exactly.
+  C – Within the same action turn the session already made one decision; the
+      engine advances with ``command_from_option`` so the second request
+      reflects real post-decision state.  Expected: segment 5 replays this
       session's OWN first reply as an assistant message; the system-authored
       weighted-vote summary never enters any session's history, and no peer
       session's reply is ever visible.
@@ -35,6 +38,7 @@ by ``tests/unit/test_flat_ensemble_agent.py`` and
 
 from __future__ import annotations
 
+import json
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -42,9 +46,12 @@ from tempfile import TemporaryDirectory
 from monopoly_agent_battle.config.models import GameConfig, PlayerConfig
 from monopoly_agent_battle.context.composer import compose_prompt
 from monopoly_agent_battle.context.conversation import AgentConversation
+from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.prompts import render_decision_question
+from monopoly_agent_battle.decision.protocol import command_from_option, parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request
-from monopoly_agent_battle.domain.models import GameEvent, TurnPhase
+from monopoly_agent_battle.domain.commands import RollDice
+from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.protocol import LLMMessage
 
@@ -60,8 +67,9 @@ def _write_confirmation_checklist(buf: StringIO) -> None:
     buf.write(
         "审阅范围：以下 messages 均由 compose_prompt() 生成，与单 LLM Baseline 走完全相同"
         "的 10 段装配路径（不传 role_instruction、不传 segment3_prompt）。每个会话使用"
-        "玩家 id 作为 viewer，因此可见性与 Baseline 一致。四会话并行调用、加权投票、"
-        "兜底参与投票与端到端回放由 test_flat_ensemble_agent.py / "
+        "玩家 id 作为 viewer，因此可见性与 Baseline 一致。所有场景均通过真实 GameEngine"
+        "推进（RollDice / command_from_option），与朝廷渲染脚本同源。四会话并行调用、加权"
+        "投票、兜底参与投票与端到端回放由 test_flat_ensemble_agent.py / "
         "test_flat_ensemble_runner.py 覆盖。\n\n"
     )
     items = (
@@ -73,8 +81,8 @@ def _write_confirmation_checklist(buf: StringIO) -> None:
         ),
         (
             "2. 可见性与 Baseline 一致",
-            "每个会话以玩家 id 为 viewer，因此本人可见自己的机会卡名称、旁观者只见泛称，"
-            "与 Baseline 完全相同（不像朝廷官员那样只看泛称）。见 B。",
+            "每个会话以玩家 id 为 viewer，引擎真实掷骰抽卡后，本人可见自己的机会卡名称、"
+            "旁观者只见泛称，与 Baseline 完全相同（不像朝廷官员那样只看泛称）。见 B。",
         ),
         (
             "3. 四会话互相不可见",
@@ -147,10 +155,6 @@ def _make_engine(directory: str) -> GameEngine:
     return engine
 
 
-def _event(event_type: str, **payload: object) -> GameEvent:
-    return GameEvent(event_type=event_type, payload=payload)
-
-
 def _flat_member_conversation() -> AgentConversation:
     """A flat-ensemble session conversation: viewer = player id (like baseline)."""
     return AgentConversation(agent_id="a", window_turns=1)
@@ -160,6 +164,19 @@ def _assert_no_court_artifacts(messages: tuple[LLMMessage, ...]) -> None:
     for message in messages:
         if "oracle" in message.content or "decision_maker" in message.content:
             raise AssertionError("flat-ensemble session prompt must not contain court artifacts")
+
+
+def _selected_option(request: DecisionRequest, option_id: str) -> dict[str, object]:
+    """Build the selected_option JSON for ``option_id`` using its last legal target."""
+    option = next(item for item in request.options if item.option_id == option_id)
+    selected: dict[str, object] = {"option": option_id}
+    if option.target is not None:
+        values = option.target.legal_values[-1]
+        if len(option.target.fields) == 1:
+            selected["target"] = values[0]
+        else:
+            selected["target"] = dict(zip(option.target.fields, values, strict=True))
+    return selected
 
 
 def scenario_a(buf: StringIO, directory: str) -> None:
@@ -203,20 +220,26 @@ def scenario_b(buf: StringIO, directory: str) -> None:
     _write_header(
         buf,
         "B",
-        "新一轮行动回合 — 段 3 历史含本人抽卡，可见机会卡名称（与 Baseline 一致）",
+        "引擎真实掷骰并落在机会格抽卡 — 本人可见机会卡名称（与 Baseline 一致）",
     )
     engine = _make_engine(directory)
-    request = build_decision_request(engine, sequence=5)
+    player = engine.state.players["a"]
+    player.position = 3
+    engine.state.chance_draw_pile = ["chance-waiver"]
+    engine.state.turn_phase = TurnPhase.ROLLING
+    dice = iter((1, 3))
+    engine.random.randint = lambda _low, _high: next(dice)  # type: ignore[method-assign]
 
     conversation = _flat_member_conversation()
     conversation.start_turn(1)
-    # Player a draws a Chance card in turn 1; viewer == "a" must see its name.
-    conversation.append_event(
-        _event("card_drawn", player_id="a", card_id="chance-swap-property", deck="chance"),
-        complete_round=0,
-    )
-    conversation.append_event(_event("turn_ended", player_id="a"), complete_round=0)
-    conversation.start_turn(2)  # turn 1 → completed; turn 2 is the new action turn
+    for event in engine.execute(RollDice("a")):
+        conversation.append_event(event, complete_round=engine.state.complete_rounds)
+
+    if len(player.chance_cards) != 2:
+        raise AssertionError(
+            "Scenario B must leave player a holding two Chance cards after the draw"
+        )
+    request = build_decision_request(engine, sequence=1)
 
     messages, warning = compose_prompt(conversation, request)
     text = "\n".join(message.content for message in messages)
@@ -236,23 +259,42 @@ def scenario_c(buf: StringIO, directory: str) -> None:
     _write_header(
         buf,
         "C",
-        "同回合第二次决策 — 段 5 仅回放本人首次回复，无投票结果、无他人回复",
+        "同回合第二次决策 — 引擎推进后，段 5 仅回放本人首次回复，无投票结果",
     )
     engine = _make_engine(directory)
     first_request = build_decision_request(engine, sequence=1)
-    second_request = build_decision_request(engine, sequence=2)
+    mortgage = next(
+        (option for option in first_request.options if option.command_type == "mortgage"),
+        None,
+    )
+    if mortgage is None:
+        raise AssertionError("Scenario C needs a mortgage option to advance the engine")
+    own_reply = json.dumps(
+        {
+            "reason": "选择抵押地产以筹集现金。",
+            "selected_option": _selected_option(first_request, mortgage.option_id),
+        },
+        ensure_ascii=False,
+    )
+    validation = parse_and_validate(own_reply, first_request)
+    if not validation.valid or validation.option is None:
+        raise AssertionError(f"Scenario C own reply must be valid: {validation.error}")
 
-    own_reply = '{"selected_option":{"option":"end_turn"},"reason":"选择候选操作 end_turn。"}'
     conversation = _flat_member_conversation()
     conversation.start_turn(1)
-    conversation.append_event(_event("dice_rolled", player_id="a", dice=(2, 3)), complete_round=0)
-    conversation.append_event(_event("player_moved", player_id="a", to=5), complete_round=0)
     conversation.append_decision(
         decision_id=first_request.decision_id,
         question_summary=render_decision_question(first_request),
         assistant_reply=own_reply,
     )
+    events = engine.execute(
+        command_from_option(first_request, validation.option, validation.target)
+    )
+    for event in events:
+        conversation.append_event(event, complete_round=engine.state.complete_rounds)
+    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
 
+    second_request = build_decision_request(engine, sequence=2)
     messages, warning = compose_prompt(conversation, second_request)
     assistant_messages = [message.content for message in messages if message.role == "assistant"]
     if assistant_messages != [own_reply]:
