@@ -12,11 +12,18 @@ from monopoly_agent_battle.game.replay import verify_run
 _DISPOSAL_COMMAND_TYPES = {"Mortgage", "SellBuilding"}
 
 
-def _write_greedy_config(path: Path, output_directory: Path, game_id: str) -> None:
+def _write_greedy_config(
+    path: Path,
+    output_directory: Path,
+    game_id: str,
+    *,
+    seed: int = 17,
+    max_rounds: int = 3,
+) -> None:
     path.write_text(
         f"""game_id: {game_id}
 experiment_id: greedy-script-integration
-seed: 17
+seed: {seed}
 players:
   - player_id: a
     seat: 1
@@ -34,7 +41,9 @@ rules_version: classic-level0-v1
 rules_level: 0
 board_data_version: classic-us-40-v1
 card_data_version: classic-cards-v1
-max_complete_rounds: 3
+initial_cash: 1500
+initial_chance_cards: 2
+max_complete_rounds: {max_rounds}
 output_directory: {output_directory.as_posix()}
 """,
         encoding="utf-8",
@@ -90,3 +99,36 @@ def test_greedy_script_run_is_reproducible(tmp_path: Path) -> None:
         for record in _records(second / "decisions.jsonl")
     ]
     assert first_commands == second_commands
+
+
+def test_greedy_script_handles_targeted_decisions_end_to_end(tmp_path: Path) -> None:
+    """A full 50-round game on seed 2201 exercises every previously-crashing path.
+
+    Seed 2201 deterministically triggers (in production option structure):
+      * theft card selection at decision ~10 (the original crash),
+      * redeem-mortgage decisions around round 45,
+      * forced mortgage/sell disposal in payment resolution around round 47.
+    The engine folds each command's legal targets into a single option whose
+    ``option.target.legal_values`` lists the candidate tuples; this asserts the
+    controller supplies a valid target for each instead of raising.
+    """
+    config_path = tmp_path / "greedy_targets.yaml"
+    output_directory = tmp_path / "runs"
+    _write_greedy_config(config_path, output_directory, "greedy-targets", seed=2201, max_rounds=50)
+
+    run_directory = run_play(config_path)
+
+    decisions = _records(run_directory / "decisions.jsonl")
+    result = json.loads((run_directory / "result.json").read_text(encoding="utf-8"))
+    assert result["validity_status"] == "valid"
+    assert result["llm_calls"] == 0
+
+    command_types = {record["executed_command"]["command_type"] for record in decisions}
+    assert "SelectStolenChanceCard" in command_types
+    assert "RedeemMortgage" in command_types
+    assert command_types & _DISPOSAL_COMMAND_TYPES
+
+    for record in decisions:
+        if record["executed_command"]["command_type"] in _DISPOSAL_COMMAND_TYPES:
+            assert record["request"]["kind"] == "payment_resolution"
+    verify_run(run_directory)

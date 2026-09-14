@@ -20,6 +20,9 @@
 | `configs/experiments/preexperiment_demo/batch.yaml` | 预实验批次清单，按顺序列出需要执行的独立对局 YAML；相对路径以清单文件所在目录为基准。 | 作为 `monopoly-agent-battle experiment run --batch` 的输入。 |
 | `configs/experiments/preexperiment_demo/game_a.yaml` / `game_b.yaml` | 两局 Level 0 完全随机、非 LLM 的预实验示例配置。 | 由 `batch.yaml` 按顺序调用；也可作为独立 `play --config` 配置。 |
 | `configs/fake_agent_batch_test/generate_configs.py` | 生成 4 批 × 20 局、50 回合的四朝廷 fake 对局配置及批次清单；座位轮转均衡，种子互异，开局发 3 张机会卡，生成时逐份预校验。 | `.venv/Scripts/python.exe configs/fake_agent_batch_test/generate_configs.py`；批次用 `experiment run --batch configs/fake_agent_batch_test/batchN/batch.yaml` 执行。 |
+| `configs/experiments/scripted_benchmarks/generate_configs.py` | 生成 §8 两零成本基准对局配置：`sane_random` 与 `greedy_script` 各 200 局（8×25），种子 2001–2200 / 2201–2400，参数对齐冻结混战（2 张开局、50 轮），生成时逐份 load 校验。 | `.venv/Scripts/python.exe configs/experiments/scripted_benchmarks/generate_configs.py`；批次用 `experiment run --batch configs/experiments/<exp>/batchN/batch.yaml` 执行。 |
+| `configs/experiments/sane_random/` | §8.3 理智随机基准：4 名 `sane_random` 玩家同局，`batch1..8` 各含 25 份 `game_NNN.yaml` + `batch.yaml` 清单；产物写 `runs/sane_random/sane-NNN`。 | `experiment run --batch configs/experiments/sane_random/batchN/batch.yaml`。 |
+| `configs/experiments/greedy_script/` | §8.4 固定脚本基准：4 名 `greedy_script` 玩家同局，结构同上；产物写 `runs/greedy_script/greedy-NNN`。 | `experiment run --batch configs/experiments/greedy_script/batchN/batch.yaml`。 |
 | `src/monopoly_agent_battle/config/models.py` | 定义并校验单局配置、控制器及模型绑定；每个玩家或官员的 profile 可独立配置 URL、API Key 环境变量、模型、LLM seed 和调用参数。 | 由配置加载器和对局入口调用；真实 API Key 不进入配置。 |
 | `src/monopoly_agent_battle/config/loader.py` | 加载 YAML 配置，生成规范 JSON 及 SHA-256 `config_hash`，并校验远程模型白名单（范围外直接报错）。 | 由 CLI 或实验编排调用。 |
 | `.env.example` | 本地凭据模板（占位值），列出通用 `MONOPOLY_API_KEY` 及 `example.yaml` 中 13 名官员的 `api_key_env` 变量名。 | `Copy-Item .env.example .env.local` 后填入真实 API Key；禁止提交真实密钥。 |

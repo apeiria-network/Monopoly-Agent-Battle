@@ -10,6 +10,7 @@ from monopoly_agent_battle.decision.models import (
     DecisionKind,
     DecisionOption,
     DecisionRequest,
+    OptionTarget,
 )
 from monopoly_agent_battle.decision.protocol import option_json
 from monopoly_agent_battle.game.cards.classic_cards import CARDS_BY_ID, CardEffect
@@ -31,6 +32,13 @@ class GreedyScriptController:
     in jail prefer the get-out-of-jail card, then the fine, then rolling; during
     forced disposal mortgage before selling, always at the lowest building
     level (railroads/utilities count as level 1) with seeded-random tie-breaks.
+
+    The engine folds every legal target of a command (which property to
+    mortgage/redeem/sell, which stolen card to take) into a single option whose
+    ``option.target.legal_values`` lists the candidate tuples; ``option.parameters``
+    never carries those target fields.  This controller therefore selects a
+    target tuple from ``option.target.legal_values`` and returns it alongside the
+    option so ``option_json`` can encode it.
     """
 
     uses_llm = False
@@ -52,12 +60,28 @@ class GreedyScriptController:
 
     def _choose(self, request: DecisionRequest) -> tuple[DecisionOption, tuple[object, ...] | None]:
         if request.kind is DecisionKind.JAIL:
-            return self._choose_jail(request), None
+            option = self._choose_jail(request)
+            return option, self._first_target(option)
         if request.kind is DecisionKind.PAYMENT_RESOLUTION:
-            return self._choose_disposal(request), None
+            return self._choose_disposal(request)
         if request.kind is DecisionKind.ASSET_MANAGEMENT:
             return self._choose_asset_management(request)
-        return request.options[0], None
+        # FORCED_DISCARD, THEFT_CARD_SELECTION and any other kind: pick the first
+        # candidate (option[0] with its first legal target), matching 8.2.
+        return self._first_candidate(request)
+
+    def _first_candidate(
+        self, request: DecisionRequest
+    ) -> tuple[DecisionOption, tuple[object, ...] | None]:
+        option = request.options[0]
+        return option, self._first_target(option)
+
+    @staticmethod
+    def _first_target(option: DecisionOption) -> tuple[object, ...] | None:
+        """Return the first legal target tuple, or None when the option has no target."""
+        if option.target is None:
+            return None
+        return option.target.legal_values[0]
 
     def _choose_jail(self, request: DecisionRequest) -> DecisionOption:
         for command_type in ("use_community_get_out_of_jail_card", "pay_jail_fine"):
@@ -75,10 +99,10 @@ class GreedyScriptController:
         )
         if card_option is not None:
             return card_option, self._card_target(request, card_option)
-        redeem_option = self._choose_redeem(request)
-        if redeem_option is not None:
-            return redeem_option, None
-        return self._default_option(request), None
+        redeem = self._choose_redeem(request)
+        if redeem is not None:
+            return redeem
+        return self._default_option(request)
 
     def _card_target(
         self, request: DecisionRequest, option: DecisionOption
@@ -119,39 +143,42 @@ class GreedyScriptController:
                 )
         return tuple(parts)
 
-    def _choose_redeem(self, request: DecisionRequest) -> DecisionOption | None:
+    def _choose_redeem(
+        self, request: DecisionRequest
+    ) -> tuple[DecisionOption, tuple[object, ...] | None] | None:
+        option = next((o for o in request.options if o.command_type == "redeem_mortgage"), None)
+        if option is None or option.target is None:
+            return None
         cash = self._own_cash(request.visible_state)
-        redeemable: list[tuple[int, DecisionOption]] = []
-        for option in request.options:
-            if option.command_type != "redeem_mortgage":
-                continue
-            position = cast(int, option.parameters["position"])
+        redeemable: list[tuple[int, tuple[object, ...]]] = []
+        for row in option.target.legal_values:
+            position = cast(int, row[0])
             price = cast(int, self._board_entry(request.visible_state, position)["price"] or 0)
             if cash >= _redeem_cost(price) + _REDEEM_SAFETY_MARGIN:
-                redeemable.append((position, option))
+                redeemable.append((position, row))
         if not redeemable:
             return None
         redeemable.sort(key=lambda item: item[0])
-        return redeemable[0][1]
+        return option, redeemable[0][1]
 
-    def _choose_disposal(self, request: DecisionRequest) -> DecisionOption:
+    def _choose_disposal(
+        self, request: DecisionRequest
+    ) -> tuple[DecisionOption, tuple[object, ...] | None]:
         for command_type in ("mortgage", "sell_building"):
-            candidates = [
-                option for option in request.options if option.command_type == command_type
-            ]
-            if candidates:
-                return self._pick_lowest_level(request, candidates)
+            option = next((o for o in request.options if o.command_type == command_type), None)
+            if option is None or option.target is None:
+                continue
+            position = self._pick_lowest_level_position(request, option.target)
+            return option, (position,)
         return self._default_option(request)
 
-    def _pick_lowest_level(
-        self, request: DecisionRequest, options: list[DecisionOption]
-    ) -> DecisionOption:
-        levels = [
-            (self._virtual_level(request, cast(int, option.parameters["position"])), option)
-            for option in options
+    def _pick_lowest_level_position(self, request: DecisionRequest, target: OptionTarget) -> int:
+        scored = [
+            (self._virtual_level(request, cast(int, row[0])), cast(int, row[0]))
+            for row in target.legal_values
         ]
-        lowest = min(level for level, _ in levels)
-        tied = [option for level, option in levels if level == lowest]
+        lowest = min(level for level, _ in scored)
+        tied = [position for level, position in scored if level == lowest]
         return tied[0] if len(tied) == 1 else self._rng.choice(tied)
 
     def _virtual_level(self, request: DecisionRequest, position: int) -> int:
@@ -160,11 +187,14 @@ class GreedyScriptController:
             return _NON_STREET_LEVEL
         return cast(int, entry["building_level"] or 0)
 
-    def _default_option(self, request: DecisionRequest) -> DecisionOption:
-        return next(
+    def _default_option(
+        self, request: DecisionRequest
+    ) -> tuple[DecisionOption, tuple[object, ...] | None]:
+        option = next(
             (option for option in request.options if option.is_default),
             request.options[0],
         )
+        return option, self._first_target(option)
 
     def _own_position(self, state: dict[str, object]) -> int:
         return cast(int, cast(dict[str, object], state["your_state"])["position"])

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import Any
+from typing import Any, cast
 
 from monopoly_agent_battle.agents.greedy_script import GreedyScriptController
 from monopoly_agent_battle.decision.models import (
@@ -23,6 +23,14 @@ def _option(
     target_rows: list[tuple[object, ...]] | None = None,
     target_fields: tuple[str, ...] = ("target_player_id",),
 ) -> DecisionOption:
+    """Build an option mirroring the engine's folded-option structure.
+
+    When ``target_rows`` is given the option carries an ``OptionTarget`` whose
+    ``legal_values`` list the candidate tuples and whose ``fields`` match the
+    production command target (e.g. ``position`` for mortgage/redeem/sell,
+    ``card_id`` for theft selection).  ``parameters`` never carries those
+    target fields, exactly like ``decision/requests._split_command``.
+    """
     return DecisionOption(
         option_id=option_id or command_type,
         command_type=command_type,
@@ -88,11 +96,11 @@ def _board_entry(
     }
 
 
-def _selected(request: DecisionRequest, seed: int = 1) -> tuple[DecisionOption, object]:
+def _selected(request: DecisionRequest, seed: int = 1) -> tuple[DecisionOption, dict[str, object]]:
     validation = parse_and_validate(GreedyScriptController(random.Random(seed))(request), request)
     assert validation.valid
     assert validation.option is not None
-    return validation.option, validation.target
+    return validation.option, cast(dict[str, object], validation.target)
 
 
 def test_jail_prefers_card_then_fine_then_roll() -> None:
@@ -168,16 +176,19 @@ def test_redeems_lowest_position_when_cash_allows() -> None:
         DecisionKind.ASSET_MANAGEMENT,
         [
             _option("end_turn"),
-            _option("redeem_mortgage", "redeem_mortgage-11", {"position": 11}),
-            _option("redeem_mortgage", "redeem_mortgage-3", {"position": 3}),
+            _option(
+                "redeem_mortgage",
+                target_rows=[(11,), (3,)],
+                target_fields=("position",),
+            ),
         ],
         state,
     )
 
-    option, _ = _selected(request)
+    option, target = _selected(request)
 
     assert option.command_type == "redeem_mortgage"
-    assert option.parameters["position"] == 3
+    assert target == {"position": 3}
 
 
 def test_skips_redeem_without_safety_margin() -> None:
@@ -187,7 +198,11 @@ def test_skips_redeem_without_safety_margin() -> None:
         DecisionKind.ASSET_MANAGEMENT,
         [
             _option("end_turn"),
-            _option("redeem_mortgage", "redeem_mortgage-3", {"position": 3}),
+            _option(
+                "redeem_mortgage",
+                target_rows=[(3,)],
+                target_fields=("position",),
+            ),
         ],
         state,
     )
@@ -205,25 +220,37 @@ def test_disposal_mortgages_lowest_level_before_selling() -> None:
     request = _request(
         DecisionKind.PAYMENT_RESOLUTION,
         [
-            _option("sell_building", "sell_building-5", {"position": 5}),
-            _option("mortgage", "mortgage-12", {"position": 12}),
-            _option("mortgage", "mortgage-1", {"position": 1}),
+            _option("sell_building", target_rows=[(5,)], target_fields=("position",)),
+            _option(
+                "mortgage",
+                target_rows=[(12,), (1,)],
+                target_fields=("position",),
+            ),
         ],
         state,
     )
 
-    assert _selected(request)[0].parameters["position"] == 1
+    option, target = _selected(request)
+
+    assert option.command_type == "mortgage"
+    assert target == {"position": 1}
 
     sell_only = _request(
         DecisionKind.PAYMENT_RESOLUTION,
         [
-            _option("sell_building", "sell_building-5", {"position": 5}),
-            _option("sell_building", "sell_building-1", {"position": 1}),
+            _option(
+                "sell_building",
+                target_rows=[(5,), (1,)],
+                target_fields=("position",),
+            ),
         ],
         state,
     )
 
-    assert _selected(sell_only)[0].parameters["position"] == 1
+    option, target = _selected(sell_only)
+
+    assert option.command_type == "sell_building"
+    assert target == {"position": 1}
 
 
 def test_disposal_level_ties_are_reproducible() -> None:
@@ -232,15 +259,19 @@ def test_disposal_level_ties_are_reproducible() -> None:
     request = _request(
         DecisionKind.PAYMENT_RESOLUTION,
         [
-            _option("sell_building", "sell_building-1", {"position": 1}),
-            _option("sell_building", "sell_building-9", {"position": 9}),
+            _option(
+                "sell_building",
+                target_rows=[(1,), (9,)],
+                target_fields=("position",),
+            ),
         ],
         state,
     )
 
-    first_positions = [_selected(request, seed=42)[0].parameters["position"] for _ in range(3)]
-    repeated = [_selected(request, seed=42)[0].parameters["position"] for _ in range(3)]
+    first_positions = [_selected(request, seed=42)[1]["position"] for _ in range(3)]
+    repeated = [_selected(request, seed=42)[1]["position"] for _ in range(3)]
 
+    assert all(position in (1, 9) for position in first_positions)
     assert first_positions == repeated
 
 
@@ -257,14 +288,23 @@ def test_forced_discard_and_theft_pick_first_candidate() -> None:
     theft = _request(
         DecisionKind.THEFT_CARD_SELECTION,
         [
-            _option("select_stolen_chance_card", "steal-1", {"card_id": "chance-taxi"}),
-            _option("select_stolen_chance_card", "steal-2", {"card_id": "chance-steal-card"}),
+            _option(
+                "select_stolen_chance_card",
+                target_rows=[("chance-taxi",), ("chance-steal-card",)],
+                target_fields=("card_id",),
+            ),
         ],
         state,
     )
 
-    assert _selected(discard)[0].parameters["card_id"] == "chance-taxi"
-    assert _selected(theft)[0].parameters["card_id"] == "chance-taxi"
+    discard_option, discard_target = _selected(discard)
+    assert discard_option.command_type == "discard_chance_card"
+    assert discard_option.parameters["card_id"] == "chance-taxi"
+    assert discard_target == {}
+
+    theft_option, theft_target = _selected(theft)
+    assert theft_option.command_type == "select_stolen_chance_card"
+    assert theft_target == {"card_id": "chance-taxi"}
 
 
 def test_greedy_script_is_reproducible_and_non_llm() -> None:
