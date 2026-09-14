@@ -45,7 +45,6 @@ from monopoly_agent_battle.llm.registry import create_client, register_client_fa
 from monopoly_agent_battle.logging.run_artifacts import RunArtifacts, utc_timestamp
 from monopoly_agent_battle.performance.tracker import PerformanceTracker
 from monopoly_agent_battle.reporting.llm_digest import write_llm_digest
-from monopoly_agent_battle.reporting.plots import PlotGenerationError, write_run_curves
 from monopoly_agent_battle.reporting.single_game import write_single_game_report
 
 
@@ -329,10 +328,11 @@ def run_play(config_path: Path) -> Path:
     # Emit the condensed LLM reply digest when the game used any LLM controller.
     if (artifacts.run_directory / "llm_calls.jsonl").exists():
         write_llm_digest(artifacts.run_directory)
-        try:
-            write_run_curves(artifacts.run_directory)
-        except PlotGenerationError as error:
-            print(f"curve plots skipped: {error}")
+    # Per-game cash/net-worth curve PNGs are intentionally NOT auto-generated
+    # here: matplotlib -> numpy -> OpenBLAS can abort() the whole process under
+    # memory pressure, killing the batch before the next game runs. Regenerate
+    # offline via stat/plot_cash.py and stat/plot_net_worth_and_cash.py from the
+    # persisted llm_digest.csv.
     return artifacts.run_directory
 
 

@@ -387,7 +387,7 @@ runs/local-mixed-test/mixed-game-001/
 | `runtime.jsonl` | 重试、上下文裁剪等运行时审计记录。 | 排查 LLM 链路和运行时告警。 |
 | `llm_calls.jsonl` | 每次 LLM 客户端调用，包括失败调用。 | 普通 LLM 玩家或朝廷 Agent 对局生成；纯随机局没有该文件。 |
 | `llm_digest.csv` | 每个 LLM 调用一行的回复摘要（轮次、玩家、选项、净资产、现金等）。 | 快速浏览各回合决策与资金走势。 |
-| `cash_by_round.png`、`net_worth_and_cash_by_round.png` | 对局结束自动生成的资金曲线图：各玩家现金曲线，以及净资产（实线）+现金（虚线，同色）曲线。 | 有 LLM 调用的对局生成；纯随机局没有。 |
+| `cash_by_round.png`、`net_worth_and_cash_by_round.png` | 资金曲线图：各玩家现金曲线，以及净资产（实线）+现金（虚线，同色）曲线。 | 对局结束**不再自动生成**（曾因 matplotlib→OpenBLAS 在内存紧张时 abort 整个进程、殃及批量后续局而被移除）；需要时用 `stat/plot_cash.py` 与 `stat/plot_net_worth_and_cash.py` 从 `llm_digest.csv` 手动重生成。 |
 
 ## 5. 批量运行多局对局
 
