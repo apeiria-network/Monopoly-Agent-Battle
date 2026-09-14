@@ -13,6 +13,7 @@
 | `configs/games/phase4_mock_demo.yaml` | 四玩家 Mock LLM baseline 对局配置（`provider: mock`，无凭据）。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/shang_court_mock_demo.yaml` | 商代双角色朝廷的无凭据短局配置：一名 `shang_court` 玩家分别绑定 `mock-priest` 与 `mock-emperor`，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/shang2_court_mock_demo.yaml` | 商代 v2 四角色朝廷的无凭据短局配置：一名 `shang2_court` 玩家的三名大臣共用 Mock 模型、皇帝独立绑定，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
+| `configs/games/flat_ensemble_mock_demo.yaml` | 平铺对照模型的无凭据短局配置：一名 `flat_ensemble` 玩家的 leader 与三名 member 各自绑定 Mock 模型，搭配三名随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/tang_court_mock_demo.yaml` | 唐代三角色朝廷的无凭据短局配置：一名 `tang_court` 玩家分别绑定中书省、门下省与皇帝的 Mock 模型，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/ming_court_mock_demo.yaml` | 明代四角色朝廷的无凭据短局配置：一名 `ming_court` 玩家绑定首辅、两名共用模型的大学士和皇帝，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/random_baseline_demo.yaml` | 四玩家完全随机、非 LLM 的 Level 0 示例配置；显式使用 `controller_type: random_baseline`，不含 `model_profiles`。 | 作为 `monopoly-agent-battle play --config` 的输入；不产生 LLM 调用产物。 |
@@ -84,6 +85,7 @@
 | `agents/qin.py` | 秦代四角色 CourtAgent：丞相与太尉并行独立进言，御史大夫综合评价两者建议，皇帝最后裁决并产出唯一引擎决策；已结算的真实绩效仅提供给御史大夫。 | `play` 为 `qin_court` 玩家组装使用。 |
 | `agents/tang.py` | 唐代四角色 CourtAgent：尚书省先生成全局信息摘要（≤400 字）注入中书/门下/皇帝；中书省起草、门下省审核、皇帝终裁；最多三轮，皇帝按否决次数读取最后一轮或完整三轮内部记录。内部消息使用可信角色元数据，门下省严格限制为 `agree` / `disagree` 审核 JSON，非法输出按角色重试并安全回退。 | `play` 为 `tang_court` 玩家组装使用。 |
 | `agents/ming.py` | 明代四角色 CourtAgent：首辅与两名大学士并行草拟，分歧时依据其他已完成草案并行重拟，仍不一致时按首辅 1.5、两名大学士各 1.0 加权投票；首辅 advice 的选项由系统强制采用一致或投票结果并支持重试，皇帝读取 advice 后最终裁决。当前决策与历史决策按角色隔离投递，首辅自身 advice 保留为 assistant 消息。提示词为暂定版本，待人工重写审核。 | `play` 为 `ming_court` 玩家组装使用。 |
+| `agents/flat_ensemble.py` | 平铺对照模型（FE，§7.1.1）：4 个 LLM（leader + member_1/2/3）各以 baseline 同款上下文独立决策后直接加权投票（leader 权重 1.5、其余 1.0），不重写、不互看，复用 baseline `compose_prompt`；`agent_id` 取 `player_id`，成员只见本人抽卡的卡名。 | `play` 为 `flat_ensemble` 玩家组装使用。 |
 | `performance/random_generator.py` | 保留旧随机官员绩效文本生成逻辑，供兼容或独立测试使用；不参与当前真实绩效生产流程。 | 生产对局不调用。 |
 | `performance/scoring.py` | 定义决策签名、官员意见证据、1 回合/3 回合窗口结果及一致率差评规则。 | 由绩效跟踪器调用，结果可写入 `performance.jsonl`。 |
 | `performance/evidence.py` | 将协议校验后的决策回复转换为标准化绩效证据。 | 由决策运行器和绩效跟踪器调用。 |
@@ -151,6 +153,7 @@
 | `tests/unit/test_decision_protocol.py` | 决策可见性隔离、`current_space.rent` 仅未付金额、实际决策阶段候选项、普通流程拒绝创建请求、响应 schema 拒绝、Prompt 审计字段隔离、监狱多选项、付款上下文不暴露内部操作 ID、抢夺选卡期间的临时目标手牌可见性及选后恢复隔离、候选 `response_format` 渲染、随机 baseline 复用的合法多字段目标 JSON 编码，以及 Prompt 自然语言渲染（角色目标、你的状态、其他玩家状态、棋盘状态表、同盟与剩余监狱回合数）。 | `python -m pytest tests/unit/test_decision_protocol.py` |
 | `tests/unit/test_shang_agent.py` / `tests/integration/test_shang_runner.py` | 商代角色边界、分阶段重试、私有 trace、LLM 计量、隐私隔离与回放验证。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_shang_agent.py tests/integration/test_shang_runner.py` |
 | `tests/unit/test_shang2_agent.py` / `tests/integration/test_shang2_runner.py` | 商代 v2 角色调用顺序、相同建议共享兆相、oracle 皇帝专属隔离、回合内历史重放（含兆相不变）、皇帝/大臣校验与重连重试及兜底、兆相确定性与分布、端到端运行器集成与 `verify_run()` 回放。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_shang2_agent.py tests/integration/test_shang2_runner.py` |
+| `tests/unit/test_flat_ensemble_agent.py` / `tests/integration/test_flat_ensemble_runner.py` | 平铺对照模型 leader 加权投票、成员提示与 baseline 同款且自见本人抽卡卡名、端到端运行器集成与回放。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_flat_ensemble_agent.py tests/integration/test_flat_ensemble_runner.py` |
 | `tests/unit/test_qin_agent.py` | 秦代四角色调用顺序与第 5 段内部消息可见性、御史大夫结构校验重试与 neutral 安全回退、丞相/太尉角色级重试与默认回退、当前决策隐藏皇帝最终裁决、最终决策幂等广播。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_qin_agent.py` |
 | `tests/unit/test_tang_agent.py` | 唐代三角色串行调用、三轮上限、门下省非对象/非法 JSON 安全重试与回退，以及最终决策幂等广播、多轮自身回复保留、皇帝最终决策历史持久化及可信投递。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_tang_agent.py` |
 | `tests/unit/test_ming_agent.py` | 明代四角色并行草案、分歧重拟、加权投票、首辅 advice 强制结果与重试、首辅 advice assistant 历史、其他角色 advice/投票历史可见性及重拟草案隔离。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_ming_agent.py` |
@@ -178,7 +181,8 @@
 | `tests/manual/render_history_broadcast.py` | 手动验收脚本（Stage 4B）：使用直接状态注入（从 `test_chance_cards.py` 习得的模式）创建 20 个独立场景，通过控制玩家位置、直接注入机会卡、设置产权归属和控制骰子序列，覆盖全部 33 个白名单事件（每个事件≥2次出现）。生成 `tests/manual/history_broadcast_report.txt` 完整事件日志供项目负责人人工审核中文句式质量。2026-08-19 运行通过，exit status 0，33/33 事件达标。 | `.venv/Scripts/python.exe tests/manual/render_history_broadcast.py` |
 | `tests/manual/render_tang_decision_prompt.py` | 唐代十个朝廷上下文场景手动渲染，复用生产 `TangCourtAgent`、`compose_prompt()`、引擎决策请求和角色提示词，输出完整 `LLMMessage` 供人工审核。 | `.venv/Scripts/python.exe tests/manual/render_tang_decision_prompt.py`；报告为 `tests/manual/render_tang_decision_prompt_report.txt`。 |
 | `tests/manual/render_ming_decision_prompt.py` | 明代九个朝廷上下文场景手动渲染，使用固定回复的 fake LLM 驱动真实 `MingCourtAgent`，捕获四个角色每次实际 `LLMRequest.messages`；通过真实 `GameEngine.execute()` 注入第一次决策后的事件，并覆盖首轮一致、分歧重拟、加权投票、同一行动回合第二次决策及角色历史可见性。脚本重复执行并比较完整报告，验证相同引擎状态和相同 LLM 回复产生字节级一致的上下文；报告校验投票标题、第一次汇总指令位置及首辅指令的角色隔离。 | `.venv/Scripts/python.exe tests/manual/render_ming_decision_prompt.py`；报告为 `tests/manual/render_ming_decision_prompt_report.txt`。 |
-| `tests/manual/render_shang2_prompt.py` | 商代 v2 四场景上下文手动渲染（大臣/皇帝 × 回合内第一/二次决策）：固定回复驱动真实 `Shang2CourtAgent`，断言 oracle 隔离、相同建议共享兆相与历史重放顺序。 | `.venv/Scripts/python.exe tests/manual/render_shang2_prompt.py`；报告为 `tests/manual/render_shang2_prompt_report.txt`。 |
+| `tests/manual/render_shang2_prompt.py` | 商代 v2 四场景上下文手动渲染（大臣/皇帝 × 回合内第一/二次决策）：真实 `GameEngine.execute`（开局 RollDice 落 5 格购铁路、二次决策前抵押第 1 格）推进状态，固定回复驱动真实 `Shang2CourtAgent`，断言 oracle 隔离、相同建议共享兆相与历史重放顺序。 | `.venv/Scripts/python.exe tests/manual/render_shang2_prompt.py`；报告为 `tests/manual/render_shang2_prompt_report.txt`。 |
+| `tests/manual/render_flat_ensemble_prompt.py` | 平铺对照模型四场景上下文手动渲染：真实 `GameEngine.execute`（开局 RollDice 抽卡、二次决策前抵押）推进状态，固定回复驱动真实 `FlatEnsembleAgent`，断言 leader 加权、成员提示与 baseline 同款、本人抽卡卡名自见、跨回合段④历史。 | `.venv/Scripts/python.exe tests/manual/render_flat_ensemble_prompt.py`；报告为 `tests/manual/render_flat_ensemble_prompt_report.txt`。 |
 | `tests/unit/test_thinking_vendor_clients.py` | 四个供应商客户端的请求装配与校验测试。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_thinking_vendor_clients.py` |
 | `tests/manual/probe_vendor_payloads.py` | 四个远程端点的连通与参数诊断，不打印密钥。 | `.venv/Scripts/python.exe tests/manual/probe_vendor_payloads.py` |
 | `tests/unit/game/test_stage6_integrity.py` | Stage 6 第一批完整性测试：固定种子确定性、32 张卡牌唯一性、产权双向一致性、核心状态不变量及基础资金可追溯性。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/game/test_stage6_integrity.py` |

@@ -1,0 +1,30 @@
+# greedy_script batch 1 of 8: game_001 (seed 2201) .. game_025 (seed 2225)
+# Run from the repository root with:
+#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/greedy_script/batch1/batch.yaml
+# tasks.jsonl is written next to this manifest.
+games:
+  - game_001.yaml
+  - game_002.yaml
+  - game_003.yaml
+  - game_004.yaml
+  - game_005.yaml
+  - game_006.yaml
+  - game_007.yaml
+  - game_008.yaml
+  - game_009.yaml
+  - game_010.yaml
+  - game_011.yaml
+  - game_012.yaml
+  - game_013.yaml
+  - game_014.yaml
+  - game_015.yaml
+  - game_016.yaml
+  - game_017.yaml
+  - game_018.yaml
+  - game_019.yaml
+  - game_020.yaml
+  - game_021.yaml
+  - game_022.yaml
+  - game_023.yaml
+  - game_024.yaml
+  - game_025.yaml

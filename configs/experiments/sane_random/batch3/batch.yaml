@@ -1,0 +1,30 @@
+# sane_random batch 3 of 8: game_051 (seed 2051) .. game_075 (seed 2075)
+# Run from the repository root with:
+#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/sane_random/batch3/batch.yaml
+# tasks.jsonl is written next to this manifest.
+games:
+  - game_051.yaml
+  - game_052.yaml
+  - game_053.yaml
+  - game_054.yaml
+  - game_055.yaml
+  - game_056.yaml
+  - game_057.yaml
+  - game_058.yaml
+  - game_059.yaml
+  - game_060.yaml
+  - game_061.yaml
+  - game_062.yaml
+  - game_063.yaml
+  - game_064.yaml
+  - game_065.yaml
+  - game_066.yaml
+  - game_067.yaml
+  - game_068.yaml
+  - game_069.yaml
+  - game_070.yaml
+  - game_071.yaml
+  - game_072.yaml
+  - game_073.yaml
+  - game_074.yaml
+  - game_075.yaml
