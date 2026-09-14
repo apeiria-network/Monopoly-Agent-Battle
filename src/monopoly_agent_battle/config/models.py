@@ -137,6 +137,22 @@ class MingCourtRoleProfiles(BaseModel):
     emperor: str = Field(min_length=1)
 
 
+class FlatEnsembleRoleProfiles(BaseModel):
+    """Independent model-profile bindings for the four flat-ensemble sessions.
+
+    ``leader`` is the backbone (base-model) session with vote weight 1.5; the
+    three ``member`` sessions each carry weight 1.0.  All four use the same
+    baseline-level prompt and have no court role semantics.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    member_1: str = Field(min_length=1)
+    member_2: str = Field(min_length=1)
+    member_3: str = Field(min_length=1)
+    leader: str = Field(min_length=1)
+
+
 class PlayerConfig(BaseModel):
     """A player assigned to one distinct seat."""
 
@@ -158,6 +174,7 @@ class PlayerConfig(BaseModel):
             "qin_court",
             "tang_court",
             "ming_court",
+            "flat_ensemble",
         ]
         | None
     ) = None
@@ -167,6 +184,7 @@ class PlayerConfig(BaseModel):
         | QinCourtRoleProfiles
         | TangCourtRoleProfiles
         | MingCourtRoleProfiles
+        | FlatEnsembleRoleProfiles
         | None
     ) = None
 
@@ -297,6 +315,16 @@ class GameConfig(BaseModel):
                     msg = (
                         f"Ming court player {player.player_id} "
                         "requires court_role_profiles of Ming roles"
+                    )
+                    raise ValueError(msg)
+            elif player.controller_type == "flat_ensemble":
+                if player.model_profile is not None:
+                    msg = f"Flat-ensemble player {player.player_id} must not set model_profile"
+                    raise ValueError(msg)
+                if not isinstance(player.court_role_profiles, FlatEnsembleRoleProfiles):
+                    msg = (
+                        f"Flat-ensemble player {player.player_id} "
+                        "requires court_role_profiles of flat-ensemble roles"
                     )
                     raise ValueError(msg)
             elif player.controller_type == "tang_court":
