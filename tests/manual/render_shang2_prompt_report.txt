@@ -168,15 +168,19 @@ SCENARIO A: 大臣视角 — 行动回合内第一次决策（并行进言，无
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
+[第0轮] 玩家a掷出2+3=5点。
+[第0轮] 玩家a移动到第5格（Reading Railroad）。
+[第0轮] 玩家a购买第5格（Reading Railroad），支付200。
+
 ## 当前局面
 当前为第 0 回合，处于玩家「a」的行动回合。
 
 你的状态
-现金：1500
+现金：1300
 位置：格子 5（Reading Railroad，铁路）
 持有机会卡：chance-swap-property
 持有出狱卡数量：0
-持有地产：格子 1（Mediterranean Avenue）；格子 9（Connecticut Avenue）
+持有地产：格子 1（Mediterranean Avenue）；格子 5（Reading Railroad）；格子 9（Connecticut Avenue）
 
 其他玩家状态
 玩家「b」
@@ -191,6 +195,7 @@ SCENARIO A: 大臣视角 — 行动回合内第一次决策（并行进言，无
 |---|---|---|---|---|---|
 | 1 | 街道 | a | 0 | - | 5 |
 | 3 | 街道 | b | 0 | - | 10 |
+| 5 | 铁路 | a | - | - | 25 |
 | 9 | 街道 | a | 0 | - | 20 |
 （未列出的地产均无主。）
 
@@ -391,6 +396,10 @@ SCENARIO B: 皇帝视角 — 行动回合内第一次决策（三份进言附系
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
+[第0轮] 玩家a掷出2+3=5点。
+[第0轮] 玩家a移动到第5格（Reading Railroad）。
+[第0轮] 玩家a购买第5格（Reading Railroad），支付200。
+
 ## 决策
 现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
 
@@ -404,11 +413,11 @@ SCENARIO B: 皇帝视角 — 行动回合内第一次决策（三份进言附系
 当前为第 0 回合，处于玩家「a」的行动回合。
 
 你的状态
-现金：1500
+现金：1300
 位置：格子 5（Reading Railroad，铁路）
 持有机会卡：chance-swap-property
 持有出狱卡数量：0
-持有地产：格子 1（Mediterranean Avenue）；格子 9（Connecticut Avenue）
+持有地产：格子 1（Mediterranean Avenue）；格子 5（Reading Railroad）；格子 9（Connecticut Avenue）
 
 其他玩家状态
 玩家「b」
@@ -423,6 +432,7 @@ SCENARIO B: 皇帝视角 — 行动回合内第一次决策（三份进言附系
 |---|---|---|---|---|---|
 | 1 | 街道 | a | 0 | - | 5 |
 | 3 | 街道 | b | 0 | - | 10 |
+| 5 | 铁路 | a | - | - | 25 |
 | 9 | 街道 | a | 0 | - | 20 |
 （未列出的地产均无主。）
 
@@ -621,6 +631,10 @@ SCENARIO C: 大臣视角 — 行动回合内第二次决策（重放无兆相的
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
+[第0轮] 玩家a掷出2+3=5点。
+[第0轮] 玩家a移动到第5格（Reading Railroad）。
+[第0轮] 玩家a购买第5格（Reading Railroad），支付200。
+
 ## 决策
 现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
 
@@ -640,11 +654,11 @@ SCENARIO C: 大臣视角 — 行动回合内第二次决策（重放无兆相的
 当前为第 0 回合，处于玩家「a」的行动回合。
 
 你的状态
-现金：1530
+现金：1330
 位置：格子 5（Reading Railroad，铁路）
 持有机会卡：chance-swap-property
 持有出狱卡数量：0
-持有地产：格子 1（Mediterranean Avenue）；格子 9（Connecticut Avenue）
+持有地产：格子 1（Mediterranean Avenue）；格子 5（Reading Railroad）；格子 9（Connecticut Avenue）
 
 其他玩家状态
 玩家「b」
@@ -659,6 +673,7 @@ SCENARIO C: 大臣视角 — 行动回合内第二次决策（重放无兆相的
 |---|---|---|---|---|---|
 | 1 | 街道 | a | 0 | 抵押 | 0（抵押） |
 | 3 | 街道 | b | 0 | - | 10 |
+| 5 | 铁路 | a | - | - | 25 |
 | 9 | 街道 | a | 0 | - | 20 |
 （未列出的地产均无主。）
 
@@ -871,6 +886,10 @@ SCENARIO D: 皇帝视角 — 行动回合内第二次决策（历史兆相重放
 - 不需要目标的选项若模型填了 `target`，按忽略处理。
 
 --- Message 2 [user] ---
+[第0轮] 玩家a掷出2+3=5点。
+[第0轮] 玩家a移动到第5格（Reading Railroad）。
+[第0轮] 玩家a购买第5格（Reading Railroad），支付200。
+
 ## 决策
 现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
 
@@ -899,11 +918,11 @@ SCENARIO D: 皇帝视角 — 行动回合内第二次决策（历史兆相重放
 当前为第 0 回合，处于玩家「a」的行动回合。
 
 你的状态
-现金：1530
+现金：1330
 位置：格子 5（Reading Railroad，铁路）
 持有机会卡：chance-swap-property
 持有出狱卡数量：0
-持有地产：格子 1（Mediterranean Avenue）；格子 9（Connecticut Avenue）
+持有地产：格子 1（Mediterranean Avenue）；格子 5（Reading Railroad）；格子 9（Connecticut Avenue）
 
 其他玩家状态
 玩家「b」
@@ -918,6 +937,7 @@ SCENARIO D: 皇帝视角 — 行动回合内第二次决策（历史兆相重放
 |---|---|---|---|---|---|
 | 1 | 街道 | a | 0 | 抵押 | 0（抵押） |
 | 3 | 街道 | b | 0 | - | 10 |
+| 5 | 铁路 | a | - | - | 25 |
 | 9 | 街道 | a | 0 | - | 20 |
 （未列出的地产均无主。）
 

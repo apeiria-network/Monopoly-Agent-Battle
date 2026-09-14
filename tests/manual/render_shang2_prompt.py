@@ -52,6 +52,7 @@ from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.prompts import render_decision_question
 from monopoly_agent_battle.decision.protocol import command_from_option, parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request
+from monopoly_agent_battle.domain.commands import RollDice
 from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.protocol import (
@@ -145,13 +146,17 @@ def _write_messages(buf: StringIO, messages: tuple[LLMMessage, ...], warning: ob
 
 
 def _make_engine(directory: str) -> GameEngine:
-    """A minimal engine placed in ASSET_MANAGEMENT with a usable initial card.
+    """A minimal engine placed in ROLLING so the action turn opens with a real
+    dice roll.
 
-    Player a sits on position 5, owns two vacant streets (1 and 9) and holds
-    exactly one initial Chance card — the swap card.  The opponent owns
-    position 3, a vacant street within the card's range of 5, so the card is a
-    live candidate in every scenario; mortgaging position 1 between the two
-    decisions only narrows its swap-out target to position 9.
+    Player a starts on GO, owns two vacant streets (1 and 9) and holds exactly
+    one initial Chance card — the swap card.  The opening roll (rigged in
+    main) moves a to position 5 (Reading Railroad), which a must buy, before
+    the asset-management decisions.  The opponent owns position 3, a vacant
+    street within the swap card's range of 5, so the card is a live candidate
+    in every scenario; mortgaging position 1 between the two decisions only
+    narrows its swap-out target to position 9 (railroads are never swap-out
+    candidates: the card only targets streets).
     """
     config = GameConfig(
         game_id="shang2-prompt",
@@ -167,8 +172,7 @@ def _make_engine(directory: str) -> GameEngine:
         output_directory=Path(directory),
     )
     engine = GameEngine(config)
-    engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
-    engine.state.players["a"].position = 5
+    engine.state.turn_phase = TurnPhase.ROLLING
     engine.state.properties[1].owner_id = "a"
     engine.state.players["a"].properties.add(1)
     engine.state.properties[9].owner_id = "a"
@@ -213,9 +217,6 @@ def main() -> None:
 
     with TemporaryDirectory() as directory:
         engine = _make_engine(directory)
-        first = build_decision_request(engine, sequence=1)
-        end_turn = _option_id(first, "end_turn")
-        mortgage = _option_id(first, "mortgage")
 
         clients = {role: _CapturingClient(scripted=[], requests=[]) for role in _ROLES}
         conversations = {
@@ -235,10 +236,17 @@ def main() -> None:
             conversations=conversations,
         )
 
-        # The action turn opens at ASSET_MANAGEMENT with no dice/movement
-        # history, matching the ming/qin/tang fixtures.
         for conversation in conversations.values():
             conversation.start_turn(1)
+        dice = iter((2, 3))
+        engine.random.randint = lambda _low, _high: next(dice)  # type: ignore[method-assign]
+        for event in engine.execute(RollDice("a")):
+            for conversation in conversations.values():
+                conversation.append_event(event, complete_round=engine.state.complete_rounds)
+
+        first = build_decision_request(engine, sequence=1)
+        end_turn = _option_id(first, "end_turn")
+        mortgage = _option_id(first, "mortgage")
 
         # Decision 1: ministers 1 and 2 agree on end_turn; minister 3 suggests
         # mortgaging position 1 (a different target-bearing suggestion that
