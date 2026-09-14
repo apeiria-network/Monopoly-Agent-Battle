@@ -50,8 +50,9 @@ from monopoly_agent_battle.config.models import GameConfig, ModelProfile, Player
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.prompts import render_decision_question
+from monopoly_agent_battle.decision.protocol import command_from_option, parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request
-from monopoly_agent_battle.domain.models import GameEvent, TurnPhase
+from monopoly_agent_battle.domain.models import TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.protocol import (
     LLMMessage,
@@ -141,10 +142,6 @@ def _write_messages(buf: StringIO, messages: tuple[LLMMessage, ...], warning: ob
             "--- 以下为私有审计/运行时信息，供负责人人工审阅，绝不进入 Agent 的 LLM 消息 ---\n"
             f"[ContextWarning] {warning!r}\n"
         )
-
-
-def _event(event_type: str, **payload: object) -> GameEvent:
-    return GameEvent(event_type=event_type, payload=payload)
 
 
 def _make_engine(directory: str) -> GameEngine:
@@ -238,14 +235,10 @@ def main() -> None:
             conversations=conversations,
         )
 
-        # The action turn opens with dice and movement before the first decision.
+        # The action turn opens at ASSET_MANAGEMENT with no dice/movement
+        # history, matching the ming/qin/tang fixtures.
         for conversation in conversations.values():
             conversation.start_turn(1)
-            for evt in (
-                _event("dice_rolled", player_id="a", dice=(2, 3)),
-                _event("player_moved", player_id="a", to=5),
-            ):
-                conversation.append_event(evt, complete_round=0)
 
         # Decision 1: ministers 1 and 2 agree on end_turn; minister 3 suggests
         # mortgaging position 1 (a different target-bearing suggestion that
@@ -304,17 +297,24 @@ def main() -> None:
             assistant_reply=first_reply,
         )
         agent.record_final_decision(first, first_reply)
-        # The executed mortgage produces a broadcastable event, and the board
-        # state flips so the second decision gains a redeem_mortgage candidate.
-        # Position 9 stays unmortgaged, so the swap card remains usable with
-        # its swap-out target narrowed to position 9.
-        for conversation in conversations.values():
-            conversation.append_event(
-                _event("property_mortgaged", player_id="a", position=1, amount=30),
-                complete_round=0,
+        # Advance the real engine with the emperor's chosen mortgage command:
+        # it produces the broadcastable property_mortgaged event and flips the
+        # board state, so the second decision gains a redeem_mortgage
+        # candidate; position 9 stays unmortgaged, keeping the swap card usable
+        # with its swap-out target narrowed to position 9.
+        first_validation = parse_and_validate(first_reply, first)
+        if not first_validation.valid or first_validation.option is None:
+            raise AssertionError(
+                f"shang2 emperor first reply must be valid: {first_validation.error}"
             )
-        engine.state.properties[1].mortgaged = True
-        engine.state.players["a"].cash += 30
+        if first_validation.option.command_type != "mortgage":
+            raise AssertionError("shang2 emperor first reply must select mortgage")
+        for event in engine.execute(
+            command_from_option(first, first_validation.option, first_validation.target)
+        ):
+            for conversation in conversations.values():
+                conversation.append_event(event, complete_round=engine.state.complete_rounds)
+        engine.state.turn_phase = TurnPhase.ASSET_MANAGEMENT
 
         second = build_decision_request(engine, sequence=2)
         redeem = _option_id(second, "redeem_mortgage")
