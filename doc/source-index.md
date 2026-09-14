@@ -88,7 +88,7 @@
 | `performance/scoring.py` | 定义决策签名、官员意见证据、1 回合/3 回合窗口结果及一致率差评规则。 | 由绩效跟踪器调用，结果可写入 `performance.jsonl`。 |
 | `performance/evidence.py` | 将协议校验后的决策回复转换为标准化绩效证据。 | 由决策运行器和绩效跟踪器调用。 |
 | `performance/tracker.py` | 按朝廷玩家自身行动回合保存净资产快照和官员意见，结算基础及长期绩效窗口。 | 由 CLI 创建并传入决策运行器。 |
-| `agents/random_baseline.py` | 可复现的完全随机非 LLM 控制器：从请求的合法候选及对应合法目标元组中选择，并生成标准决策 JSON；不依赖 Prompt、会话、LLM 客户端、模型配置或凭据。 | `play` 为每个 `random_baseline` 玩家注入独立稳定派生 RNG 后组装使用。 |
+| `agents/random_baseline.py` | 可复现的完全随机非 LLM 控制器：从请求的合法候选及对应合法目标元组中选择，并生成标准决策 JSON；不依赖 Prompt、会话、LLM 客户端、模型配置或凭据。另含 `SaneRandomController`（`sane_random`）：继承完全随机行为，仅在资产管理决策中排除主动出售与抵押候选（赎回保留），被迫处置节点保持全随机。 | `play` 为每个 `random_baseline` 玩家注入独立稳定派生 RNG 后组装使用；`sane_random` 玩家以独立前缀派生 RNG，流互不干扰。 |
 
 ### Agent 提示词文档（`src/monopoly_agent_battle/agents/agent_prompt_list/`）
 
@@ -158,6 +158,8 @@
 | `tests/unit/performance/test_tracker.py` | PerformanceTracker 行动回合窗口、终局基础/长期窗口、全朝廷玩家收口、商代无可评分官员、幂等 finalize 和非终局调用约束。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/performance/test_tracker.py` |
 | `tests/unit/test_random_baseline.py` | 完全随机非 LLM 控制器的确定性响应序列、协议合法性、合法多字段目标编码和非 LLM 计量标识。 | `python -m pytest tests/unit/test_random_baseline.py` |
 | `tests/integration/test_random_baseline_runner.py` | 纯随机和随机/Mock-LLM 混合完整对局：审计、回放、跨运行复现、无 LLM 产物、LLM 计量隔离及连接失败阈值。 | `python -m pytest tests/integration/test_random_baseline_runner.py` |
+| `tests/unit/test_sane_random.py` | 理智随机控制器的过滤行为：资产管理阶段不选主动出售/抵押、赎回保留、支付结算节点不屏蔽、全屏蔽兜底、确定性与非 LLM 标识。 | `python -m pytest tests/unit/test_sane_random.py` |
+| `tests/integration/test_sane_random_runner.py` | 四理智随机完整对局：无 LLM 产物、全程处置命令仅出现在被迫支付结算节点、回放审计与跨运行复现。 | `python -m pytest tests/integration/test_sane_random_runner.py` |
 | `tests/integration/test_decision_runner.py` | 决策驱动完整对局、自动普通掷骰事件审计/回放、监狱掷骰 Prompt 选择、监狱等待的自动推进、连接重试、回退及原始校验错误保留。 | `python -m pytest tests/integration/test_decision_runner.py` |
 | `tests/integration/test_stage6_fault_audit.py` | Stage 6 决策故障审计：非法响应、重试、回退、跨产物关联、统计隔离、10% 阈值及无效局完成和回放。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/integration/test_stage6_fault_audit.py` |
 | `tests/integration/test_stage6_security_timeout.py` | Stage 6 全产物安全与超时审计：使用安全占位标记验证凭据值不进入运行产物，校验配置 timeout 传递、TimeoutError 重试、LLM 调用/runtime/决策/result 统计一致性及回退审计。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/integration/test_stage6_security_timeout.py` |

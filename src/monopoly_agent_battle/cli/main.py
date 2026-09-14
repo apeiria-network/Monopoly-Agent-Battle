@@ -10,7 +10,10 @@ from pathlib import Path
 from monopoly_agent_battle.agents.baseline import BaselineAgent
 from monopoly_agent_battle.agents.ming import MingCourtAgent
 from monopoly_agent_battle.agents.qin import QinCourtAgent
-from monopoly_agent_battle.agents.random_baseline import RandomBaselineController
+from monopoly_agent_battle.agents.random_baseline import (
+    RandomBaselineController,
+    SaneRandomController,
+)
 from monopoly_agent_battle.agents.shang import ShangCourtAgent
 from monopoly_agent_battle.agents.shang2 import Shang2CourtAgent
 from monopoly_agent_battle.agents.tang import TangCourtAgent
@@ -129,6 +132,16 @@ def run_play(config_path: Path) -> Path:
         if _is_random_baseline(player.controller_type):
             controllers[player.player_id] = RandomBaselineController(
                 _random_baseline_rng(config.seed, player.seat, player.player_id)
+            )
+            continue
+        if player.controller_type == "sane_random":
+            controllers[player.player_id] = SaneRandomController(
+                _random_baseline_rng(
+                    config.seed,
+                    player.seat,
+                    player.player_id,
+                    prefix="sane-random-v1",
+                )
             )
             continue
         if player.controller_type == "shang_court":
@@ -341,9 +354,14 @@ def _is_random_baseline(controller_type: str | None) -> bool:
     return controller_type == "random_baseline"
 
 
-def _random_baseline_rng(seed: int, seat: int, player_id: str) -> random.Random:
-    """Create a stable player-local RNG without consuming the engine RNG stream."""
-    material = f"random-baseline-v1:{seed}:{seat}:{player_id}".encode()
+def _random_baseline_rng(
+    seed: int, seat: int, player_id: str, prefix: str = "random-baseline-v1"
+) -> random.Random:
+    """Create a stable player-local RNG without consuming the engine RNG stream.
+
+    The prefix keeps each controller type's random stream independent.
+    """
+    material = f"{prefix}:{seed}:{seat}:{player_id}".encode()
     derived_seed = int.from_bytes(hashlib.sha256(material).digest(), "big")
     return random.Random(derived_seed)
 

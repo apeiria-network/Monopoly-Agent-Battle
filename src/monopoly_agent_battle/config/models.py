@@ -151,6 +151,7 @@ class PlayerConfig(BaseModel):
         Literal[
             "llm_baseline",
             "random_baseline",
+            "sane_random",
             "shang_court",
             "shang2_court",
             "qin_court",
@@ -244,13 +245,16 @@ class GameConfig(BaseModel):
                 if player.court_role_profiles is not None:
                     msg = f"LLM baseline player {player.player_id} must not set court_role_profiles"
                     raise ValueError(msg)
-            elif player.controller_type == "random_baseline":
+            elif player.controller_type in ("random_baseline", "sane_random"):
                 if player.model_profile is not None:
-                    msg = f"random baseline player {player.player_id} must not set model_profile"
+                    msg = (
+                        f"{player.controller_type} player {player.player_id} "
+                        "must not set model_profile"
+                    )
                     raise ValueError(msg)
                 if player.court_role_profiles is not None:
                     msg = (
-                        f"random baseline player {player.player_id} "
+                        f"{player.controller_type} player {player.player_id} "
                         "must not set court_role_profiles"
                     )
                     raise ValueError(msg)
