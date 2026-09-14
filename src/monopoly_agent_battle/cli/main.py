@@ -8,15 +8,21 @@ import random
 from pathlib import Path
 
 from monopoly_agent_battle.agents.baseline import BaselineAgent
+from monopoly_agent_battle.agents.flat_ensemble import FlatEnsembleAgent
+from monopoly_agent_battle.agents.greedy_script import GreedyScriptController
 from monopoly_agent_battle.agents.ming import MingCourtAgent
 from monopoly_agent_battle.agents.qin import QinCourtAgent
-from monopoly_agent_battle.agents.random_baseline import RandomBaselineController
+from monopoly_agent_battle.agents.random_baseline import (
+    RandomBaselineController,
+    SaneRandomController,
+)
 from monopoly_agent_battle.agents.shang import ShangCourtAgent
 from monopoly_agent_battle.agents.shang2 import Shang2CourtAgent
 from monopoly_agent_battle.agents.tang import TangCourtAgent
 from monopoly_agent_battle.config.loader import config_hash, load_game_config
 from monopoly_agent_battle.config.local_env import load_local_env
 from monopoly_agent_battle.config.models import (
+    FlatEnsembleRoleProfiles,
     MingCourtRoleProfiles,
     QinCourtRoleProfiles,
     Shang2CourtRoleProfiles,
@@ -129,6 +135,26 @@ def run_play(config_path: Path) -> Path:
         if _is_random_baseline(player.controller_type):
             controllers[player.player_id] = RandomBaselineController(
                 _random_baseline_rng(config.seed, player.seat, player.player_id)
+            )
+            continue
+        if player.controller_type == "sane_random":
+            controllers[player.player_id] = SaneRandomController(
+                _random_baseline_rng(
+                    config.seed,
+                    player.seat,
+                    player.player_id,
+                    prefix="sane-random-v1",
+                )
+            )
+            continue
+        if player.controller_type == "greedy_script":
+            controllers[player.player_id] = GreedyScriptController(
+                _random_baseline_rng(
+                    config.seed,
+                    player.seat,
+                    player.player_id,
+                    prefix="greedy-script-v1",
+                )
             )
             continue
         if player.controller_type == "shang_court":
@@ -294,6 +320,39 @@ def run_play(config_path: Path) -> Path:
                 validation_retries=config.validation_retries,
             )
             continue
+        if player.controller_type == "flat_ensemble":
+            assert isinstance(player.court_role_profiles, FlatEnsembleRoleProfiles)
+            roles = {
+                role: config.model_profiles[getattr(player.court_role_profiles, role)]
+                for role in ("member_1", "member_2", "member_3", "leader")
+            }
+            role_clients = {
+                role: RecordingLLMClient(create_client(profile), artifacts, _current_round)
+                for role, profile in roles.items()
+            }
+            role_conversations = {
+                role: AgentConversation(
+                    agent_id=player.player_id,
+                    window_turns=config.window_turns,
+                    prompt_profile=config.prompt_profile,
+                )
+                for role in roles
+            }
+            conversations[player.player_id] = role_conversations
+            controllers[player.player_id] = FlatEnsembleAgent(
+                player_id=player.player_id,
+                member_1_client=role_clients["member_1"],
+                member_1_profile=roles["member_1"],
+                member_2_client=role_clients["member_2"],
+                member_2_profile=roles["member_2"],
+                member_3_client=role_clients["member_3"],
+                member_3_profile=roles["member_3"],
+                leader_client=role_clients["leader"],
+                leader_profile=roles["leader"],
+                conversations=role_conversations,
+                validation_retries=config.validation_retries,
+            )
+            continue
         if player.model_profile is None:
             msg = f"player {player.player_id} has no model_profile"
             raise SystemExit(msg)
@@ -315,7 +374,7 @@ def run_play(config_path: Path) -> Path:
         player.player_id: str(player.controller_type)
         for player in config.players
         if player.controller_type
-        in {"shang_court", "shang2_court", "qin_court", "tang_court", "ming_court"}
+        in {"shang_court", "shang2_court", "qin_court", "tang_court", "ming_court", "flat_ensemble"}
     }
     tracker = PerformanceTracker(engine, court_types)
     run_decision_game(
@@ -341,9 +400,14 @@ def _is_random_baseline(controller_type: str | None) -> bool:
     return controller_type == "random_baseline"
 
 
-def _random_baseline_rng(seed: int, seat: int, player_id: str) -> random.Random:
-    """Create a stable player-local RNG without consuming the engine RNG stream."""
-    material = f"random-baseline-v1:{seed}:{seat}:{player_id}".encode()
+def _random_baseline_rng(
+    seed: int, seat: int, player_id: str, prefix: str = "random-baseline-v1"
+) -> random.Random:
+    """Create a stable player-local RNG without consuming the engine RNG stream.
+
+    The prefix keeps each controller type's random stream independent.
+    """
+    material = f"{prefix}:{seed}:{seat}:{player_id}".encode()
     derived_seed = int.from_bytes(hashlib.sha256(material).digest(), "big")
     return random.Random(derived_seed)
 

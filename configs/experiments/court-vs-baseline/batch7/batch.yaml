@@ -1,0 +1,5 @@
+# court-vs-baseline batch 7 of 8: 2 games; all profiles use API KEY3
+# Section 5.2: randomly shuffle execution order at runtime, not in this manifest.
+games:
+  - game_013.yaml
+  - game_014.yaml

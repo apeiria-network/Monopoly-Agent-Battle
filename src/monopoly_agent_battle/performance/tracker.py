@@ -147,6 +147,7 @@ def _officers(court: str) -> tuple[str, ...]:
         "qin_court": ("chancellor", "grand_marshal"),
         "tang_court": ("zhongshu", "menxia"),
         "ming_court": ("chief_grand_secretary", "grand_secretary_1", "grand_secretary_2"),
+        "flat_ensemble": ("member_1", "member_2", "member_3", "leader"),
     }.get(court, ())
 
 

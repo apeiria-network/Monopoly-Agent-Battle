@@ -1,0 +1,51 @@
+game_id: flat-ensemble-demo
+experiment_id: flat-ensemble-demo
+seed: 0
+players:
+  - player_id: fe
+    seat: 1
+    controller_type: flat_ensemble
+    court_role_profiles:
+      member_1: mock-member-1
+      member_2: mock-member-2
+      member_3: mock-member-3
+      leader: mock-leader
+  - player_id: random-b
+    seat: 2
+    controller_type: random_baseline
+  - player_id: random-c
+    seat: 3
+    controller_type: random_baseline
+  - player_id: random-d
+    seat: 4
+    controller_type: random_baseline
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+max_complete_rounds: 2
+model_profiles:
+  mock-member-1:
+    provider: mock
+    model: mock-flat-member-v1
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  mock-member-2:
+    provider: mock
+    model: mock-flat-member-v1
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  mock-member-3:
+    provider: mock
+    model: mock-flat-member-v1
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
+  mock-leader:
+    provider: mock
+    model: mock-flat-leader-v1
+    seed: 42
+    temperature: 0.2
+    max_tokens: 320
