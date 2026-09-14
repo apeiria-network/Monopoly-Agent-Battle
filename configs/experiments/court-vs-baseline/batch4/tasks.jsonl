@@ -1,2 +1,2 @@
-{"game_id":"TA02","experiment_id":"court-vs-baseline","config_path":"configs\\experiments\\court-vs-baseline\\batch4\\game_007.yaml","status":"running","reason":null,"run_directory":null}
-{"game_id":"MI02","experiment_id":"court-vs-baseline","config_path":"configs\\experiments\\court-vs-baseline\\batch4\\game_008.yaml","status":"pending","reason":null,"run_directory":null}
+{"game_id":"TA02","experiment_id":"court-vs-baseline","config_path":"configs\\experiments\\court-vs-baseline\\batch4\\game_007.yaml","status":"completed","reason":null,"run_directory":"runs\\court-vs-baseline\\TA02"}
+{"game_id":"MI02","experiment_id":"court-vs-baseline","config_path":"configs\\experiments\\court-vs-baseline\\batch4\\game_008.yaml","status":"completed","reason":null,"run_directory":"runs\\court-vs-baseline\\MI02"}
