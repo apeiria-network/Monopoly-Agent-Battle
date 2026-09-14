@@ -332,7 +332,7 @@ def run_play(config_path: Path) -> Path:
             }
             role_conversations = {
                 role: AgentConversation(
-                    agent_id=f"{player.player_id}.{role}",
+                    agent_id=player.player_id,
                     window_turns=config.window_turns,
                     prompt_profile=config.prompt_profile,
                 )

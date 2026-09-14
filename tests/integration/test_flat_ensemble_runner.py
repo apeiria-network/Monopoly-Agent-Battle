@@ -82,7 +82,7 @@ def _dispatch(
     policy: ResponsePolicy,
 ) -> tuple[DispatchController, dict[str, Any]]:
     conversations = {
-        role: AgentConversation(agent_id=f"fe.{role}", window_turns=config.window_turns)
+        role: AgentConversation(agent_id="fe", window_turns=config.window_turns)
         for role in _ROLES
     }
     clients = {role: RecordingLLMClient(MockLLMClient(policy), artifacts) for role in _ROLES}

@@ -12,10 +12,11 @@ from monopoly_agent_battle.agents.flat_ensemble import (
     weighted_vote,
 )
 from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
+from monopoly_agent_battle.context.composer import compose_prompt
 from monopoly_agent_battle.context.conversation import AgentConversation
 from monopoly_agent_battle.decision.models import DecisionOption, DecisionRequest
 from monopoly_agent_battle.decision.requests import build_decision_request
-from monopoly_agent_battle.domain.models import TurnPhase
+from monopoly_agent_battle.domain.models import GameEvent, TurnPhase
 from monopoly_agent_battle.game.engine import GameEngine
 from monopoly_agent_battle.llm.protocol import (
     LLMConnectionError,
@@ -110,9 +111,7 @@ def _setup(
     request = build_decision_request(engine, sequence=1)
     replies = responses(request) if callable(responses) else responses
     clients = {role: StubClient(items) for role, items in replies.items()}
-    conversations = {
-        role: AgentConversation(agent_id=f"a.{role}", window_turns=1) for role in MEMBERS
-    }
+    conversations = {role: AgentConversation(agent_id="a", window_turns=1) for role in MEMBERS}
     return request, _agent(clients, conversations), clients, conversations
 
 
@@ -253,9 +252,7 @@ def test_each_session_records_only_own_reply_and_never_the_vote_result(tmp_path:
         "leader": [_valid_response(first, options[3], "理由四"), _valid_response(second)],
     }
     clients = {role: StubClient(items) for role, items in replies.items()}
-    conversations = {
-        role: AgentConversation(agent_id=f"a.{role}", window_turns=1) for role in MEMBERS
-    }
+    conversations = {role: AgentConversation(agent_id="a", window_turns=1) for role in MEMBERS}
     agent = _agent(clients, conversations)
 
     first_reply = agent(first)
@@ -394,8 +391,54 @@ def test_member_connection_exhaustion_falls_back_and_participates_in_vote(tmp_pa
     assert "成员一重连次数耗尽" in fallback_content
 
 
+def test_member_prompt_matches_baseline_and_sees_own_card_name(tmp_path: Path) -> None:
+    """Each session's composed prompt is byte-identical to the single-LLM
+    baseline's and shows the player's own chance-card name in history (Stage
+    4D baseline report: 本人可见自己的机会卡名称), not the generic observer form.
+    """
+    engine = _engine(tmp_path)
+    request = build_decision_request(engine, sequence=1)
+    card_event = GameEvent(
+        event_type="card_drawn",
+        payload={"player_id": "a", "card_id": "nuke", "deck": "chance"},
+    )
+
+    member_conv = AgentConversation(agent_id="a", window_turns=1)
+    member_conv.start_turn(1)
+    member_conv.append_event(card_event, complete_round=1)
+    member_client = StubClient([_valid_response(request)])
+    agent = _agent(
+        {
+            "member_1": member_client,
+            "member_2": StubClient([_valid_response(request)]),
+            "member_3": StubClient([_valid_response(request)]),
+            "leader": StubClient([_valid_response(request)]),
+        },
+        {
+            "member_1": member_conv,
+            "member_2": AgentConversation(agent_id="a", window_turns=1),
+            "member_3": AgentConversation(agent_id="a", window_turns=1),
+            "leader": AgentConversation(agent_id="a", window_turns=1),
+        },
+    )
+    agent(request)
+
+    # Baseline-equivalent prompt: identical viewer id, history and request.
+    baseline_conv = AgentConversation(agent_id="a", window_turns=1)
+    baseline_conv.start_turn(1)
+    baseline_conv.append_event(card_event, complete_round=1)
+    baseline_messages, _ = compose_prompt(baseline_conv, request)
+
+    member_messages = member_client.requests[0].messages
+    assert tuple(message.content for message in member_messages) == tuple(
+        message.content for message in baseline_messages
+    )
+    text = "\n".join(message.content for message in member_messages)
+    assert "抽得机会卡「" in text  # self view: own card name visible
+    assert "抽得一张机会卡" not in text  # not the generic observer form
+
+
 def test_weighted_vote_helper_never_ties() -> None:
-    # With weights 1.5/1/1/1 the winner is always unique; verify a few splits.
     advice_all_same = {role: '{"selected_option":{"option":"x"},"reason":"r"}' for role in MEMBERS}
     assert weighted_vote(advice_all_same)["selected_option"] == {"option": "x"}
 
@@ -417,7 +460,5 @@ def _pair(
         role: StubClient([_valid_response(request, option, f"{role}理由")])
         for role, option in picks.items()
     }
-    conversations = {
-        role: AgentConversation(agent_id=f"a.{role}", window_turns=1) for role in MEMBERS
-    }
+    conversations = {role: AgentConversation(agent_id="a", window_turns=1) for role in MEMBERS}
     return _agent(clients, conversations), clients
