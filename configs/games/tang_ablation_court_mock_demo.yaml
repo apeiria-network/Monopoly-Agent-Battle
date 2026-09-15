@@ -1,0 +1,32 @@
+game_id: tang-ablation-court-demo
+experiment_id: tang-ablation-court-demo
+seed: 0
+players:
+  - player_id: tang_abl
+    seat: 1
+    controller_type: tang_ablation_court
+    court_role_profiles:
+      shangshu: fake-shangshu
+      zhongshu: fake-zhongshu
+      menxia: fake-menxia
+      emperor: fake-emperor
+  - player_id: random-b
+    seat: 2
+    controller_type: random_baseline
+  - player_id: random-c
+    seat: 3
+    controller_type: random_baseline
+  - player_id: random-d
+    seat: 4
+    controller_type: random_baseline
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+max_complete_rounds: 2
+model_profiles:
+  fake-shangshu: {provider: fake, model: fake-random-v1, seed: 42}
+  fake-zhongshu: {provider: fake, model: fake-random-v1, seed: 42}
+  fake-menxia: {provider: fake, model: fake-random-v1, seed: 42}
+  fake-emperor: {provider: fake, model: fake-random-v1, seed: 42}
+output_directory: runs
