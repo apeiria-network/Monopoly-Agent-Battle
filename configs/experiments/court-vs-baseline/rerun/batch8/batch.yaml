@@ -1,0 +1,4 @@
+# rerun of interrupted court-vs-baseline games (unfinished only)
+games:
+  - ../../batch8/game_015.yaml
+  - ../../batch8/game_016.yaml
