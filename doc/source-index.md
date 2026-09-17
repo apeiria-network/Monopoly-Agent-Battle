@@ -147,6 +147,12 @@
 | `reporting/llm_digest.py` | 从 `decisions.jsonl`（朝廷 trace 与状态快照）+ `llm_calls.jsonl`（基线逐次调用）生成一次调用一行的 LLM 回复摘要 CSV（轮次·玩家·发言者·reason·选项·target·最终执行命令·净资产·机会卡数·是否最终决策者·是否报错回复）。 | 调用 `write_llm_digest(run_directory)`；`play`/`report` 在含 LLM 调用时自动生成 `llm_digest.csv`。 |
 | `reporting/plots.py` | 从 `llm_digest.csv` 读取各玩家逐轮净资产/现金序列，生成对局资金曲线图 `cash_by_round.png`（各玩家现金曲线）与 `net_worth_and_cash_by_round.png`（净资产实线+现金虚线同色）；matplotlib 懒加载，缺失或无可用数据时抛 `PlotGenerationError`。 | 调用 `write_run_curves(run_directory)`；`play` 在含 LLM 调用时对局结束自动生成两张 PNG。 |
 
+## 统计分析（`stat/`）
+
+| 路径 | 用途 | 使用方式 |
+|---|---|---|
+| `stat/analyze_seat_scores.py` | 零 LLM 基准地板的分座位积分统计：扫描 `runs/<experiment>/*/result.json`，按 3/2/1/0 名次计分输出每座位跨局积分均值、（总体）方差、标准差、名次分布与座位效应（四座位均值差），可选导出 CSV。 | `.venv/Scripts/python.exe stat/analyze_seat_scores.py`；`--experiments <名称...>` 指定实验，`--csv <路径>` 导出明细。 |
+
 ## 自动化测试（`tests/`）
 
 | 路径 | 覆盖范围 | 使用方式 |
