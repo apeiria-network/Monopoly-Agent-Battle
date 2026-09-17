@@ -1,0 +1,7 @@
+# fe-vs-baseline batch 5 of 8: game_009.yaml (FE09, seed 109) .. game_010.yaml (FE10, seed 110); API KEY1
+# Run from the repository root with:
+#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/fe-vs-baseline/batch5/batch.yaml
+# tasks.jsonl is written next to this manifest.
+games:
+  - game_009.yaml
+  - game_010.yaml
