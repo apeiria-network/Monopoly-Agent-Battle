@@ -1,0 +1,5 @@
+experiment,games,seat,n,mean_points,variance,std,rank1,rank2,rank3,rank4
+greedy_script,800,1,800,1.61,1.3404,1.1578,246,191,168,195
+greedy_script,800,2,800,1.4688,1.214,1.1018,182,215,199,204
+greedy_script,800,3,800,1.4725,1.2317,1.1098,190,201,206,203
+greedy_script,800,4,800,1.4487,1.1974,1.0942,182,193,227,198
