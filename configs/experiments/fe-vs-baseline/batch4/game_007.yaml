@@ -1,0 +1,102 @@
+# fe-vs-baseline FE07 (game 7); batch API KEY4
+# seats: 1=baseline-1 2=fe 3=baseline-2 4=baseline-3
+# fe base=D (flat_ensemble); 3 baselines all use leader model D
+# posts expanded per Courts-Battle-config-details.md 1.3: member_1=C member_2=B member_3=A leader=D
+# models: A=qwen3.8-flash B=deepseek-v4-flash C=gpt-5.6-luna D=GLM-5.3-Flash
+game_id: FE07
+experiment_id: fe-vs-baseline
+seed: 107
+prompt_profile: full-v2
+players:
+- player_id: baseline-1
+  seat: 1
+  controller_type: llm_baseline
+  model_profile: baseline-model-1
+- player_id: fe
+  seat: 2
+  controller_type: flat_ensemble
+  court_role_profiles:
+    leader: fe-leader
+    member_1: fe-member-1
+    member_2: fe-member-2
+    member_3: fe-member-3
+- player_id: baseline-2
+  seat: 3
+  controller_type: llm_baseline
+  model_profile: baseline-model-2
+- player_id: baseline-3
+  seat: 4
+  controller_type: llm_baseline
+  model_profile: baseline-model-3
+model_profiles:
+  fe-member-1:
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY4
+    model: gpt-5.6-luna
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  fe-member-2:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY4
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  fe-member-3:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY4
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  fe-leader:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  baseline-model-1:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  baseline-model-2:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  baseline-model-3:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+initial_cash: 1500
+max_complete_rounds: 50
+initial_chance_cards: 2
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs
