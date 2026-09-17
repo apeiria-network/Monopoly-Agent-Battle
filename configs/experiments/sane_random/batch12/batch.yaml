@@ -1,0 +1,55 @@
+# sane_random batch 12 of 20: game_351.yaml (seed 2351) .. game_400.yaml (seed 2400)
+# Run from the repository root with:
+#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/sane_random/batch12/batch.yaml
+# tasks.jsonl is written next to this manifest.
+games:
+  - game_351.yaml
+  - game_352.yaml
+  - game_353.yaml
+  - game_354.yaml
+  - game_355.yaml
+  - game_356.yaml
+  - game_357.yaml
+  - game_358.yaml
+  - game_359.yaml
+  - game_360.yaml
+  - game_361.yaml
+  - game_362.yaml
+  - game_363.yaml
+  - game_364.yaml
+  - game_365.yaml
+  - game_366.yaml
+  - game_367.yaml
+  - game_368.yaml
+  - game_369.yaml
+  - game_370.yaml
+  - game_371.yaml
+  - game_372.yaml
+  - game_373.yaml
+  - game_374.yaml
+  - game_375.yaml
+  - game_376.yaml
+  - game_377.yaml
+  - game_378.yaml
+  - game_379.yaml
+  - game_380.yaml
+  - game_381.yaml
+  - game_382.yaml
+  - game_383.yaml
+  - game_384.yaml
+  - game_385.yaml
+  - game_386.yaml
+  - game_387.yaml
+  - game_388.yaml
+  - game_389.yaml
+  - game_390.yaml
+  - game_391.yaml
+  - game_392.yaml
+  - game_393.yaml
+  - game_394.yaml
+  - game_395.yaml
+  - game_396.yaml
+  - game_397.yaml
+  - game_398.yaml
+  - game_399.yaml
+  - game_400.yaml

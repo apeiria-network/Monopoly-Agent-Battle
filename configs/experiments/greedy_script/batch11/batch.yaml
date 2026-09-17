@@ -1,0 +1,55 @@
+# greedy_script batch 11 of 20: game_301.yaml (seed 2101) .. game_350.yaml (seed 2150)
+# Run from the repository root with:
+#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/greedy_script/batch11/batch.yaml
+# tasks.jsonl is written next to this manifest.
+games:
+  - game_301.yaml
+  - game_302.yaml
+  - game_303.yaml
+  - game_304.yaml
+  - game_305.yaml
+  - game_306.yaml
+  - game_307.yaml
+  - game_308.yaml
+  - game_309.yaml
+  - game_310.yaml
+  - game_311.yaml
+  - game_312.yaml
+  - game_313.yaml
+  - game_314.yaml
+  - game_315.yaml
+  - game_316.yaml
+  - game_317.yaml
+  - game_318.yaml
+  - game_319.yaml
+  - game_320.yaml
+  - game_321.yaml
+  - game_322.yaml
+  - game_323.yaml
+  - game_324.yaml
+  - game_325.yaml
+  - game_326.yaml
+  - game_327.yaml
+  - game_328.yaml
+  - game_329.yaml
+  - game_330.yaml
+  - game_331.yaml
+  - game_332.yaml
+  - game_333.yaml
+  - game_334.yaml
+  - game_335.yaml
+  - game_336.yaml
+  - game_337.yaml
+  - game_338.yaml
+  - game_339.yaml
+  - game_340.yaml
+  - game_341.yaml
+  - game_342.yaml
+  - game_343.yaml
+  - game_344.yaml
+  - game_345.yaml
+  - game_346.yaml
+  - game_347.yaml
+  - game_348.yaml
+  - game_349.yaml
+  - game_350.yaml
