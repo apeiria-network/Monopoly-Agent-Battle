@@ -1,0 +1,2 @@
+{"game_id":"SH04","experiment_id":"court-vs-baseline","config_path":"configs\\experiments\\court-vs-baseline\\batch7\\game_013.yaml","status":"completed","reason":null,"run_directory":"runs\\court-vs-baseline\\SH04"}
+{"game_id":"QI04","experiment_id":"court-vs-baseline","config_path":"configs\\experiments\\court-vs-baseline\\batch7\\game_014.yaml","status":"running","reason":null,"run_directory":null}

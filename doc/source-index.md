@@ -15,6 +15,7 @@
 | `configs/games/shang2_court_mock_demo.yaml` | 商代 v2 四角色朝廷的无凭据短局配置：一名 `shang2_court` 玩家的三名大臣共用 Mock 模型、皇帝独立绑定，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/flat_ensemble_mock_demo.yaml` | 平铺对照模型的无凭据短局配置：一名 `flat_ensemble` 玩家的 leader 与三名 member 各自绑定 Mock 模型，搭配三名随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/tang_court_mock_demo.yaml` | 唐代三角色朝廷的无凭据短局配置：一名 `tang_court` 玩家分别绑定中书省、门下省与皇帝的 Mock 模型，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
+| `configs/games/tang_ablation_court_mock_demo.yaml` | 唐代消融四角色朝廷的无凭据短局配置：一名 `tang_ablation_court` 玩家分别绑定尚书省、中书省、门下省与皇帝的 Fake 模型，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/ming_court_mock_demo.yaml` | 明代四角色朝廷的无凭据短局配置：一名 `ming_court` 玩家绑定首辅、两名共用模型的大学士和皇帝，搭配随机玩家运行 Level 0 对局。 | 作为 `monopoly-agent-battle play --config` 的输入。 |
 | `configs/games/random_baseline_demo.yaml` | 四玩家完全随机、非 LLM 的 Level 0 示例配置；显式使用 `controller_type: random_baseline`，不含 `model_profiles`。 | 作为 `monopoly-agent-battle play --config` 的输入；不产生 LLM 调用产物。 |
 | `configs/experiments/preexperiment_demo/batch.yaml` | 预实验批次清单，按顺序列出需要执行的独立对局 YAML；相对路径以清单文件所在目录为基准。 | 作为 `monopoly-agent-battle experiment run --batch` 的输入。 |
@@ -87,6 +88,7 @@
 | `agents/shang2.py` | 商代 v2 四角色 CourtAgent：三名大臣并行独立进言，系统按建议去重并为每个不同建议派生六值等概率兆相（SHA-256，不耗引擎 RNG，重试不变）；兆相仅注入皇帝收到的进言副本，大臣自身及同僚副本均无 `oracle` 字段；皇帝参考大臣意见与兆相终裁，兜底建议照常参与去重与兆相；court trace 含 oracles 审计段。提示词为暂定版本，待人工重写审核。 | `play` 为 `shang2_court` 玩家组装使用。 |
 | `agents/qin.py` | 秦代四角色 CourtAgent：丞相与太尉并行独立进言，御史大夫综合评价两者建议，皇帝最后裁决并产出唯一引擎决策；已结算的真实绩效仅提供给御史大夫。 | `play` 为 `qin_court` 玩家组装使用。 |
 | `agents/tang.py` | 唐代四角色 CourtAgent：尚书省先生成全局信息摘要（≤400 字）注入中书/门下/皇帝；中书省起草、门下省审核、皇帝终裁；最多三轮，皇帝按否决次数读取最后一轮或完整三轮内部记录。内部消息使用可信角色元数据，门下省严格限制为 `agree` / `disagree` 审核 JSON，非法输出按角色重试并安全回退。 | `play` 为 `tang_court` 玩家组装使用。 |
+| `agents/tang_ablation.py` | 唐代消融四角色 CourtAgent：与唐版相同的尚书省摘要、中书省草拟、门下省审核与皇帝终裁链路，但门下省仅表态 agree/disagree 供皇帝参考、不打回草拟；每决策恰好一轮草拟与一轮审核，门下省兜底为中性 disagree。 | `play` 为 `tang_ablation_court` 玩家组装使用。 |
 | `agents/ming.py` | 明代四角色 CourtAgent：首辅与两名大学士并行草拟，分歧时依据其他已完成草案并行重拟，仍不一致时按首辅 1.5、两名大学士各 1.0 加权投票；首辅 advice 的选项由系统强制采用一致或投票结果并支持重试，皇帝读取 advice 后最终裁决。当前决策与历史决策按角色隔离投递，首辅自身 advice 保留为 assistant 消息。提示词为暂定版本，待人工重写审核。 | `play` 为 `ming_court` 玩家组装使用。 |
 | `agents/flat_ensemble.py` | 平铺对照模型（FE，§7.1.1）：4 个 LLM（leader + member_1/2/3）各以 baseline 同款上下文独立决策后直接加权投票（leader 权重 1.5、其余 1.0），不重写、不互看，复用 baseline `compose_prompt`；`agent_id` 取 `player_id`，成员只见本人抽卡的卡名。 | `play` 为 `flat_ensemble` 玩家组装使用。 |
 | `performance/random_generator.py` | 保留旧随机官员绩效文本生成逻辑，供兼容或独立测试使用；不参与当前真实绩效生产流程。 | 生产对局不调用。 |
@@ -111,6 +113,11 @@
 | `Tang/Tang_emperor.txt` | 唐代皇帝的角色身份提示词。 | 由 `agents/tang.py` 加载。 |
 | `Tang/Tang_menxia_output_requirement.txt` | 唐代门下省专属审核 JSON 输出要求，仅允许 `agree` 或 `disagree`，不含 `target`。 | 由 `agents/tang.py` 为门下省加载。 |
 | `Tang/Tang_menxia_candidates.txt` | 唐代门下省的第 11 段特殊候选项及审核 JSON 格式。 | 由 `agents/tang.py` 和唐代手动渲染脚本为门下省加载。 |
+| `TangAblation/TangAbl_zhongshu.txt` | 唐代消融中书省的角色身份提示词（仅起草一次，无退回重拟）。 | 由 `agents/tang_ablation.py` 加载。 |
+| `TangAblation/TangAbl_menxia.txt` | 唐代消融门下省的角色身份提示词（仅表态供皇帝参考，无驳回权）。 | 由 `agents/tang_ablation.py` 加载。 |
+| `TangAblation/TangAbl_emperor.txt` | 唐代消融皇帝的角色身份提示词（无论门下省结论均终裁）。 | 由 `agents/tang_ablation.py` 加载。 |
+| `TangAblation/TangAbl_menxia_output_requirement.txt` | 唐代消融门下省专属审核 JSON 输出要求，仅允许 `agree` 或 `disagree`，不含 `target`。 | 由 `agents/tang_ablation.py` 为门下省加载。 |
+| `TangAblation/TangAbl_menxia_candidates.txt` | 唐代消融门下省的第 11 段特殊候选项及审核 JSON 格式。 | 由 `agents/tang_ablation.py` 和唐代消融手动渲染脚本为门下省加载。 |
 | `Ming/chief_grand_secretary.txt` | 明代首辅的角色身份与职责提示词。 | 由 `agents/ming.py` 为首辅加载。 |
 | `Ming/grand_secretary.txt` | 明代两名大学士共用的角色身份与职责提示词。 | 由 `agents/ming.py` 为 `grand_secretary_1` 和 `grand_secretary_2` 加载。 |
 | `Ming/emperor.txt` | 明代皇帝的角色身份与职责提示词。 | 由 `agents/ming.py` 为皇帝加载。 |
@@ -142,7 +149,7 @@
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
 | `logging/run_artifacts.py` | 创建单局运行目录，持久化冻结配置及各类 JSONL、JSON、文本审计产物；维护事件、调用和运行日志的连续编号。 | 由单局运行器、决策运行器和预实验批量运行器调用。 |
-| `cli/main.py` | 提供 `demo`、完整对局 `play`、单局 `report` 以及预实验批量执行命令；按配置组装随机、普通 LLM、商（v1/v2）、秦、唐、明控制器。 | 使用 `.venv/Scripts/monopoly-agent-battle.exe experiment run --batch <批次清单>` 按清单顺序执行多局对局。 |
+| `cli/main.py` | 提供 `demo`、完整对局 `play`、单局 `report` 以及预实验批量执行命令；按配置组装随机、普通 LLM、商（v1/v2）、秦、唐、唐消融、明、平铺对照控制器。 | 使用 `.venv/Scripts/monopoly-agent-battle.exe experiment run --batch <批次清单>` 按清单顺序执行多局对局。 |
 | `reporting/single_game.py` | 从单局运行产物生成不包含私有 payload 的安全汇总报告，并渲染 Markdown。 | 调用 `build_single_game_report(run_directory)` 和 `render_single_game_report(report)`。 |
 | `reporting/llm_digest.py` | 从 `decisions.jsonl`（朝廷 trace 与状态快照）+ `llm_calls.jsonl`（基线逐次调用）生成一次调用一行的 LLM 回复摘要 CSV（轮次·玩家·发言者·reason·选项·target·最终执行命令·净资产·机会卡数·是否最终决策者·是否报错回复）。 | 调用 `write_llm_digest(run_directory)`；`play`/`report` 在含 LLM 调用时自动生成 `llm_digest.csv`。 |
 | `reporting/plots.py` | 从 `llm_digest.csv` 读取各玩家逐轮净资产/现金序列，生成对局资金曲线图 `cash_by_round.png`（各玩家现金曲线）与 `net_worth_and_cash_by_round.png`（净资产实线+现金虚线同色）；matplotlib 懒加载，缺失或无可用数据时抛 `PlotGenerationError`。 | 调用 `write_run_curves(run_directory)`；`play` 在含 LLM 调用时对局结束自动生成两张 PNG。 |
@@ -159,6 +166,7 @@
 | `tests/unit/test_flat_ensemble_agent.py` / `tests/integration/test_flat_ensemble_runner.py` | 平铺对照模型 leader 加权投票、成员提示与 baseline 同款且自见本人抽卡卡名、端到端运行器集成与回放。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/test_flat_ensemble_agent.py tests/integration/test_flat_ensemble_runner.py` |
 | `tests/unit/test_qin_agent.py` | 秦代四角色调用顺序与第 5 段内部消息可见性、御史大夫结构校验重试与 neutral 安全回退、丞相/太尉角色级重试与默认回退、当前决策隐藏皇帝最终裁决、最终决策幂等广播。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_qin_agent.py` |
 | `tests/unit/test_tang_agent.py` | 唐代三角色串行调用、三轮上限、门下省非对象/非法 JSON 安全重试与回退，以及最终决策幂等广播、多轮自身回复保留、皇帝最终决策历史持久化及可信投递。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_tang_agent.py` |
+| `tests/unit/test_tang_ablation_agent.py` / `tests/integration/test_tang_ablation_runner.py` | 唐代消融单轮草拟/审核流程、门下省 disagree 直送皇帝不重拟、角色级重试与兜底、尚书省摘要投递与绩效排除、端到端运行器集成与 `verify_run()` 回放。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_tang_ablation_agent.py tests/integration/test_tang_ablation_runner.py` |
 | `tests/unit/test_ming_agent.py` | 明代四角色并行草案、分歧重拟、加权投票、首辅 advice 强制结果与重试、首辅 advice assistant 历史、其他角色 advice/投票历史可见性及重拟草案隔离。 | `.venv/Scripts/python.exe -m pytest tests/unit/test_ming_agent.py` |
 | `tests/integration/test_qin_runner.py` | 秦代四角色运行器集成、连接失败、审计产物、court trace、PerformanceTracker 终局绩效落盘、窗口唯一性及 `verify_run()` 回放验证。 | `.venv/Scripts/python.exe -m pytest tests/integration/test_qin_runner.py` |
 | `tests/unit/performance/test_tracker.py` | PerformanceTracker 行动回合窗口、终局基础/长期窗口、全朝廷玩家收口、商代无可评分官员、幂等 finalize 和非终局调用约束。 | `.venv/Scripts/python.exe -m pytest -q --no-cov tests/unit/performance/test_tracker.py` |
@@ -183,6 +191,7 @@
 | `tests/manual/render_decision_prompt.py` | Stage 4D 人工审阅脚本：生成 Baseline 上下文确认清单及 A–G 实际 messages；覆盖角色边界、历史裁剪、校验重试与运行时隔离。`ContextWarning` 仅作为报告中的私有审计证据展示。 | 运行 `.venv/Scripts/python.exe tests/manual/render_decision_prompt.py` 后审阅生成的 `tests/manual/render_decision_prompt_report.txt`。 |
 | `tests/manual/render_history_broadcast.py` | 手动验收脚本（Stage 4B）：使用直接状态注入（从 `test_chance_cards.py` 习得的模式）创建 20 个独立场景，通过控制玩家位置、直接注入机会卡、设置产权归属和控制骰子序列，覆盖全部 33 个白名单事件（每个事件≥2次出现）。生成 `tests/manual/history_broadcast_report.txt` 完整事件日志供项目负责人人工审核中文句式质量。2026-08-19 运行通过，exit status 0，33/33 事件达标。 | `.venv/Scripts/python.exe tests/manual/render_history_broadcast.py` |
 | `tests/manual/render_tang_decision_prompt.py` | 唐代十个朝廷上下文场景手动渲染，复用生产 `TangCourtAgent`、`compose_prompt()`、引擎决策请求和角色提示词，输出完整 `LLMMessage` 供人工审核。 | `.venv/Scripts/python.exe tests/manual/render_tang_decision_prompt.py`；报告为 `tests/manual/render_tang_decision_prompt_report.txt`。 |
+| `tests/manual/render_tang_ablation_decision_prompt.py` | 唐代消融八场景上下文手动渲染（四角色 × 同一行动回合第一/二次决策，门下省固定 disagree）：真实 `GameEngine.execute`（开局 RollDice 落 5 格购铁路、二次决策前抵押第 1 格）推进状态，固定回复驱动真实 `TangAblationCourtAgent`，断言段落结构、信息隔离与回合 0 事件播报；已与生产 runner 真实捕获上下文骨架比对一致。 | `.venv/Scripts/python.exe tests/manual/render_tang_ablation_decision_prompt.py`；报告为 `tests/manual/render_tang_ablation_decision_prompt_report.txt`。 |
 | `tests/manual/render_ming_decision_prompt.py` | 明代九个朝廷上下文场景手动渲染，使用固定回复的 fake LLM 驱动真实 `MingCourtAgent`，捕获四个角色每次实际 `LLMRequest.messages`；通过真实 `GameEngine.execute()` 注入第一次决策后的事件，并覆盖首轮一致、分歧重拟、加权投票、同一行动回合第二次决策及角色历史可见性。脚本重复执行并比较完整报告，验证相同引擎状态和相同 LLM 回复产生字节级一致的上下文；报告校验投票标题、第一次汇总指令位置及首辅指令的角色隔离。 | `.venv/Scripts/python.exe tests/manual/render_ming_decision_prompt.py`；报告为 `tests/manual/render_ming_decision_prompt_report.txt`。 |
 | `tests/manual/render_shang2_prompt.py` | 商代 v2 四场景上下文手动渲染（大臣/皇帝 × 回合内第一/二次决策）：真实 `GameEngine.execute`（开局 RollDice 落 5 格购铁路、二次决策前抵押第 1 格）推进状态，固定回复驱动真实 `Shang2CourtAgent`，断言 oracle 隔离、相同建议共享兆相与历史重放顺序。 | `.venv/Scripts/python.exe tests/manual/render_shang2_prompt.py`；报告为 `tests/manual/render_shang2_prompt_report.txt`。 |
 | `tests/manual/render_flat_ensemble_prompt.py` | 平铺对照模型四场景上下文手动渲染：真实 `GameEngine.execute`（开局 RollDice 抽卡、二次决策前抵押）推进状态，固定回复驱动真实 `FlatEnsembleAgent`，断言 leader 加权、成员提示与 baseline 同款、本人抽卡卡名自见、跨回合段④历史。 | `.venv/Scripts/python.exe tests/manual/render_flat_ensemble_prompt.py`；报告为 `tests/manual/render_flat_ensemble_prompt_report.txt`。 |

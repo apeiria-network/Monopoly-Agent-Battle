@@ -19,6 +19,7 @@ from monopoly_agent_battle.agents.random_baseline import (
 from monopoly_agent_battle.agents.shang import ShangCourtAgent
 from monopoly_agent_battle.agents.shang2 import Shang2CourtAgent
 from monopoly_agent_battle.agents.tang import TangCourtAgent
+from monopoly_agent_battle.agents.tang_ablation import TangAblationCourtAgent
 from monopoly_agent_battle.config.loader import config_hash, load_game_config
 from monopoly_agent_battle.config.local_env import load_local_env
 from monopoly_agent_battle.config.models import (
@@ -287,7 +288,7 @@ def run_play(config_path: Path) -> Path:
                 validation_retries=config.validation_retries,
             )
             continue
-        if player.controller_type == "tang_court":
+        if player.controller_type in {"tang_court", "tang_ablation_court"}:
             assert isinstance(player.court_role_profiles, TangCourtRoleProfiles)
             roles = {
                 role: config.model_profiles[getattr(player.court_role_profiles, role)]
@@ -306,7 +307,10 @@ def run_play(config_path: Path) -> Path:
                 for role in roles
             }
             conversations[player.player_id] = role_conversations
-            controllers[player.player_id] = TangCourtAgent(
+            court_cls = (
+                TangCourtAgent if player.controller_type == "tang_court" else TangAblationCourtAgent
+            )
+            controllers[player.player_id] = court_cls(
                 player_id=player.player_id,
                 shangshu_client=role_clients["shangshu"],
                 shangshu_profile=roles["shangshu"],
@@ -374,7 +378,15 @@ def run_play(config_path: Path) -> Path:
         player.player_id: str(player.controller_type)
         for player in config.players
         if player.controller_type
-        in {"shang_court", "shang2_court", "qin_court", "tang_court", "ming_court", "flat_ensemble"}
+        in {
+            "shang_court",
+            "shang2_court",
+            "qin_court",
+            "tang_court",
+            "tang_ablation_court",
+            "ming_court",
+            "flat_ensemble",
+        }
     }
     tracker = PerformanceTracker(engine, court_types)
     run_decision_game(

@@ -141,11 +141,13 @@ def _officers(court: str) -> tuple[str, ...]:
         "shang2": ("minister_1", "minister_2", "minister_3"),
         "qin": ("chancellor", "grand_marshal"),
         "tang": ("zhongshu", "menxia"),
+        "tang_ablation": ("zhongshu", "menxia"),
         "ming": ("chief_grand_secretary", "grand_secretary_1", "grand_secretary_2"),
         "shang_court": (),
         "shang2_court": ("minister_1", "minister_2", "minister_3"),
         "qin_court": ("chancellor", "grand_marshal"),
         "tang_court": ("zhongshu", "menxia"),
+        "tang_ablation_court": ("zhongshu", "menxia"),
         "ming_court": ("chief_grand_secretary", "grand_secretary_1", "grand_secretary_2"),
         "flat_ensemble": ("member_1", "member_2", "member_3", "leader"),
     }.get(court, ())
@@ -180,7 +182,7 @@ def evidence_from_trace(
             and item.get("outcome") in {"success", "advice_normalized", "connection_fallback"}
             and isinstance(item.get("content"), str)
         ]
-        if court == "tang" and role == "zhongshu":
+        if court in {"tang", "tang_ablation"} and role == "zhongshu":
             candidates = [item for item in candidates if item.get("content_type") == "draft"]
         if court == "ming" and role == "chief_grand_secretary":
             candidates = [item for item in candidates if item.get("content_type") == "draft"]
@@ -189,7 +191,7 @@ def evidence_from_trace(
             continue
         raw = candidates[-1]["content"]
         assert isinstance(raw, str)
-        if court == "tang" and role == "menxia":
+        if court in {"tang", "tang_ablation"} and role == "menxia":
             try:
                 value = json.loads(raw)
                 verdict = value["selected_option"]["option"]

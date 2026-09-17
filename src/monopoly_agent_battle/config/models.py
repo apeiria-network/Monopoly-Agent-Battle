@@ -173,6 +173,7 @@ class PlayerConfig(BaseModel):
             "shang2_court",
             "qin_court",
             "tang_court",
+            "tang_ablation_court",
             "ming_court",
             "flat_ensemble",
         ]
@@ -327,7 +328,7 @@ class GameConfig(BaseModel):
                         "requires court_role_profiles of flat-ensemble roles"
                     )
                     raise ValueError(msg)
-            elif player.controller_type == "tang_court":
+            elif player.controller_type in {"tang_court", "tang_ablation_court"}:
                 if player.model_profile is not None:
                     msg = f"Tang court player {player.player_id} must not set model_profile"
                     raise ValueError(msg)
