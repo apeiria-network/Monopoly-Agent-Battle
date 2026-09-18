@@ -1,0 +1,7 @@
+# court-vs-baseline batch 25 of 32: game_025.yaml (SH13, seed 125) .. game_037.yaml (QI13, seed 137); API KEY1
+# Run from the repository root with:
+#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/court-vs-baseline/batch25/batch.yaml
+# tasks.jsonl is written next to this manifest.
+games:
+  - game_025.yaml
+  - game_037.yaml

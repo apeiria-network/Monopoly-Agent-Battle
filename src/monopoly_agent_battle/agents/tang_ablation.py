@@ -342,6 +342,18 @@ class TangAblationCourtAgent:
             if parsed is None:
                 raw = _fallback_review()
                 verdict = "disagree"
+                self._trace.append(
+                    TangAblationCallTrace(
+                        request.decision_id,
+                        role,
+                        f"{self._player_id}.{role}",
+                        "advice_normalized",
+                        raw,
+                        round=round_number,
+                        decision_maker=role,
+                        content_type=_REVIEW,
+                    )
+                )
             else:
                 verdict, raw = parsed
         except (ConnectionError, LLMCallError) as error:
@@ -449,13 +461,26 @@ class TangAblationCourtAgent:
                 round_number,
             )
             default = next(option for option in request.options if option.is_default)
-            return json.dumps(
+            fallback_draft = json.dumps(
                 {
                     "selected_option": default_option_json(default),
                     "reason": "中书省多次回复非法，采用默认合法草案。",
                 },
                 ensure_ascii=False,
             )
+            self._trace.append(
+                TangAblationCallTrace(
+                    request.decision_id,
+                    role,
+                    f"{self._player_id}.{role}",
+                    "advice_normalized",
+                    fallback_draft,
+                    round=round_number,
+                    decision_maker=role,
+                    content_type=_DRAFT,
+                )
+            )
+            return fallback_draft
         assert validation.option is not None
         return json.dumps(
             {

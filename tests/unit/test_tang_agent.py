@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -269,6 +269,33 @@ def test_tang_menxia_non_object_json_retries_and_falls_back(tmp_path: Path) -> N
         agent, clients = make(req, tmp_path, [raw] * 9)
         assert json.loads(agent(req))["reason"] == "终裁"
         assert len(clients["menxia"].requests) == 9
+        fallback_calls = [
+            call
+            for call in agent.court_calls()
+            if call["role"] == "menxia" and call["outcome"] == "advice_normalized"
+        ]
+        assert len(fallback_calls) == 3
+        assert "门下省多次审核回复非法" in cast(str, fallback_calls[0]["content"])
+
+
+def test_tang_zhongshu_validation_exhaustion_marks_advice_normalized(tmp_path: Path) -> None:
+    req = request(tmp_path)
+    clients = {
+        "shangshu": Stub(["全局信息摘要"]),
+        "zhongshu": Stub(["bad", "still bad", "worse"]),
+        "menxia": Stub([review("agree")]),
+        "emperor": Stub([choice(req, "终裁")]),
+    }
+    agent = _build(clients)
+    assert json.loads(agent(req))["reason"] == "终裁"
+    fallback_calls = [
+        call
+        for call in agent.court_calls()
+        if call["role"] == "zhongshu" and call["outcome"] == "advice_normalized"
+    ]
+    assert len(fallback_calls) == 1
+    assert "中书省多次回复非法，采用默认合法草案。" in cast(str, fallback_calls[0]["content"])
+    assert fallback_calls[0]["content_type"] == "draft"
 
 
 def test_tang_previous_decision_second_round_replays_as_assistant(tmp_path: Path) -> None:

@@ -1,0 +1,2 @@
+{"game_id":"FE11","experiment_id":"fe-vs-baseline","config_path":"configs\\experiments\\fe-vs-baseline\\batch6\\game_011.yaml","status":"completed","reason":null,"run_directory":"runs\\fe-vs-baseline\\FE11"}
+{"game_id":"FE12","experiment_id":"fe-vs-baseline","config_path":"configs\\experiments\\fe-vs-baseline\\batch6\\game_012.yaml","status":"invalid","reason":"run produced validity_status=invalid","run_directory":"runs\\fe-vs-baseline\\FE12"}

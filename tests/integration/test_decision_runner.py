@@ -156,6 +156,7 @@ def test_invalid_output_is_retried_with_feedback_then_falls_back(tmp_path: Path)
     result = json.loads((artifacts.run_directory / "result.json").read_text(encoding="utf-8"))
     assert result["decision_fallbacks"] > 0
     assert result["llm_fallbacks"] > 0
+    assert result["fallback_events"] == result["decision_fallbacks"]  # 无朝廷 trace 时两口径一致
     assert result["validity_status"] == "invalid"
 
 

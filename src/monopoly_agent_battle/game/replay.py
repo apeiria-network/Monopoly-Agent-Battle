@@ -38,6 +38,7 @@ _NON_STATE_RESULT_KEYS = frozenset(
         "reconnect_events",
         "decision_fallbacks",
         "llm_fallbacks",
+        "fallback_events",
         "validity_status",
         "llm_token_stats",
     }

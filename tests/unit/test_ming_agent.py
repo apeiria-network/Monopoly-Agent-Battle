@@ -365,6 +365,43 @@ def test_ming_advice_is_system_forced_and_history_is_complete(tmp_path: Path) ->
         assert any(getattr(entry, "content_type", None) == "vote_result" for entry in turn.entries)
 
 
+def test_ming_chief_synthesis_success_outcome_is_success(tmp_path: Path) -> None:
+    req = make_request(tmp_path)
+    agent, _ = make_agent(req)
+
+    raw_final = agent(req)
+    agent.record_final_decision(req, raw_final)
+
+    calls = cast(list[dict[str, object]], agent.court_trace()["calls"])
+    advice_calls = [call for call in calls if call["phase"] == "advice"]
+    assert advice_calls
+    assert all(call["outcome"] == "success" for call in advice_calls)
+
+
+def test_ming_secretary_validation_exhaustion_marks_advice_normalized(tmp_path: Path) -> None:
+    req = make_request(tmp_path)
+    options = [item.option_id for item in req.options]
+    clients = {
+        "chief": Stub([choice(req, options[0], "首辅草案"), choice(req, options[0], "汇总")]),
+        "secretary_1": Stub(["bad", "worse", "still bad"]),
+        "secretary_2": Stub([choice(req, options[0], "大学士二草案")]),
+        "emperor": Stub([choice(req, options[0], "终裁")]),
+    }
+    agent, _ = build_agent(clients)
+
+    raw_final = agent(req)
+    agent.record_final_decision(req, raw_final)
+
+    calls = cast(list[dict[str, object]], agent.court_trace()["calls"])
+    fallback_calls = [
+        call
+        for call in calls
+        if call["role"] == "grand_secretary_1" and call["outcome"] == "advice_normalized"
+    ]
+    assert len(fallback_calls) == 1
+    assert "系统采用默认合法选项。" in cast(str, fallback_calls[0]["content"])
+
+
 def test_ming_recovers_when_last_first_draft_times_out(tmp_path: Path) -> None:
     req = make_request(tmp_path)
     option_ids = [item.option_id for item in req.options]

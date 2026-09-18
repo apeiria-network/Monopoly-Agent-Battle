@@ -353,11 +353,12 @@ class MingCourtAgent:
                 expected
             ):
                 reason = _response_reason(validation)
+                outcome = "success"
             else:
                 reason = (
                     "系统采用内阁一致结果。" if self._vote is None else "系统采用内阁加权投票结果。"
                 )
-            outcome = "advice_normalized"
+                outcome = "advice_normalized"
         except (ConnectionError, LLMCallError):
             self._connection_failures[_CHIEF] += 1
             if self._connection_failures[_CHIEF] <= self._max_connection_retries:
@@ -416,13 +417,26 @@ class MingCourtAgent:
                 phase,
             )
             option = next(item for item in request.options if item.is_default)
-            return json.dumps(
+            fallback = json.dumps(
                 {
                     "selected_option": default_option_json(option),
                     "reason": "系统采用默认合法选项。",
                 },
                 ensure_ascii=False,
             )
+            self._trace.append(
+                MingCallTrace(
+                    request.decision_id,
+                    role,
+                    f"{self._player_id}.{role}",
+                    "advice_normalized",
+                    fallback,
+                    phase=phase,
+                    decision_maker=role,
+                    content_type=_DRAFT,
+                )
+            )
+            return fallback
         assert validation.option is not None
         selected_option: dict[str, object] = {"option": validation.option.option_id}
         if validation.response is not None and validation.response.target is not None:

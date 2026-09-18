@@ -268,6 +268,20 @@ class Shang2CourtAgent:
                 default = next(option for option in request.options if option.is_default)
                 selected_option = default_option_json(default)
                 reason = _VALIDATION_FALLBACK_REASON
+                self._trace.append(
+                    Shang2CallTrace(
+                        decision_id=request.decision_id,
+                        role=role,
+                        caller_role=f"{self._player_id}.{role}",
+                        outcome="advice_normalized",
+                        content=json.dumps(
+                            {"selected_option": selected_option, "reason": reason},
+                            ensure_ascii=False,
+                        ),
+                        decision_maker=role,
+                        content_type=_ADVICE,
+                    )
+                )
         except (ConnectionError, LLMCallError) as error:
             selected_option, reason = self._connection_fallback(role, request, error)
         normalized = json.dumps(

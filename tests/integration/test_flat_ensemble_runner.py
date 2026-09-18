@@ -82,8 +82,7 @@ def _dispatch(
     policy: ResponsePolicy,
 ) -> tuple[DispatchController, dict[str, Any]]:
     conversations = {
-        role: AgentConversation(agent_id="fe", window_turns=config.window_turns)
-        for role in _ROLES
+        role: AgentConversation(agent_id="fe", window_turns=config.window_turns) for role in _ROLES
     }
     clients = {role: RecordingLLMClient(MockLLMClient(policy), artifacts) for role in _ROLES}
     member_profile = config.model_profiles["member"]
@@ -245,5 +244,7 @@ def test_member_connection_exhaustion_falls_back_and_participates_in_vote(tmp_pa
     }
     assert result["reconnect_events"] >= 2
     assert result["llm_fallbacks"] == 0
-    assert result["validity_status"] == "valid"
+    assert result["fallback_events"] >= 1  # 成员级 connection_fallback 触发级计数
+    # 每个 fe 决策都有成员触发兜底文案，触发级口径下超过 10% 阈值判 invalid。
+    assert result["validity_status"] == "invalid"
     verify_run(run_directory)
