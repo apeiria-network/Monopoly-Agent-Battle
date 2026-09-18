@@ -7,8 +7,8 @@ import pytest
 
 from monopoly_agent_battle.reporting.plots import (
     PlotGenerationError,
-    _apply_bankruptcy_zeros,
-    _bankruptcy_rounds,
+    _apply_bankruptcy_zeros,  # pyright: ignore[reportPrivateUsage]
+    _bankruptcy_rounds,  # pyright: ignore[reportPrivateUsage]
     read_series,
     write_run_curves,
 )

@@ -302,7 +302,7 @@ def _visible_net_worth(visible: dict[str, Any], player_id: str) -> int:
         total += price
         total += int(space.get("building_cost") or 0) * int(space.get("building_level") or 0)
         if space.get("mortgaged"):
-            total -= price 
+            total -= price
     return total
 
 
