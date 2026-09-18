@@ -229,10 +229,39 @@ def test_ablation_menxia_non_object_json_retries_and_falls_back(tmp_path: Path) 
         assert json.loads(agent(req))["reason"] == "终裁"
         # 驳回已移除，仅一轮审核：1 次初始 + 2 次校验重试 = 3 次调用。
         assert len(clients["menxia"].requests) == 3
+        fallback_calls = [
+            call
+            for call in agent.court_calls()
+            if call["role"] == "menxia" and call["outcome"] == "advice_normalized"
+        ]
+        assert len(fallback_calls) == 1
+        assert "门下省多次审核回复非法" in str(fallback_calls[0]["content"])
         emperor_text = "\n".join(
             message.content for message in clients["emperor"].requests[-1].messages
         )
         assert "门下省多次审核回复非法，无法做出有效回复，审核意见仅供参考。" in emperor_text
+
+
+def test_ablation_zhongshu_validation_exhaustion_marks_advice_normalized(
+    tmp_path: Path,
+) -> None:
+    req = request(tmp_path)
+    clients = {
+        "shangshu": Stub(["全局信息摘要"]),
+        "zhongshu": Stub(["bad", "still bad", "worse"]),
+        "menxia": Stub([review("agree")]),
+        "emperor": Stub([choice(req, "终裁")]),
+    }
+    agent = _build(clients)
+    assert json.loads(agent(req))["reason"] == "终裁"
+    fallback_calls = [
+        call
+        for call in agent.court_calls()
+        if call["role"] == "zhongshu" and call["outcome"] == "advice_normalized"
+    ]
+    assert len(fallback_calls) == 1
+    assert "中书省多次回复非法，采用默认合法草案。" in str(fallback_calls[0]["content"])
+    assert fallback_calls[0]["content_type"] == "draft"
 
 
 def test_ablation_previous_decision_replays_as_assistant(tmp_path: Path) -> None:

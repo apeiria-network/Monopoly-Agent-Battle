@@ -233,5 +233,6 @@ def test_minister_connection_exhaustion_falls_back_but_emperor_decides(tmp_path:
     assert result["llm_calls"] == len(llm_calls)
     assert result["reconnect_events"] >= 2
     assert result["llm_fallbacks"] == 0
-    assert result["validity_status"] == "valid"
+    assert result["fallback_events"] >= 1 
+    assert result["validity_status"] == "invalid"
     verify_run(run_directory)

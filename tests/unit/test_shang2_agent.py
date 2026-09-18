@@ -420,11 +420,15 @@ def test_minister_validation_retries_then_falls_back(tmp_path: Path) -> None:
         "validation_error",
         "success",
         "validation_error",
+        "advice_normalized",
         "success",
         "success",
         "success",
     ]
     assert calls[-1]["role"] == "emperor"
+    advice_normalized = calls[6]
+    assert advice_normalized["role"] == "minister_1"
+    assert "系统采用默认合法选项。" in cast(str, advice_normalized["content"])
     oracles = cast(list[dict[str, object]], agent.court_trace()["oracles"])
     assert len(oracles) == 1
 

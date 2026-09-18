@@ -35,6 +35,12 @@ RawDecisionController = Callable[[DecisionRequest, str | None], str]
 
 _DEFAULT_REASON = "选择系统默认合法操作。"
 _FALLBACK_REASON = "多次重试仍未给出合法回复，自动选择系统默认选项。"
+# Trace outcomes that always accompany a synthesized fallback text at an
+# internal (officer/member) layer. Every occurrence counts as one fallback
+# event under the trigger-level fallback criterion.
+_FALLBACK_TRACE_OUTCOMES = frozenset(
+    {"connection_fallback", "advice_normalized", "summary_fallback"}
+)
 
 
 ConversationBinding = AgentConversation | Mapping[str, AgentConversation]
@@ -113,6 +119,7 @@ def run_decision_game(
     reconnect_events = 0
     decision_fallbacks = 0
     llm_fallbacks = 0
+    fallback_events = 0
     conv_map, decision_conversations = _normalize_conversations(conversations or {})
     turn_counters: dict[str, int] = dict.fromkeys(conv_map, 0)
     logged_segment3_warning_turns: set[tuple[str, int]] = set()
@@ -186,6 +193,7 @@ def run_decision_game(
             decision_fallbacks += 1
             if uses_llm:
                 llm_fallbacks += 1
+                fallback_events += 1
             default = next(option for option in request.options if option.is_default)
             fallback_reply = json.dumps(
                 {
@@ -214,6 +222,14 @@ def run_decision_game(
             final_recorder(request, persisted_reply)
         command = command_from_option(request, validation.option, validation.target)
         court_trace = _court_trace(controller, request)
+        if court_trace is not None:
+            trace_calls = court_trace.get("calls")
+            if isinstance(trace_calls, list):
+                fallback_events += sum(
+                    1
+                    for item in trace_calls
+                    if isinstance(item, dict) and item.get("outcome") in _FALLBACK_TRACE_OUTCOMES
+                )
         if performance_tracker is not None and court_trace is not None:
             evidence = evidence_from_trace(
                 request, court_trace, validation.option.option_id, validation.target
@@ -264,7 +280,8 @@ def run_decision_game(
                 "reconnect_events": reconnect_events,
                 "decision_fallbacks": decision_fallbacks,
                 "llm_fallbacks": llm_fallbacks,
-                "validity_status": _validity_status(llm_calls, llm_fallbacks),
+                "fallback_events": fallback_events,
+                "validity_status": _validity_status(llm_calls, fallback_events),
                 "llm_token_stats": llm_token_stats(artifacts, llm_calls, llm_fallbacks),
             }
         )
@@ -515,9 +532,15 @@ def _request_response(
             )
 
 
-def _validity_status(llm_calls: int, decision_fallbacks: int) -> str:
-    """Mark a game invalid when LLM-triggered fallbacks reach 10% of calls."""
-    if llm_calls > 0 and decision_fallbacks * 10 >= llm_calls:
+def _validity_status(llm_calls: int, fallback_events: int) -> str:
+    """Mark a game invalid when fallback events reach 10% of LLM calls.
+
+    ``fallback_events`` uses the trigger-level criterion: every synthesized
+    fallback text counts, whether raised at the player level or inside a
+    court/ensemble officer layer, and whether caused by invalid replies or
+    connection failures.
+    """
+    if llm_calls > 0 and fallback_events * 10 >= llm_calls:
         return "invalid"
     return "valid"
 

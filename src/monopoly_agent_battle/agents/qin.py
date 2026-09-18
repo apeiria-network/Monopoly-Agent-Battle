@@ -277,8 +277,22 @@ class QinCourtAgent:
                 )
                 default = next(option for option in request.options if option.is_default)
                 normalized = json.dumps(
-                    {"selected_option": default_option_json(default), "reason": _truncate(raw)},
+                    {
+                        "selected_option": default_option_json(default),
+                        "reason": f"{_ROLE_LABELS[role]}多次回复非法，采用默认合法选项。",
+                    },
                     ensure_ascii=False,
+                )
+                self._trace.append(
+                    QinCallTrace(
+                        request.decision_id,
+                        role,
+                        f"{self._player_id}.{role}",
+                        "advice_normalized",
+                        normalized,
+                        decision_maker=role,
+                        content_type=_ADVICE,
+                    )
                 )
             else:
                 normalized = raw
@@ -313,6 +327,17 @@ class QinCourtAgent:
                     "Error: 御史大夫评价结构非法，请按要求输出包含两项 assessments 的 JSON 对象。",
                 )
                 parsed = _fallback_comment()
+                self._trace.append(
+                    QinCallTrace(
+                        request.decision_id,
+                        _COUNSELLOR,
+                        f"{self._player_id}.{_COUNSELLOR}",
+                        "advice_normalized",
+                        parsed,
+                        decision_maker=_COUNSELLOR,
+                        content_type=_COMMENT,
+                    )
+                )
         except (ConnectionError, LLMCallError) as error:
             parsed = self._connection_fallback(_COUNSELLOR, request, _COMMENT, error)
         self._responses[_COUNSELLOR] = parsed

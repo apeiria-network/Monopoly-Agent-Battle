@@ -186,8 +186,36 @@ def test_qin_counsellor_falls_back_after_validation_retries(tmp_path: Path) -> N
         call["role"] == "imperial_counsellor" and call["outcome"] == "validation_error"
         for call in calls
     )
+    assert any(
+        call["role"] == "imperial_counsellor" and call["outcome"] == "advice_normalized"
+        for call in calls
+    )
     emperor_text = "\n".join(message.content for message in clients["emperor"].requests[0].messages)
     assert "御史大夫多次重试失败，无法回复" in emperor_text
+
+
+def test_qin_adviser_validation_exhaustion_marks_advice_normalized(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    clients = {
+        "chancellor": StubClient(["{}", "[]", "invalid"]),
+        "grand_marshal": StubClient([_choice(request)]),
+        "imperial_counsellor": StubClient([_comment()]),
+        "emperor": StubClient([_choice(request)]),
+    }
+    agent = _agent(request, clients)
+
+    agent(request)
+
+    calls = cast(list[dict[str, Any]], agent.court_trace()["calls"])
+    fallback_calls = [
+        call
+        for call in calls
+        if call["role"] == "chancellor" and call["outcome"] == "advice_normalized"
+    ]
+    assert len(fallback_calls) == 1
+    assert "丞相多次回复非法，采用默认合法选项。" in cast(str, fallback_calls[0]["content"])
+    emperor_text = "\n".join(message.content for message in clients["emperor"].requests[0].messages)
+    assert "丞相多次回复非法，采用默认合法选项。" in emperor_text
 
 
 def test_qin_adviser_retry_replays_validation_feedback(tmp_path: Path) -> None:
