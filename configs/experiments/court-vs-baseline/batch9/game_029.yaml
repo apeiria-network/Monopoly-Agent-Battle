@@ -1,0 +1,102 @@
+# court-vs-baseline QI05 (game 29); batch API KEY1
+# seats: 1=秦 2=baseline-1 3=baseline-2 4=baseline-3
+# 秦 base=A (qin_court); 3 baselines all use emperor model A
+# posts expanded per Courts-Battle-config-details.md 1.3: chancellor=B grand_marshal=C imperial_counsellor=D emperor=A
+# models: A=qwen3.8-flash B=deepseek-v4-flash C=gpt-5.6-luna D=GLM-5.3-Flash
+game_id: QI05
+experiment_id: court-vs-baseline
+seed: 129
+prompt_profile: full-v2
+players:
+- player_id: qin-court
+  seat: 1
+  controller_type: qin_court
+  court_role_profiles:
+    chancellor: qin-chancellor
+    grand_marshal: qin-grand-marshal
+    imperial_counsellor: qin-imperial-counsellor
+    emperor: qin-emperor
+- player_id: baseline-1
+  seat: 2
+  controller_type: llm_baseline
+  model_profile: baseline-model-1
+- player_id: baseline-2
+  seat: 3
+  controller_type: llm_baseline
+  model_profile: baseline-model-2
+- player_id: baseline-3
+  seat: 4
+  controller_type: llm_baseline
+  model_profile: baseline-model-3
+model_profiles:
+  qin-chancellor:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY1
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  qin-grand-marshal:
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY1
+    model: gpt-5.6-luna
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  qin-imperial-counsellor:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY1
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  qin-emperor:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY1
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  baseline-model-1:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY1
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  baseline-model-2:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY1
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  baseline-model-3:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY1
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+initial_cash: 1500
+max_complete_rounds: 50
+initial_chance_cards: 2
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs
