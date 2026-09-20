@@ -12,6 +12,22 @@ from a non-parametric bootstrap over games (resample games, refit, renormalize).
 Invalid games are excluded. Superseded backups (".bak*", ".invalid", "deprecate")
 are ignored. Exports stat/pl_strength.csv.
 
+Interpretation guide
+--------------------
+theta: strength parameter; only RATIOS are meaningful. theta = 1.9 vs a
+reference fixed at 1.0 reads "about 1.9x the reference strength" (Elo analogy:
+a factor of ~1.44 ≈ +100 Elo). p_win translates theta into an intuitive
+head-to-head probability: P(entity beats reference) = θ_i / (θ_i + θ_ref);
+for the melee the reference is an "average opponent" (θ = geometric mean = 1).
+Decision rule: if the 95% CI of p_win CROSSES 0.5, the comparison is
+indistinguishable — the point estimate is descriptive only and must not be
+reported as a ranking conclusion. A CI entirely above (below) 0.5 licenses
+"stronger" ("weaker"). With 16 games the CI is roughly ±0.3 wide, so only
+huge effects (p_win outside ~[0.2, 0.8]) are detectable; "not significant"
+here means "not resolvable at this sample size", NOT "equal". Bootstrap CIs
+are reported on the bounded probability scale because theta-ratio CIs blow up
+whenever a resample leaves the reference nearly winless.
+
 Run from the repository root:
     .venv/Scripts/python.exe stat/pl_strength.py
 """

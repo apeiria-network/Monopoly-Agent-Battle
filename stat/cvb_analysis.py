@@ -10,6 +10,23 @@ of the exported CSV. Both floors (sane_random, greedy_script) are reported and
 must agree. CSV columns: group, games, observed_total, floor, p_exact_one_sided,
 verdict.
 
+Interpretation guide
+--------------------
+p_exact_one_sided: the exact probability that a pure-luck player, playing the
+same seat sequence, scores a total >= the observed one. It answers "is this
+group distinguishable from luck at all?" — the smaller p, the stronger the
+group. p ≈ 0.5 means exactly at the luck expectation; p near 1 means BELOW
+expectation (e.g. 0.71 ≈ 2 points under par over 16 games). Conventionally
+p < 0.025 is required before claiming "stronger than luck" (two-sided 95%).
+The verdict column already encodes the §8.5.2 three-tier rule: "within noise
+band" (|excess| < 1σ) / "directional deviation" (1σ–2σ, NOT a permitted
+"trend" claim) / "distinguishable" (≥ 2σ ≈ 95% threshold). Wording
+discipline: never write "tie" or "there is a difference" — the only licensed
+statements are "indistinguishable" (either noise tier) or "distinguishable".
+Both floors must yield the same tier before any conclusion is drawn; the
+result holds only if the observed point is interpreted against the seat the
+group actually occupied (floors: seat 1 mean ≈ 1.63 vs seat 4 mean ≈ 1.39).
+
 Shared helpers (load_game / load_floor / report / ...) are also used by
 fe_advantage_test.py. Net worth, token costs, per-game details: intentionally
 out of scope, to be analysed separately later.

@@ -6,6 +6,13 @@ court-vs-baseline games). The 4 "*.invalid" directories are superseded failed
 attempts and are excluded; the 16 canonical games are all valid. Exports an
 English CSV.
 
+Interpretation guide: identical to cvb_analysis.py — p_exact_one_sided is the
+exact probability of a pure-luck player reaching the observed total at the same
+seats (p < 0.025 before claiming "stronger"); the verdict column applies the
+§8.5.2 three-tier rule and both floors must agree. Read fe_all first
+(16 games); the fe_base_* rows have only 4 games each and carry detection
+thresholds of ±4 points, so their tiers are barely informative.
+
 Run from the repository root:
     .venv/Scripts/python.exe stat/fe_advantage_test.py
 """
