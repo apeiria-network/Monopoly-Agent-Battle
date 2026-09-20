@@ -1,0 +1,2 @@
+{"game_id":"TA16","experiment_id":"court-vs-baseline","config_path":"configs\\experiments\\court-vs-baseline\\batch32\\game_052.yaml","status":"completed","reason":null,"run_directory":"runs\\court-vs-baseline\\TA16"}
+{"game_id":"MI16","experiment_id":"court-vs-baseline","config_path":"configs\\experiments\\court-vs-baseline\\batch32\\game_064.yaml","status":"completed","reason":null,"run_directory":"runs\\court-vs-baseline\\MI16"}
