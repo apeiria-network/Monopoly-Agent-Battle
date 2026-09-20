@@ -9,8 +9,8 @@ courts. Theta is normalized so the reference entity (baseline, or the geometric 
 for the melee) equals 1; P(i beats j head-to-head) = θ_i / (θ_i + θ_j). 95% CIs come
 from a non-parametric bootstrap over games (resample games, refit, renormalize).
 
-Invalid games are excluded. Superseded backups (".bak*", ".invalid", "deprecate")
-are ignored. Exports stat/pl_strength.csv.
+Invalid games are excluded. Superseded games live in each experiment's
+"deprecate/" subdirectory and are ignored. Exports stat/pl_strength.csv.
 
 Interpretation guide
 --------------------
@@ -58,7 +58,7 @@ def load_court_vs_baseline(exp_dir: Path) -> list[Ranking]:
     """Entity ranking per game: focus agent by group, baselines pooled."""
     games: list[Ranking] = []
     for gdir in sorted(exp_dir.iterdir()):
-        if not gdir.is_dir() or "-bak" in gdir.name or gdir.name.endswith(".invalid"):
+        if not gdir.is_dir() or gdir.name == "deprecate":
             continue
         if not (gdir / "result.json").exists():
             continue
