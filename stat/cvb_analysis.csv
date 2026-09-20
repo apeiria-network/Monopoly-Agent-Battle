@@ -1,0 +1,11 @@
+﻿group,games,observed_total,floor,p_exact_one_sided,verdict
+shang,16,22,sane_random,0.7113,within noise band
+shang,16,22,greedy_script,0.7109,within noise band
+qin,16,22,sane_random,0.7113,within noise band
+qin,16,22,greedy_script,0.7109,within noise band
+tang,16,24,sane_random,0.5444,within noise band
+tang,16,24,greedy_script,0.5443,within noise band
+ming,16,28,sane_random,0.2176,within noise band
+ming,16,28,greedy_script,0.2181,within noise band
+all_courts,64,96,sane_random,0.5224,within noise band
+all_courts,64,96,greedy_script,0.5223,within noise band

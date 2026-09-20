@@ -1,11 +1,11 @@
-﻿group,games,observed_total,uncalibrated_mean,floor,calibrated_expectation,null_sd,excess,z,p_normal_one_sided,p_exact_one_sided,verdict
-fe_all,16,30,1.875,sane_random,24.0,4.455,6.0,1.3468,0.089,0.1092,"directional deviation (beyond 1sd, below 95% threshold)"
-fe_all,16,30,1.875,greedy_script,24.0,4.4648,6.0,1.3439,0.0895,0.1097,"directional deviation (beyond 1sd, below 95% threshold)"
-fe_base_GLM-5.3-Flash,4,9,2.25,sane_random,6.0,2.2275,3.0,1.3468,0.089,0.1356,"directional deviation (beyond 1sd, below 95% threshold)"
-fe_base_GLM-5.3-Flash,4,9,2.25,greedy_script,6.0,2.2324,3.0,1.3439,0.0895,0.1362,"directional deviation (beyond 1sd, below 95% threshold)"
-fe_base_deepseek-v4-flash,4,5,1.25,sane_random,6.0,2.2275,-1.0,-0.4489,0.6733,0.7432,within noise band
-fe_base_deepseek-v4-flash,4,5,1.25,greedy_script,6.0,2.2324,-1.0,-0.448,0.6729,0.7427,within noise band
-fe_base_gpt-5.6-luna,4,8,2.0,sane_random,6.0,2.2275,2.0,0.8979,0.1846,0.257,within noise band
-fe_base_gpt-5.6-luna,4,8,2.0,greedy_script,6.0,2.2324,2.0,0.8959,0.1852,0.2576,within noise band
-fe_base_qwen3.8-flash,4,8,2.0,sane_random,6.0,2.2275,2.0,0.8979,0.1846,0.257,within noise band
-fe_base_qwen3.8-flash,4,8,2.0,greedy_script,6.0,2.2324,2.0,0.8959,0.1852,0.2576,within noise band
+﻿group,games,observed_total,floor,p_exact_one_sided,verdict
+fe_all,16,30,sane_random,0.1092,"directional deviation (beyond 1sd, below 95% threshold)"
+fe_all,16,30,greedy_script,0.1097,"directional deviation (beyond 1sd, below 95% threshold)"
+fe_base_GLM-5.3-Flash,4,9,sane_random,0.1356,"directional deviation (beyond 1sd, below 95% threshold)"
+fe_base_GLM-5.3-Flash,4,9,greedy_script,0.1362,"directional deviation (beyond 1sd, below 95% threshold)"
+fe_base_deepseek-v4-flash,4,5,sane_random,0.7432,within noise band
+fe_base_deepseek-v4-flash,4,5,greedy_script,0.7427,within noise band
+fe_base_gpt-5.6-luna,4,8,sane_random,0.257,within noise band
+fe_base_gpt-5.6-luna,4,8,greedy_script,0.2576,within noise band
+fe_base_qwen3.8-flash,4,8,sane_random,0.257,within noise band
+fe_base_qwen3.8-flash,4,8,greedy_script,0.2576,within noise band
