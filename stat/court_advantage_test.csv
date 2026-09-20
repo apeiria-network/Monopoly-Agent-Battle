@@ -1,0 +1,11 @@
+﻿group,games,observed_total,uncalibrated_mean,floor,calibrated_expectation,null_sd,excess,z,p_normal_one_sided,p_exact_one_sided,verdict
+shang,16,22,1.375,sane_random,24.0,4.455,-2.0,-0.4489,0.6733,0.7113,within noise band
+shang,16,22,1.375,greedy_script,24.0,4.4648,-2.0,-0.448,0.6729,0.7109,within noise band
+qin,16,22,1.375,sane_random,24.0,4.455,-2.0,-0.4489,0.6733,0.7113,within noise band
+qin,16,22,1.375,greedy_script,24.0,4.4648,-2.0,-0.448,0.6729,0.7109,within noise band
+tang,16,24,1.5,sane_random,24.0,4.455,0.0,0.0,0.5,0.5444,within noise band
+tang,16,24,1.5,greedy_script,24.0,4.4648,0.0,0.0,0.5,0.5443,within noise band
+ming,16,28,1.75,sane_random,24.0,4.455,4.0,0.8979,0.1846,0.2176,within noise band
+ming,16,28,1.75,greedy_script,24.0,4.4648,4.0,0.8959,0.1852,0.2181,within noise band
+all_courts,64,96,1.5,sane_random,96.0,8.9101,-0.0,-0.0,0.5,0.5224,within noise band
+all_courts,64,96,1.5,greedy_script,96.0,8.9295,0.0,0.0,0.5,0.5223,within noise band

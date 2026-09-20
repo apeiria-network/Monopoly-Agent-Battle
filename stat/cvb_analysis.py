@@ -17,6 +17,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from monopoly_agent_battle.game.board_data.classic_us_40 import (  # noqa: E402
     BOARD_BY_POSITION,
@@ -24,8 +26,8 @@ from monopoly_agent_battle.game.board_data.classic_us_40 import (  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent / "runs"
 CVB = ROOT / "court-vs-baseline"
-COURTS = {"SH": "shang", "QI": "qin", "TA": "tang", "MI": "ming"}
-COURT_CN = {"shang": "商", "qin": "秦", "tang": "唐", "ming": "明"}
+COURTS = {"SH": "shang", "QI": "qin", "TA": "tang", "MI": "ming", "FE": "fe"}
+COURT_CN = {"shang": "商", "qin": "秦", "tang": "唐", "ming": "明", "fe": "平铺集成"}
 POINTS = (3, 2, 1, 0)
 
 GameRow = dict[str, Any]
@@ -58,7 +60,7 @@ def load_game(gdir: Path) -> GameRow:
     baselines = [p for p in players if p["controller_type"] == "llm_baseline"]
     profiles = config["model_profiles"]
     role_profiles: dict[str, Any] = court_pl.get("court_role_profiles") or {}
-    emperor_profile: str | None = role_profiles.get("emperor")
+    emperor_profile: str | None = role_profiles.get("emperor") or role_profiles.get("leader")
     emperor_model = profiles[emperor_profile]["model"] if emperor_profile else None
     baseline_models = sorted({profiles[p["model_profile"]]["model"] for p in baselines})
     rankings = result["rankings"]  # best first
@@ -134,6 +136,29 @@ def load_floor(floor_dir: Path) -> tuple[SeatPoints, list[int]]:
     return seat_points, rounds_list
 
 
+def exact_null_pmf(seats: list[int], seat_points: SeatPoints) -> np.ndarray:
+    """Exact PMF of the seat-calibrated luck-only total, by convolution.
+
+    Each seat's empirical point distribution over {0,1,2,3} (from the 800-game
+    floor) is convolved across the seat sequence; index k of the result is the
+    exact probability of a total of k. This replaces §8.5.3 Monte-Carlo
+    resampling: deterministic, instant, and free of sampling error (the same
+    convolution method §9 prescribes for experiment 10).
+    """
+    pmf = np.array([1.0])
+    for seat in seats:
+        values = seat_points[seat]
+        seat_pmf = np.bincount(values, minlength=4)[:4] / len(values)
+        pmf = np.convolve(pmf, seat_pmf)
+    return pmf
+
+
+def exact_pvalue(seats: list[int], total: int, seat_points: SeatPoints) -> float:
+    """Exact P(luck-only seat-calibrated total >= observed), one-sided."""
+    pmf = exact_null_pmf(seats, seat_points)
+    return float(pmf[total:].sum())
+
+
 def mc_pvalue(
     seats: list[int],
     total: int,
@@ -205,8 +230,8 @@ def main() -> None:
         fb = sum(g["llm_fallbacks"] for g in gs)
         recon = sum(g["reconnect_events"] for g in gs)
         seats = [g["court_seat"] for g in gs]
-        p_sane = mc_pvalue(seats, pts, sane_seats)
-        p_greedy = mc_pvalue(seats, pts, greedy_seats)
+        p_sane = exact_pvalue(seats, pts, sane_seats)
+        p_greedy = exact_pvalue(seats, pts, greedy_seats)
         rdist = {r: ranks.count(r) for r in (1, 2, 3, 4)}
         print(
             f"{COURT_CN[ck]} n={n} pts={pts} (mean {pts / n:.3f}) rank_dist={rdist} "
