@@ -1,6 +1,6 @@
-﻿entity,controller_type,games,decisions,llm_calls,calls_per_decision,error_rate__baseline-1,error_rate__baseline-2,error_rate__baseline-3,fallback_rate,seconds_per_decision,tokens_per_decision,adoption__chief_grand_secretary,adoption__grand_secretary_1,adoption__grand_secretary_2,advice_diversity,consensus_formation,decider_adoption_any,error_rate__chief_grand_secretary,error_rate__emperor,error_rate__grand_secretary_1,error_rate__grand_secretary_2,initial_disagreement,minority_adoption,officer_decider_agreement,opinion_change,adoption__chancellor,adoption__grand_marshal,error_rate__chancellor,error_rate__grand_marshal,error_rate__imperial_counsellor,adoption__minister_1,adoption__minister_2,adoption__minister_3,error_rate__minister_1,error_rate__minister_2,error_rate__minister_3,adoption__zhongshu,error_rate__menxia,error_rate__shangshu,error_rate__zhongshu,review_intervention
-baseline,llm_baseline,192,13017,16093,1.2358,0.1711,0.1655,0.1796,0.006,12.7341,8076.8892,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-ming,ming_court,16,1122,7500,6.5775,,,,0.0037,84.129,49271.0309,0.879,0.8627,0.8597,1.2325,0.4289,0.9436,0.0613,0.0681,0.0743,0.0774,0.3474,0.2009,0.8671,0.4389,,,,,,,,,,,,,,,,
-qin,qin_court,16,1130,4799,4.237,,,,0.0015,48.42,30613.6457,,,,1.2966,,0.9486,,0.0258,,,0.3053,,0.8172,,0.8328,0.8016,0.0599,0.0851,0.0557,,,,,,,,,,,
-shang,shang2_court,16,1133,5004,4.4047,,,,0.0041,53.835,31192.7055,,,,1.4098,,0.9827,,0.0079,,,0.3437,,0.8291,,,,,,,0.8154,0.8204,0.8516,0.095,0.1032,0.1201,,,,,
-tang,tang_court,16,1129,5185,4.5182,,,,0.0064,45.3072,32805.4341,,,,,0.9061,0.9297,,0.0048,,,,,0.9297,0.6499,,,,,,,,,,,,0.9297,0.0157,0.0173,0.1078,0.0978
+﻿entity,controller_type,games,decisions,llm_calls,calls_per_decision,error_rate,fallback_rate,seconds_per_decision,tokens_per_decision,advice_diversity,consensus_formation,emperor_adoption,initial_disagreement,minority_adoption,officer_decider_agreement,opinion_change,review_intervention
+baseline,llm_baseline,192,13017,16093,1.2358,0.1721,0.006,12.7341,8076.8892,,,,,,,,
+ming,ming_court,16,1122,7500,6.5775,0.0748,0.0037,84.129,49271.0309,1.2325,0.4289,0.923,0.3474,0.2009,0.8671,0.4389,
+qin,qin_court,16,1130,4799,4.237,0.0602,0.0015,48.42,30613.6457,1.2966,,0.9486,0.3053,,0.8167,,
+shang,shang2_court,16,1133,5004,4.4047,0.0889,0.0041,53.835,31192.7055,1.4098,,0.9827,0.3437,,0.8289,,
+tang,tang_court,16,1129,5185,4.5182,0.0423,0.0064,45.3072,32805.4341,,0.9061,0.9297,,,0.9297,0.6499,0.0978

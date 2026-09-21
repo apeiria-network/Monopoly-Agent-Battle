@@ -14,8 +14,8 @@ Data sources per game dir:
   `fallback` flag for fallback_rate;
 - llm_calls.jsonl -> authoritative API-call count/tokens/duration per entity
   (caller_role prefix), for the overhead metrics (ratios of totals per game);
-- llm_digest.csv -> per-call error flags (是否报错回复) for role-level
-  error_rate__<role>.
+- llm_digest.csv -> per-call error flags (是否报错回复), pooled over ALL roles
+  of the entity, for error_rate.
 
 Entity roles (proposer = emits selected_option+target proposals):
 - ming_court: 3 grand secretaries (content_type "draft", phases first/redraft);
@@ -47,11 +47,12 @@ Metric definitions and interpretation guide
 - consensus_formation (共识形成率): ming — initially split decisions that end
   unanimous; tang — decisions whose first menxia verdict is "disagree" that
   end with a final verdict "agree". Only ming/tang.
-- decider_adoption_any / adoption__<role> (皇帝采纳率): decider's final choice
-  equals an officer's FINAL proposal — "any" counts a match with at least one
-  officer, per-role columns break it down. Tang: zhongshu is the only officer.
-  High values mean the decider mostly rubber-stamps; low values mean it
-  overrules or composes something new.
+- emperor_adoption (皇帝采纳率): the decider's final choice matches the
+  designated advice — shang: ANY of the 3 ministers; qin: chancellor OR
+  grand_marshal; tang: zhongshu's final draft; ming: the chief grand
+  secretary's 汇总意见 (his phase-"advice" summary, NOT any draft round);
+  FE: ANY member. High values mean the decider mostly rubber-stamps; low
+  values mean it overrules or composes something new.
 - minority_adoption (少数意见采纳率): among non-unanimous final proposals,
   the decider picks a NON-majority option. Majority must be strict (>half);
   3-way splits with no majority are excluded from both counts. N/A for
@@ -63,16 +64,18 @@ Metric definitions and interpretation guide
   llm_calls totals (count, input+output tokens, duration) divided by its
   decisions — ratio of totals. Compare courts (~4-7 calls) against baseline
   (~1.2) for the §7.3.1 cost account.
-- fallback_rate / error_rate__<role> (非法输出及回退率): decision-level
-  `fallback` flag rate per entity (invalid JSON/option or timeout forced the
-  default option); role-level digest error-flag rate per speaker role.
+- fallback_rate / error_rate (非法输出及回退率): whole-court rates.
+  fallback_rate = decisions that fell back to the default option (invalid
+  JSON/option or timeout) over the entity's decisions; error_rate = invalid
+  LLM replies over the entity's ALL calls (every role pooled, per llm_digest).
 - advice_diversity (建议多样性): distinct (option, target) values among the
   officers' FINAL proposals, averaged over decisions. Tang N/A (single
   drafter). Range 1..#proposers; 1 = always unanimous.
-- officer_decider_agreement (官员最终决策一致率): per officer, final proposal
-  == decider's choice, averaged across officers. Numerically the per-role
-  adoption view from the officer side. §6.2 wording rule: this measures
-  opinion convergence in the process, NOT decision correctness.
+- officer_decider_agreement (官员最终决策一致率): officers' LAST DRAFT ==
+  decider's choice, pooled over all officer participations (matches /
+  participations). For the ming chief this is his last DRAFT too — the 汇总
+  advice is never used here. §6.2 wording rule: this measures opinion
+  convergence in the process, NOT decision correctness.
 
 Trace hygiene: court_trace logs delivery echoes (outcome "advice_normalized"
 duplicates the real call's content; final_decision may appear twice). Entries
@@ -213,6 +216,7 @@ class DecisionRecord:
         self.redraft_changed: dict[str, bool] = {}
         self.menxia_verdicts: list[str] = []
         self.decider: Choice | None = None
+        self.summary_advice: Choice | None = None  # ming chief's 汇总意见
         by_role: dict[str, list[tuple[str | None, Choice]]] = {}
         for call in calls:
             role = str(call.get("role"))
@@ -223,6 +227,13 @@ class DecisionRecord:
             elif role == spec["reviewer"] and call.get("content_type") == "review":
                 if choice is not None and choice[0] in ("agree", "disagree"):
                     self.menxia_verdicts.append(choice[0])
+            elif (
+                controller == "ming_court"
+                and role == "chief_grand_secretary"
+                and call.get("content_type") == "advice"
+            ):
+                if choice is not None:
+                    self.summary_advice = choice  # chief's summary to the emperor
             elif role == spec["decider"]:
                 decider_ct = call.get("content_type")
                 if choice is not None and (
@@ -268,10 +279,10 @@ def empty_metrics() -> dict[str, Any]:
         "p002_den": 0,
         "p003_num": 0,
         "p003_den": 0,
-        "p004_any": 0,
+        "p004_num": 0,
         "p004_den": 0,
-        "p004_role_num": {},
-        "p004_role_den": {},
+        "p011_num": 0,
+        "p011_den": 0,
         "p005_num": 0,
         "p005_den": 0,
         "p006_num": 0,
@@ -303,14 +314,22 @@ def accumulate(acc: dict[str, Any], record: DecisionRecord, controller: str) -> 
         if record.menxia_verdicts[0] == "disagree":
             acc["p003_den"] += 1
             acc["p003_num"] += int(record.menxia_verdicts[-1] == "agree")
-    if record.decider is not None and record.final:
+    # emperor_adoption: ming — emperor vs the chief's 汇总意见 (summary advice);
+    # others — emperor vs ANY proposer's final proposal (shang any minister,
+    # qin chancellor-or-marshal, tang zhongshu, FE any member).
+    if controller == "ming_court":
+        if record.decider is not None and record.summary_advice is not None:
+            acc["p004_den"] += 1
+            acc["p004_num"] += int(record.decider == record.summary_advice)
+    elif record.decider is not None and record.final:
         acc["p004_den"] += 1
-        if record.decider in set(record.final.values()):
-            acc["p004_any"] += 1
-        for role, choice in record.final.items():
-            acc["p004_role_den"][role] = acc["p004_role_den"].get(role, 0) + 1
-            if record.decider == choice:
-                acc["p004_role_num"][role] = acc["p004_role_num"].get(role, 0) + 1
+        acc["p004_num"] += int(record.decider in set(record.final.values()))
+    # officer_decider_agreement: pooled over officer participations; each
+    # officer's LAST DRAFT (ming chief included — never the summary advice).
+    if record.decider is not None:
+        for choice in record.final.values():
+            acc["p011_den"] += 1
+            acc["p011_num"] += int(record.decider == choice)
     if controller in P005_OK and record.decider is not None:
         if record.final_unanimous() is False:
             majority = record.majority_choice()
@@ -336,10 +355,11 @@ def finalize_game(
     seat: int,
     acc: dict[str, Any],
     overhead: dict[str, float],
-    role_errors: dict[str, tuple[int, int]],
+    error_counts: tuple[int, int],
 ) -> dict[str, Any]:
     decisions = acc["decisions"]
-    row: dict[str, Any] = {
+    errors, error_total = error_counts
+    return {
         "game_id": game_id,
         "entity": entity,
         "controller_type": controller,
@@ -352,21 +372,14 @@ def finalize_game(
         "initial_disagreement": ratio(acc["p001_num"], acc["p001_den"]),
         "opinion_change": ratio(acc["p002_num"], acc["p002_den"]),
         "consensus_formation": ratio(acc["p003_num"], acc["p003_den"]),
-        "decider_adoption_any": ratio(acc["p004_any"], acc["p004_den"]),
+        "emperor_adoption": ratio(acc["p004_num"], acc["p004_den"]),
         "minority_adoption": ratio(acc["p005_num"], acc["p005_den"]),
         "review_intervention": ratio(acc["p006_num"], acc["p006_den"]),
         "fallback_rate": ratio(acc["p009_fallback"], decisions),
+        "error_rate": ratio(errors, error_total),
         "advice_diversity": ratio(acc["p010_sum"], acc["p010_den"]),
+        "officer_decider_agreement": ratio(acc["p011_num"], acc["p011_den"]),
     }
-    role_nums = acc["p004_role_num"]
-    role_dens = acc["p004_role_den"]
-    agreements = [role_nums.get(r, 0) / role_dens[r] for r in role_dens if role_dens[r]]
-    row["officer_decider_agreement"] = float(np.mean(agreements)) if agreements else None
-    for role, (errors, total) in sorted(role_errors.items()):
-        row[f"error_rate__{role}"] = ratio(errors, total)
-    for role in sorted(role_dens):
-        row[f"adoption__{role}"] = ratio(role_nums.get(role, 0), role_dens[role])
-    return row
 
 
 def load_game(gdir: Path) -> list[dict[str, Any]]:
@@ -415,7 +428,8 @@ def load_game(gdir: Path) -> list[dict[str, Any]]:
                     overhead[pid]["duration_ms"] += float(call.get("duration_ms") or 0)
                     break
 
-    role_errors: dict[str, dict[str, tuple[int, int]]] = {pid: {} for pid in players}
+    # Entity-level invalid-output counts: ALL roles of the entity pooled.
+    error_counts: dict[str, list[int]] = {pid: [0, 0] for pid in players}
     digest_path = gdir / "llm_digest.csv"
     if digest_path.exists():
         with digest_path.open(encoding="utf-8-sig", newline="") as handle:
@@ -423,11 +437,8 @@ def load_game(gdir: Path) -> list[dict[str, Any]]:
                 speaker = row.get("发言者") or ""
                 for pid in players:
                     if speaker == pid or speaker.startswith(pid + "."):
-                        short = speaker[len(pid) + 1 :] if "." in speaker else speaker
-                        errors, total = role_errors[pid].get(short, (0, 0))
-                        total += 1
-                        errors += int((row.get("是否报错回复") or "") == "True")
-                        role_errors[pid][short] = (errors, total)
+                        error_counts[pid][1] += 1
+                        error_counts[pid][0] += int((row.get("是否报错回复") or "") == "True")
                         break
 
     game_id = str(config["game_id"])
@@ -441,7 +452,7 @@ def load_game(gdir: Path) -> list[dict[str, Any]]:
                 seat,
                 accs[pid],
                 overhead[pid],
-                role_errors[pid],
+                (error_counts[pid][0], error_counts[pid][1]),
             )
         )
     return rows
