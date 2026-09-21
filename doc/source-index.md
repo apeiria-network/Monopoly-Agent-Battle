@@ -24,6 +24,7 @@
 | `configs/experiments/scripted_benchmarks/generate_configs.py` | 生成 §8 两零成本基准对局配置：`sane_random` 与 `greedy_script` 各 200 局（8×25），种子 2001–2200 / 2201–2400，参数对齐冻结混战（2 张开局、50 轮），生成时逐份 load 校验。 | `.venv/Scripts/python.exe configs/experiments/scripted_benchmarks/generate_configs.py`；批次用 `experiment run --batch configs/experiments/<exp>/batchN/batch.yaml` 执行。 |
 | `configs/experiments/sane_random/` | §8.3 理智随机基准：4 名 `sane_random` 玩家同局，`batch1..8` 各含 25 份 `game_NNN.yaml` + `batch.yaml` 清单；产物写 `runs/sane_random/sane-NNN`。 | `experiment run --batch configs/experiments/sane_random/batchN/batch.yaml`。 |
 | `configs/experiments/greedy_script/` | §8.4 固定脚本基准：4 名 `greedy_script` 玩家同局，结构同上；产物写 `runs/greedy_script/greedy-NNN`。 | `experiment run --batch configs/experiments/greedy_script/batchN/batch.yaml`。 |
+| `configs/experiments/court-fe-battle/generate_configs.py` | 实验 10（CF：明×2 vs FE×2）配置生成器：12 局（种子 301–312），6 朝廷-座位对 ×2，基座 A–D 各 3 局按 §1.3 岗位异质扩展，API Key 按 KEY1–4 轮换，切 6 批 ×2 局。 | `.venv/Scripts/python.exe configs/experiments/court-fe-battle/generate_configs.py`；批次用 `experiment run --batch configs/experiments/court-fe-battle/batchN/batch.yaml` 执行。 |
 | `src/monopoly_agent_battle/config/models.py` | 定义并校验单局配置、控制器及模型绑定；每个玩家或官员的 profile 可独立配置 URL、API Key 环境变量、模型、LLM seed 和调用参数。 | 由配置加载器和对局入口调用；真实 API Key 不进入配置。 |
 | `src/monopoly_agent_battle/config/loader.py` | 加载 YAML 配置，生成规范 JSON 及 SHA-256 `config_hash`，并校验远程模型白名单（范围外直接报错）。 | 由 CLI 或实验编排调用。 |
 | `.env.example` | 本地凭据模板（占位值），列出通用 `MONOPOLY_API_KEY` 及 `example.yaml` 中 13 名官员的 `api_key_env` 变量名。 | `Copy-Item .env.example .env.local` 后填入真实 API Key；禁止提交真实密钥。 |
@@ -159,6 +160,13 @@
 | 路径 | 用途 | 使用方式 |
 |---|---|---|
 | `stat/analyze_seat_scores.py` | 零 LLM 基准地板的分座位积分统计：扫描 `runs/<experiment>/*/result.json`，按 3/2/1/0 名次计分输出每座位跨局积分均值、（总体）方差、标准差、名次分布与座位效应（四座位均值差），可选导出 CSV。 | `.venv/Scripts/python.exe stat/analyze_seat_scores.py`；`--experiments <名称...>` 指定实验，`--csv <路径>` 导出明细。 |
+| `stat/floor_test.py` | §8.5 地板检验共享核心：加载对局与地板产物，计算每实体座位矩，输出正态近似单侧 p（`p_normal_one_sided`）、座位 PMF 精确卷积 p（`p_exact_one_sided`）及三档判定；供三个实验入口脚本复用。 | 不直接运行，由 courts/cvb/fe 分析脚本 import。 |
+| `stat/courts_analysis.py` | 实验 1（四朝廷混战）地板检验入口；导出 `stat/courts_analysis.csv`。 | `.venv/Scripts/python.exe stat/courts_analysis.py` |
+| `stat/cvb_analysis.py` | 实验 2（朝廷 vs baseline）地板检验入口；导出 `stat/cvb_analysis.csv`。 | 同上。 |
+| `stat/fe_analysis.py` | 实验 3（FE vs baseline）地板检验入口；导出 `stat/fe_analysis.csv`。 | 同上。 |
+| `stat/pl_strength.py` | 跨实验 PL 成对比较强度模型：跳过 `deprecate/` 目录，输出各实体相对强度 `stat/pl_strength.csv`。 | `.venv/Scripts/python.exe stat/pl_strength.py` |
+| `stat/effect_size.py` | Cliff's δ + 按局万级 bootstrap：优势判定用 CI95、TOST 等价判定用 CI90（Δ=0.25 冻结），输出 stronger/weaker/equivalent/indistinguishable，导出 `stat/effect_size.csv`。 | `.venv/Scripts/python.exe stat/effect_size.py`（`--delta` 可调）。 |
+| `stat/collaboration_metrics.py` | 协作过程指标（§6.1，有效干预率已删）：单实验输入，由 decisions/llm_calls/llm_digest 计算初始分歧率、意见改变率、共识形成率、皇帝采纳率、少数意见采纳率、审核干预率、协作开销、非法输出及回退率、建议多样性、官员最终决策一致率。 | `.venv/Scripts/python.exe stat/collaboration_metrics.py runs/<实验>`；输出 `stat/collaboration_<实验>_detail.csv`（实体×局）与 `_summary.csv`（实体均值）。 |
 
 ## 自动化测试（`tests/`）
 

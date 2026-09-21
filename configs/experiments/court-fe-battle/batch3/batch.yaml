@@ -1,0 +1,7 @@
+# court-fe-battle batch 3 of 6: game_005.yaml (CF07), game_006.yaml (CF09); API KEY3
+# Run from the repository root with:
+#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/court-fe-battle/batch3/batch.yaml
+# tasks.jsonl is written next to this manifest.
+games:
+- game_005.yaml
+- game_006.yaml

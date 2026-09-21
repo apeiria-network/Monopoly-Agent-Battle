@@ -1,0 +1,6 @@
+﻿entity,controller_type,games,decisions,llm_calls,calls_per_decision,error_rate,fallback_rate,seconds_per_decision,tokens_per_decision,advice_diversity,consensus_formation,emperor_adoption,initial_disagreement,minority_adoption,officer_decider_agreement,opinion_change,review_intervention
+baseline,llm_baseline,192,13017,16093,1.2358,0.1721,0.006,12.7341,8076.8892,,,,,,,,
+ming,ming_court,16,1122,7500,6.5775,0.0748,0.0037,84.129,49271.0309,1.2325,0.4289,0.923,0.3474,0.2009,0.8671,0.4389,
+qin,qin_court,16,1130,4799,4.237,0.0602,0.0015,48.42,30613.6457,1.2966,,0.9486,0.3053,,0.8167,,
+shang,shang2_court,16,1133,5004,4.4047,0.0889,0.0041,53.835,31192.7055,1.4098,,0.9827,0.3437,,0.8289,,
+tang,tang_court,16,1129,5185,4.5182,0.0423,0.0064,45.3072,32805.4341,,0.9061,0.9297,,,0.9297,0.6499,0.0978

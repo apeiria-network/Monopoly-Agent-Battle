@@ -1,0 +1,12 @@
+﻿experiment,entity,games,theta,p_win,p_win_ci_low,p_win_ci_high,opponent
+court-vs-baseline,baseline,64,1.0,0.5,0.5,0.5,baseline
+court-vs-baseline,ming,64,1.9419,0.6601,0.281,0.9452,baseline
+court-vs-baseline,qin,64,0.7728,0.4359,0.0743,0.7492,baseline
+court-vs-baseline,shang,64,0.8312,0.4539,0.1616,0.7397,baseline
+court-vs-baseline,tang,64,1.0,0.5,0.1235,0.8451,baseline
+fe-vs-baseline,baseline,16,1.0,0.5,0.5,0.5,baseline
+fe-vs-baseline,fe,16,2.7101,0.7305,0.3539,0.9901,baseline
+4-courts-battle,ming,16,0.4314,0.3014,0.0,0.707,average opponent
+4-courts-battle,qin,16,1.4531,0.5924,0.2086,1.0,average opponent
+4-courts-battle,shang,16,1.6393,0.6211,0.4096,1.0,average opponent
+4-courts-battle,tang,16,0.9731,0.4932,0.1227,0.9999,average opponent
