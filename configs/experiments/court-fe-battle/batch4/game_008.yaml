@@ -1,0 +1,194 @@
+# court-fe-battle CF05 (experiment 10, seed 305); batch API KEY4
+# seats: court-1=1 court-2=3 fe-1=2 fe-2=4
+# base model A: all 4 agents' chief (emperor/leader) = A, subordinate posts expand per §1.3
+# models: A=qwen3.8-flash B=deepseek-v4-flash C=gpt-5.6-luna D=GLM-5.3-Flash
+game_id: CF05
+experiment_id: court-fe-battle
+seed: 305
+prompt_profile: full-v2
+players:
+- player_id: court-1
+  seat: 1
+  controller_type: ming_court
+  court_role_profiles:
+    emperor: court1-emperor
+    chief_grand_secretary: court1-chief-grand-secretary
+    grand_secretary_1: court1-grand-secretary-1
+    grand_secretary_2: court1-grand-secretary-2
+- player_id: fe-1
+  seat: 2
+  controller_type: flat_ensemble
+  court_role_profiles:
+    leader: fe1-leader
+    member_1: fe1-member-1
+    member_2: fe1-member-2
+    member_3: fe1-member-3
+- player_id: court-2
+  seat: 3
+  controller_type: ming_court
+  court_role_profiles:
+    emperor: court2-emperor
+    chief_grand_secretary: court2-chief-grand-secretary
+    grand_secretary_1: court2-grand-secretary-1
+    grand_secretary_2: court2-grand-secretary-2
+- player_id: fe-2
+  seat: 4
+  controller_type: flat_ensemble
+  court_role_profiles:
+    leader: fe2-leader
+    member_1: fe2-member-1
+    member_2: fe2-member-2
+    member_3: fe2-member-3
+model_profiles:
+  court1-emperor:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY4
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  court1-chief-grand-secretary:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY4
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  court1-grand-secretary-1:
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY4
+    model: gpt-5.6-luna
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  court1-grand-secretary-2:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  court2-emperor:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY4
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  court2-chief-grand-secretary:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY4
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  court2-grand-secretary-1:
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY4
+    model: gpt-5.6-luna
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  court2-grand-secretary-2:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  fe1-leader:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY4
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  fe1-member-1:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY4
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  fe1-member-2:
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY4
+    model: gpt-5.6-luna
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  fe1-member-3:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  fe2-leader:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY4
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  fe2-member-1:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY4
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  fe2-member-2:
+    provider: gpt
+    base_url_env: GPT_URL
+    api_key_env: GPT_API_KEY4
+    model: gpt-5.6-luna
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+  fe2-member-3:
+    provider: glm
+    base_url_env: GLM_URL
+    api_key_env: GLM_API_KEY4
+    model: GLM-5.3-Flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+initial_cash: 1500
+max_complete_rounds: 50
+initial_chance_cards: 2
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs
