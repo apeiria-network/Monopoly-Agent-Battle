@@ -1,0 +1,3 @@
+﻿entity,controller_type,games,decisions,llm_calls,calls_per_decision,error_rate__baseline-1,error_rate__baseline-2,error_rate__baseline-3,fallback_rate,seconds_per_decision,tokens_per_decision,adoption__member_1,adoption__member_2,adoption__member_3,advice_diversity,decider_adoption_any,error_rate__leader,error_rate__member_1,error_rate__member_2,error_rate__member_3,initial_disagreement,minority_adoption,officer_decider_agreement
+baseline,llm_baseline,48,3283,4012,1.2187,0.1431,0.1592,0.1595,0.0019,12.6413,7961.9838,,,,,,,,,,,,
+fe,flat_ensemble,16,975,5064,5.1993,,,,0.0,57.3671,33984.9294,0.7738,0.7838,0.7883,1.3587,0.898,0.0,0.0016,0.0,0.0007,0.3188,0.3885,0.7819

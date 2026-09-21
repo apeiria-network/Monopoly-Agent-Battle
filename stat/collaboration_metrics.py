@@ -1,18 +1,21 @@
-"""Collaboration process metrics (P-series) for court/FE agents, per experiment.
+"""Collaboration process metrics for court/FE agents of ONE experiment.
 
-Implements the §6.2 metric table of Courts-Battle-config-details.md (P-007
-有效干预率 deleted by project decision — it required counterfactual simulation
-and could not be measured credibly). Input: experiment run directories. Output:
-a per-(entity x game) detail CSV (the §6.3 statistical unit) and a per-entity
-summary CSV (mean/median/P90 across games, applicability-annotated).
+Implements the §6.2 metric table of Courts-Battle-config-details.md (the 有效
+干预率 metric was deleted by project decision — it required counterfactual
+simulation and could not be measured credibly). Input: ONE experiment run
+directory; only that experiment is analysed. Output: a per-(entity x game)
+detail CSV (the §6.3 statistical unit) and a per-entity summary CSV (MEAN
+across games only). Both default to
+stat/collaboration_<experiment>_{detail,summary}.csv.
 
 Data sources per game dir:
 - decisions.jsonl -> per-decision court_trace.calls (role, phase, content_type,
   outcome, content) for all negotiation metrics, plus the decision-level
-  `fallback` flag for P-009;
+  `fallback` flag for fallback_rate;
 - llm_calls.jsonl -> authoritative API-call count/tokens/duration per entity
-  (caller_role prefix), for P-008 (ratios of totals per game, per the doc);
-- llm_digest.csv -> per-call error flags (是否报错回复) for role-level P-009.
+  (caller_role prefix), for the overhead metrics (ratios of totals per game);
+- llm_digest.csv -> per-call error flags (是否报错回复) for role-level
+  error_rate__<role>.
 
 Entity roles (proposer = emits selected_option+target proposals):
 - ming_court: 3 grand secretaries (content_type "draft", phases first/redraft);
@@ -27,41 +30,58 @@ Entity roles (proposer = emits selected_option+target proposals):
   with no proposal. Decider: emperor.
 - flat_ensemble: member_1..3 ("advice"). Decider: leader (its "advice" call is
   the final decision).
-- llm_baseline / scripted: no trace -> only P-008/P-009 entity-level rows.
+- llm_baseline / scripted: no trace -> only overhead/fallback rows.
 
-Metric definitions and rulings (see doc §6.2; deviations noted):
-- "一致" = ALL proposers' (option, normalized target) identical (unanimous).
-- P-001 initial disagreement: proposers' FIRST outputs not unanimous.
-- P-002 opinion change: ming, officers' redraft output vs first draft, pooled
-  over officer x redraft-decisions; tang, zhongshu's last draft vs first over
-  decisions with a redraft. Only ming/tang (doc).
-- P-003 consensus formation: ming, initial-disagree -> final unanimous;
-  tang, round-1 menxia "disagree" -> final verdict "agree".
-- P-004 decider adoption: decider == officer's FINAL proposal, per role;
-  "any" = decider matches at least one officer. Tang: zhongshu only.
-- P-005 minority adoption: among non-unanimous final proposals, decider picks
-  a NON-majority option. Majority must be strict (>half); ties/3-way splits
-  (no majority) are excluded from both counts. N/A for shang2 (doc: 商代无
-  多数概念), qin (2 proposers -> split means no majority by construction),
-  tang (single drafter).
-- P-006 review intervention (tang): menxia verdict == "disagree" rate.
-- P-008 overhead: per game, entity's llm_calls (count, input+output tokens,
-  duration) / entity's decisions — ratio of totals, per doc.
-- P-009 invalid-output & fallback: decision-level `fallback` flag rate per
-  entity; role-level digest error-flag rate per speaker role.
-- P-010 advice diversity: distinct (option, target) among officers' FINAL
-  proposals, averaged over decisions. Tang N/A (single drafter).
-- P-011 officer-decider agreement: per officer, final proposal == decider,
-  averaged (numerically the per-role P-004; reported as the officer-side view).
+Metric definitions and interpretation guide
+-------------------------------------------
+"一致" below = ALL proposers' (option, normalized target) identical.
+
+- initial_disagreement (初始分歧率): share of decisions where the proposers'
+  FIRST outputs are not unanimous. High values mean the heterogeneous models
+  genuinely disagree before any discussion.
+- opinion_change (意见改变率): ming — officers' redraft output differs from
+  their first draft, pooled over officer x redraft-decisions (decisions
+  without a redraft round had no second chance and are excluded); tang —
+  zhongshu's last draft differs from its first over decisions with a redraft.
+  Only ming/tang. Reads as "how often discussion actually moves anyone".
+- consensus_formation (共识形成率): ming — initially split decisions that end
+  unanimous; tang — decisions whose first menxia verdict is "disagree" that
+  end with a final verdict "agree". Only ming/tang.
+- decider_adoption_any / adoption__<role> (皇帝采纳率): decider's final choice
+  equals an officer's FINAL proposal — "any" counts a match with at least one
+  officer, per-role columns break it down. Tang: zhongshu is the only officer.
+  High values mean the decider mostly rubber-stamps; low values mean it
+  overrules or composes something new.
+- minority_adoption (少数意见采纳率): among non-unanimous final proposals,
+  the decider picks a NON-majority option. Majority must be strict (>half);
+  3-way splits with no majority are excluded from both counts. N/A for
+  shang2 (doc: 商代无多数概念), qin (2 proposers -> a split means no majority
+  by construction), tang (single drafter).
+- review_intervention (审核干预率, tang only): decisions where any menxia
+  verdict is "disagree" over decisions reviewed.
+- calls/tokens/seconds_per_decision (协作开销): per game, the entity's
+  llm_calls totals (count, input+output tokens, duration) divided by its
+  decisions — ratio of totals. Compare courts (~4-7 calls) against baseline
+  (~1.2) for the §7.3.1 cost account.
+- fallback_rate / error_rate__<role> (非法输出及回退率): decision-level
+  `fallback` flag rate per entity (invalid JSON/option or timeout forced the
+  default option); role-level digest error-flag rate per speaker role.
+- advice_diversity (建议多样性): distinct (option, target) values among the
+  officers' FINAL proposals, averaged over decisions. Tang N/A (single
+  drafter). Range 1..#proposers; 1 = always unanimous.
+- officer_decider_agreement (官员最终决策一致率): per officer, final proposal
+  == decider's choice, averaged across officers. Numerically the per-role
+  adoption view from the officer side. §6.2 wording rule: this measures
+  opinion convergence in the process, NOT decision correctness.
 
 Trace hygiene: court_trace logs delivery echoes (outcome "advice_normalized"
 duplicates the real call's content; final_decision may appear twice). Entries
 with outcome "advice_normalized" and exact (role, content_type, content)
 duplicates are dropped before any counting; llm_calls.jsonl (real API calls)
-is unaffected by echoes and is used for P-008.
+is unaffected by echoes and feeds the overhead metrics.
 
-Run from the repository root:
-    .venv/Scripts/python.exe stat/collaboration_metrics.py [run_dir ...]
+Run from the repository root (one experiment per invocation):
+    .venv/Scripts/python.exe stat/collaboration_metrics.py runs/court-vs-baseline
 """
 
 from __future__ import annotations
@@ -76,12 +96,11 @@ from typing import Any, cast
 import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_RUNS = [
-    "court-vs-baseline",
-    "fe-vs-baseline",
-    "4-courts-battle",
-    "court-fe-battle",
-]
+
+# Applicability: metrics not meaningful for a controller are left empty.
+P005_OK = {"ming_court", "flat_ensemble"}  # need >=3 proposers for a majority
+P001_OK = {"ming_court", "qin_court", "shang2_court", "flat_ensemble"}
+P010_OK = P001_OK
 
 COURT_SPEC: dict[str, dict[str, Any]] = {
     "ming_court": {
@@ -130,10 +149,6 @@ CONTROLLER_FAMILY = {
     "sane_random": "sane_random",
     "greedy_script": "greedy_script",
 }
-# Applicability: metrics not meaningful for a controller are left empty.
-P005_OK = {"ming_court", "flat_ensemble"}  # need >=3 proposers for a majority
-P001_OK = {"ming_court", "qin_court", "shang2_court", "flat_ensemble"}
-P010_OK = P001_OK
 
 Choice = tuple[str, Any]
 Call = dict[str, Any]
@@ -315,7 +330,6 @@ def ratio(num: float, den: float) -> float | None:
 
 
 def finalize_game(
-    experiment: str,
     game_id: str,
     entity: str,
     controller: str,
@@ -326,37 +340,36 @@ def finalize_game(
 ) -> dict[str, Any]:
     decisions = acc["decisions"]
     row: dict[str, Any] = {
-        "experiment": experiment,
         "game_id": game_id,
         "entity": entity,
         "controller_type": controller,
         "seat": seat,
         "decisions": decisions,
         "llm_calls": int(overhead["calls"]),
-        "p008_calls_per_decision": ratio(overhead["calls"], decisions),
-        "p008_tokens_per_decision": ratio(overhead["tokens"], decisions),
-        "p008_seconds_per_decision": ratio(overhead["duration_ms"] / 1000.0, decisions),
-        "p001_initial_disagreement": ratio(acc["p001_num"], acc["p001_den"]),
-        "p002_opinion_change": ratio(acc["p002_num"], acc["p002_den"]),
-        "p003_consensus_formation": ratio(acc["p003_num"], acc["p003_den"]),
-        "p004_decider_adoption_any": ratio(acc["p004_any"], acc["p004_den"]),
-        "p005_minority_adoption": ratio(acc["p005_num"], acc["p005_den"]),
-        "p006_review_intervention": ratio(acc["p006_num"], acc["p006_den"]),
-        "p009_fallback_rate": ratio(acc["p009_fallback"], decisions),
-        "p010_advice_diversity": ratio(acc["p010_sum"], acc["p010_den"]),
+        "calls_per_decision": ratio(overhead["calls"], decisions),
+        "tokens_per_decision": ratio(overhead["tokens"], decisions),
+        "seconds_per_decision": ratio(overhead["duration_ms"] / 1000.0, decisions),
+        "initial_disagreement": ratio(acc["p001_num"], acc["p001_den"]),
+        "opinion_change": ratio(acc["p002_num"], acc["p002_den"]),
+        "consensus_formation": ratio(acc["p003_num"], acc["p003_den"]),
+        "decider_adoption_any": ratio(acc["p004_any"], acc["p004_den"]),
+        "minority_adoption": ratio(acc["p005_num"], acc["p005_den"]),
+        "review_intervention": ratio(acc["p006_num"], acc["p006_den"]),
+        "fallback_rate": ratio(acc["p009_fallback"], decisions),
+        "advice_diversity": ratio(acc["p010_sum"], acc["p010_den"]),
     }
     role_nums = acc["p004_role_num"]
     role_dens = acc["p004_role_den"]
     agreements = [role_nums.get(r, 0) / role_dens[r] for r in role_dens if role_dens[r]]
-    row["p011_officer_decider_agreement"] = float(np.mean(agreements)) if agreements else None
+    row["officer_decider_agreement"] = float(np.mean(agreements)) if agreements else None
     for role, (errors, total) in sorted(role_errors.items()):
-        row[f"p009_error_rate__{role}"] = ratio(errors, total)
+        row[f"error_rate__{role}"] = ratio(errors, total)
     for role in sorted(role_dens):
-        row[f"p004_adoption__{role}"] = ratio(role_nums.get(role, 0), role_dens[role])
+        row[f"adoption__{role}"] = ratio(role_nums.get(role, 0), role_dens[role])
     return row
 
 
-def load_game(experiment: str, gdir: Path) -> list[dict[str, Any]]:
+def load_game(gdir: Path) -> list[dict[str, Any]]:
     """All entity rows for one game dir."""
     result = json.loads((gdir / "result.json").read_text(encoding="utf-8"))
     if result.get("validity_status") != "valid":
@@ -422,7 +435,6 @@ def load_game(experiment: str, gdir: Path) -> list[dict[str, Any]]:
     for pid, (controller, seat) in players.items():
         rows.append(
             finalize_game(
-                experiment,
                 game_id,
                 pid,
                 controller,
@@ -436,28 +448,25 @@ def load_game(experiment: str, gdir: Path) -> list[dict[str, Any]]:
 
 
 def summarize(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Per-(experiment, entity-family) mean/median/P90 over the game rows."""
-    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    """Per-entity-family MEAN over the game rows (median/P90 intentionally omitted)."""
+    groups: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         controller = str(row["controller_type"])
         family = COURT_SPEC.get(controller, {}).get("family") or CONTROLLER_FAMILY.get(
             controller, controller
         )
-        groups.setdefault((str(row["experiment"]), str(family)), []).append(row)
+        groups.setdefault(str(family), []).append(row)
     metric_cols = sorted(
         {
             col
             for row in rows
             for col in row
-            if col.startswith(
-                ("p001", "p002", "p003", "p004", "p005", "p006", "p008", "p009", "p010", "p011")
-            )
+            if col not in {"game_id", "entity", "controller_type", "seat", "decisions", "llm_calls"}
         }
     )
     out: list[dict[str, Any]] = []
-    for (experiment, entity), group in sorted(groups.items()):
+    for entity, group in sorted(groups.items()):
         summary: dict[str, Any] = {
-            "experiment": experiment,
             "entity": entity,
             "controller_type": group[0]["controller_type"],
             "games": len(group),
@@ -466,12 +475,8 @@ def summarize(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         }
         for col in metric_cols:
             values = [float(r[col]) for r in group if r.get(col) is not None]
-            if not values:
-                continue
-            arr = np.asarray(values)
-            summary[f"{col}__mean"] = round(float(arr.mean()), 4)
-            summary[f"{col}__median"] = round(float(np.median(arr)), 4)
-            summary[f"{col}__p90"] = round(float(np.percentile(arr, 90)), 4)
+            if values:
+                summary[col] = round(float(np.mean(values)), 4)
         out.append(summary)
     return out
 
@@ -493,37 +498,30 @@ def write_csv(rows: list[dict[str, Any]], path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "run_dirs",
-        nargs="*",
+        "run_dir",
         type=Path,
-        default=[ROOT / "runs" / d for d in DEFAULT_RUNS],
-        help="experiment run dirs (default: the four LLM experiments)",
+        help="ONE experiment run dir (e.g. runs/court-vs-baseline); only this "
+        "experiment is analysed",
     )
-    parser.add_argument(
-        "--detail",
-        type=Path,
-        default=ROOT / "stat" / "collaboration_detail.csv",
-    )
-    parser.add_argument(
-        "--summary",
-        type=Path,
-        default=ROOT / "stat" / "collaboration_summary.csv",
-    )
+    parser.add_argument("--detail", type=Path, default=None)
+    parser.add_argument("--summary", type=Path, default=None)
     args = parser.parse_args()
 
+    run_dir: Path = args.run_dir
+    if not run_dir.is_dir():
+        raise SystemExit(f"run dir does not exist: {run_dir}")
+    detail = args.detail or ROOT / "stat" / f"collaboration_{run_dir.name}_detail.csv"
+    summary = args.summary or ROOT / "stat" / f"collaboration_{run_dir.name}_summary.csv"
+
     rows: list[dict[str, Any]] = []
-    for run_dir in args.run_dirs:
-        if not run_dir.is_dir():
+    for gdir in sorted(run_dir.iterdir()):
+        if not gdir.is_dir() or gdir.name == "deprecate" or "." in gdir.name:
             continue
-        experiment = run_dir.name
-        for gdir in sorted(run_dir.iterdir()):
-            if not gdir.is_dir() or gdir.name == "deprecate" or "." in gdir.name:
-                continue
-            if (gdir / "result.json").exists() and (gdir / "config.json").exists():
-                rows.extend(load_game(experiment, gdir))
+        if (gdir / "result.json").exists() and (gdir / "config.json").exists():
+            rows.extend(load_game(gdir))
     print(f"entity-game rows: {len(rows)}")
-    write_csv(rows, args.detail)
-    write_csv(summarize(rows), args.summary)
+    write_csv(rows, detail)
+    write_csv(summarize(rows), summary)
 
 
 if __name__ == "__main__":
