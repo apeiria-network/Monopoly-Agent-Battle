@@ -24,10 +24,12 @@ _ROLES = ("chief_grand_secretary", "grand_secretary_1", "grand_secretary_2", "em
 _TITLES = {
     "1": "第一次决策：首辅首次草拟",
     "2": "第一次决策：三人一致，皇帝读取内阁意见块（全票通过）并终裁",
-    "3": "第二次决策（含历史）：历史携带上一次完整内阁意见块",
-    "4": "分歧决策：重拟后 2.5:1.0，皇帝读取内阁意见块与计票",
-    "5": "三方意见各不相同：计票写明加权多数为首辅意见",
-    "6": "分歧决策：大学士一查看首轮草案后重新草拟",
+    "3": "第二次决策：首辅首次草拟",
+    "4": "第二次决策：大学士一首次草拟",
+    "5": "第二次决策：三人一致，历史携带上一次完整内阁意见块与事件播报",
+    "6": "第二次决策：重拟后 2.5:1.0，历史与当前均含内阁意见块",
+    "7": "第二次决策：三方意见各不相同，计票写明加权多数为首辅意见",
+    "8": "第二次决策：大学士一查看首轮草案后重新草拟",
 }
 
 
@@ -263,16 +265,27 @@ def _assert_shape(messages: tuple[LLMMessage, ...], role: str, label: str) -> No
         assert "## 内阁意见与投票" not in dynamic
     if label == "2":
         assert "全票通过" in dynamic
-    if label == "3":
+    if label in {"3", "4", "8"}:
+        # Officers in the second decision: engine-driven history (event
+        # broadcast, post-mortgage cash) but never the cabinet block.
+        assert "[第0轮]" in dynamic
+        assert "现金：1530" in dynamic
+    if label in {"5", "6", "7"}:
+        # Second decision: history + current each carry one full block, with
+        # the engine-driven event broadcast and updated cash in between.
         assert dynamic.count("## 内阁意见与投票") == 2
-    if label == "4":
+        assert "[第0轮]" in dynamic
+        assert "现金：1530" in dynamic
+    if label == "5":
+        assert "全票通过" in dynamic
+    if label == "6":
         assert "得 2.5 票（首辅、大学士二）" in dynamic
         assert "加权多数：" in dynamic
         assert "三方意见各不相同" not in dynamic
-    if label == "5":
+    if label == "7":
         assert "三方意见各不相同" in dynamic
         assert "加权多数为首辅意见：" in dynamic
-    if label == "6":
+    if label == "8":
         assert "内阁意见不一致，请重新草拟" in dynamic
         assert '"content_type":"draft"' in dynamic
 
@@ -296,10 +309,12 @@ def _render_once() -> str:
     scenarios = (
         ("1", "chief_grand_secretary", "unanimous", None, False, "first"),
         ("2", "emperor", "unanimous", None, False, "final"),
-        ("3", "emperor", "unanimous", "unanimous", True, "final"),
-        ("4", "emperor", "vote", None, False, "final"),
-        ("5", "emperor", "three_way", None, False, "final"),
-        ("6", "grand_secretary_1", "vote", None, False, "redraft"),
+        ("3", "chief_grand_secretary", "unanimous", "vote", True, "first"),
+        ("4", "grand_secretary_1", "unanimous", "vote", True, "first"),
+        ("5", "emperor", "unanimous", "unanimous", True, "final"),
+        ("6", "emperor", "unanimous", "vote", True, "final"),
+        ("7", "emperor", "unanimous", "three_way", True, "final"),
+        ("8", "grand_secretary_1", "unanimous", "vote", True, "redraft"),
     )
     for label, role, first_mode, second_mode, second, phase in scenarios:
         messages, warning = _capture(label, role, first_mode, second_mode, second, phase)
