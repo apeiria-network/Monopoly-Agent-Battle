@@ -11,6 +11,7 @@ from monopoly_agent_battle.agents.baseline import BaselineAgent
 from monopoly_agent_battle.agents.flat_ensemble import FlatEnsembleAgent
 from monopoly_agent_battle.agents.greedy_script import GreedyScriptController
 from monopoly_agent_battle.agents.ming import MingCourtAgent
+from monopoly_agent_battle.agents.ming_ablation import MingAblationCourtAgent
 from monopoly_agent_battle.agents.qin import QinCourtAgent
 from monopoly_agent_battle.agents.random_baseline import (
     RandomBaselineController,
@@ -288,6 +289,44 @@ def run_play(config_path: Path) -> Path:
                 validation_retries=config.validation_retries,
             )
             continue
+        if player.controller_type == "ming_ablation_court":
+            assert isinstance(player.court_role_profiles, MingCourtRoleProfiles)
+            roles = {
+                role: config.model_profiles[getattr(player.court_role_profiles, role)]
+                for role in (
+                    "chief_grand_secretary",
+                    "grand_secretary_1",
+                    "grand_secretary_2",
+                    "emperor",
+                )
+            }
+            role_clients = {
+                role: RecordingLLMClient(create_client(profile), artifacts, _current_round)
+                for role, profile in roles.items()
+            }
+            role_conversations = {
+                role: AgentConversation(
+                    agent_id=f"{player.player_id}.{role}",
+                    window_turns=config.window_turns,
+                    prompt_profile=config.prompt_profile,
+                )
+                for role in roles
+            }
+            conversations[player.player_id] = role_conversations
+            controllers[player.player_id] = MingAblationCourtAgent(
+                player_id=player.player_id,
+                chief_client=role_clients["chief_grand_secretary"],
+                chief_profile=roles["chief_grand_secretary"],
+                secretary_1_client=role_clients["grand_secretary_1"],
+                secretary_1_profile=roles["grand_secretary_1"],
+                secretary_2_client=role_clients["grand_secretary_2"],
+                secretary_2_profile=roles["grand_secretary_2"],
+                emperor_client=role_clients["emperor"],
+                emperor_profile=roles["emperor"],
+                conversations=role_conversations,
+                validation_retries=config.validation_retries,
+            )
+            continue
         if player.controller_type in {"tang_court", "tang_ablation_court"}:
             assert isinstance(player.court_role_profiles, TangCourtRoleProfiles)
             roles = {
@@ -385,6 +424,7 @@ def run_play(config_path: Path) -> Path:
             "tang_court",
             "tang_ablation_court",
             "ming_court",
+            "ming_ablation_court",
             "flat_ensemble",
         }
     }

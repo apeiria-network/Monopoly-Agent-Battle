@@ -175,6 +175,7 @@ class PlayerConfig(BaseModel):
             "tang_court",
             "tang_ablation_court",
             "ming_court",
+            "ming_ablation_court",
             "flat_ensemble",
         ]
         | None
@@ -315,6 +316,18 @@ class GameConfig(BaseModel):
                 if not isinstance(player.court_role_profiles, MingCourtRoleProfiles):
                     msg = (
                         f"Ming court player {player.player_id} "
+                        "requires court_role_profiles of Ming roles"
+                    )
+                    raise ValueError(msg)
+            elif player.controller_type == "ming_ablation_court":
+                if player.model_profile is not None:
+                    msg = (
+                        f"Ming-ablation court player {player.player_id} must not set model_profile"
+                    )
+                    raise ValueError(msg)
+                if not isinstance(player.court_role_profiles, MingCourtRoleProfiles):
+                    msg = (
+                        f"Ming-ablation court player {player.player_id} "
                         "requires court_role_profiles of Ming roles"
                     )
                     raise ValueError(msg)
