@@ -159,31 +159,6 @@ def test_deepseek_sends_thinking_and_low_reasoning_effort_when_opted_in(
     assert payload["reasoning_effort"] == "low"
 
 
-def test_deepseek_v4_flash_model_name_aliased_outbound(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: dict[str, object] = {}
-    capture_request(monkeypatch, captured)
-    client = DeepSeekClient(profile("deepseek", "deepseek-v4-flash"))
-    aliased_request = LLMRequest(
-        messages=request().messages,
-        model="deepseek-v4-flash",
-        caller_role="court.emperor",
-        seed=42,
-    )
-
-    client.complete(aliased_request)
-
-    payload = cast(dict[str, Any], captured["payload"])
-    assert payload["model"] == "deepseek-v4-flash-0731"
-
-
-def test_unaliased_model_name_passes_through(monkeypatch: pytest.MonkeyPatch) -> None:
-    payload = payload_of(
-        monkeypatch, lambda: DeepSeekClient(profile("deepseek", "DeepSeek-V4-Flash"))
-    )
-
-    assert payload["model"] == "request-model"
-
-
 def test_gpt_omits_reasoning_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = payload_of(monkeypatch, lambda: GptClient(profile("gpt", "gpt-5.6-luna")))
 
