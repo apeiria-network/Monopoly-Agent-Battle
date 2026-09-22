@@ -1549,9 +1549,9 @@ SCENARIO 7: emperor — 第二次决策：三方意见各不相同，计票写�
 {"selected_option":{"option":"redeem_mortgage","target":1},"reason":"grand_secretary_1-2-redraft","decision_maker":"grand_secretary_1","content_type":"draft"}
 
 大学士二：
-{"selected_option":{"option":"third_option"},"reason":"grand_secretary_2-2-redraft","decision_maker":"grand_secretary_2","content_type":"draft"}
+{"selected_option":{"option":"use_chance_card-chance-waiver"},"reason":"grand_secretary_2-2-redraft","decision_maker":"grand_secretary_2","content_type":"draft"}
 
-投票结果：三方意见各不相同；首辅意见 end_turn 得 1.5 票，大学士一 redeem_mortgage（格子 1） 得 1.0 票，大学士二 third_option 得 1.0 票。加权多数为首辅意见：end_turn。
+投票结果：三方意见各不相同；首辅意见 end_turn 得 1.5 票，大学士一 redeem_mortgage（格子 1） 得 1.0 票，大学士二 use_chance_card-chance-waiver 得 1.0 票。加权多数为首辅意见：end_turn。
 
 ## 当前局面
 当前为第 0 回合，处于玩家「a」的行动回合。
@@ -1559,7 +1559,7 @@ SCENARIO 7: emperor — 第二次决策：三方意见各不相同，计票写�
 你的状态
 现金：1530
 位置：格子 0（GO，起点）
-持有机会卡：无
+持有机会卡：chance-waiver、chance-taxi
 持有出狱卡数量：0
 持有地产：格子 1（Mediterranean Avenue）
 
@@ -1607,13 +1607,25 @@ SCENARIO 7: emperor — 第二次决策：三方意见各不相同，计票写�
     }
   },
   {
-    "option_id": "third_option",
-    "title": "第三候选",
-    "preview": "结束本回合，轮到下一位玩家。",
+    "option_id": "use_chance_card-chance-waiver",
+    "title": "使用机会卡「免费卡」",
+    "preview": "获得 2 次租金支付豁免，可累计。",
     "response_format": {
-      "reason": "填写选择结束回合的理由。",
+      "reason": "填写选择使用免费卡的理由。",
       "selected_option": {
-        "option": "third_option"
+        "option": "use_chance_card-chance-waiver"
+      }
+    }
+  },
+  {
+    "option_id": "use_chance_card-chance-taxi",
+    "title": "使用机会卡「出租车卡」",
+    "preview": "移动到前方 1–6 格内的指定地块。",
+    "response_format": {
+      "reason": "填写选择使用出租车卡的理由。",
+      "selected_option": {
+        "option": "use_chance_card-chance-taxi",
+        "target": "填写需要移动到的目标格子编号（前方 1–6 格内）。"
       }
     }
   }

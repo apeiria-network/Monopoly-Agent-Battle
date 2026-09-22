@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -11,7 +10,7 @@ from tempfile import TemporaryDirectory
 from monopoly_agent_battle.agents.ming_ablation import MingAblationCourtAgent
 from monopoly_agent_battle.config.models import GameConfig, ModelProfile, PlayerConfig
 from monopoly_agent_battle.context.conversation import AgentConversation
-from monopoly_agent_battle.decision.models import DecisionOption, DecisionRequest
+from monopoly_agent_battle.decision.models import DecisionRequest
 from monopoly_agent_battle.decision.protocol import command_from_option, parse_and_validate
 from monopoly_agent_battle.decision.requests import build_decision_request
 from monopoly_agent_battle.domain.models import TurnPhase
@@ -63,21 +62,6 @@ def _selected_option(request: DecisionRequest, option_id: str) -> dict[str, obje
         else:
             selected["target"] = dict(zip(option.target.fields, values, strict=True))
     return selected
-
-
-def _with_third_option(request: DecisionRequest) -> DecisionRequest:
-    base = request.options[0]
-    third = DecisionOption(
-        option_id="third_option",
-        command_type=base.command_type,
-        parameters=base.parameters,
-        title="第三候选",
-        preview=base.preview,
-        response_format=base.response_format,
-        is_default=False,
-        target=base.target,
-    )
-    return replace(request, options=(*request.options, third))
 
 
 class _CaptureClient:
@@ -218,18 +202,19 @@ def _capture(
 ) -> tuple[tuple[LLMMessage, ...], object]:
     with TemporaryDirectory() as directory:
         engine = _make_engine(directory)
+        # The three-way scenario needs >=3 real options: put two chance cards
+        # in the player's hand so the engine itself offers them as candidates.
+        active_mode = second_mode if second else first_mode
+        if active_mode == "three_way":
+            engine.state.players["a"].chance_cards.extend(["chance-waiver", "chance-taxi"])
         agent, clients = _make_agent(first_mode, second_mode or "unanimous")
         first = build_decision_request(engine, sequence=1)
         if second:
             _complete_first_decision(engine, agent, clients, first)
             request = build_decision_request(engine, sequence=2)
-            if second_mode == "three_way":
-                request = _with_third_option(request)
             _run_agent(agent, clients, request)
         else:
             request = first
-            if first_mode == "three_way":
-                request = _with_third_option(request)
             _run_agent(agent, clients, request)
         selected = next(
             request_item
