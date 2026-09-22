@@ -1,13 +1,15 @@
-"""Plackett-Luce ranking-model strength estimates for the three experiment sets.
+"""Plackett-Luce ranking-model strength estimates for the four experiment sets.
 
 Model: for a game ranking r_1 > ... > r_m, P(ranking) = Π_j θ_{r_j} / Σ_{k≥j} θ_{r_k},
 with per-entity strength θ ≥ 0 estimated by Hunter's MM algorithm. Unlike two-sample
 tests, PL uses the full 4-player ranking of every game, so the within-game negative
 correlation (points sum to 6) is handled by construction. Entities are agent types:
 court-vs-baseline pools the 3 LLM baselines as one entity; the melee fits the four
-courts. Theta is normalized so the reference entity (baseline, or the geometric mean
-for the melee) equals 1; P(i beats j head-to-head) = θ_i / (θ_i + θ_j). 95% CIs come
-from a non-parametric bootstrap over games (resample games, refit, renormalize).
+courts; court-fe-battle fits the two factions (ming court vs flat ensemble) with
+fe as the reference. Theta is normalized so the reference entity (baseline, fe,
+or the geometric mean for the melee) equals 1; P(i beats j head-to-head) =
+θ_i / (θ_i + θ_j). 95% CIs come from a non-parametric bootstrap over games
+(resample games, refit, renormalize).
 
 Invalid games are excluded. Superseded games live in each experiment's
 "deprecate/" subdirectory and are ignored. Exports stat/pl_strength.csv.
@@ -91,6 +93,23 @@ def load_melee(exp_dir: Path) -> list[Ranking]:
     return games
 
 
+def load_court_fe(exp_dir: Path) -> list[Ranking]:
+    """Entity ranking per CF game: court-* instances -> ming, fe-* -> fe."""
+    games: list[Ranking] = []
+    for gdir in sorted(exp_dir.iterdir()):
+        if not gdir.is_dir() or not gdir.name.startswith("CF"):
+            continue
+        if not (gdir / "result.json").exists():
+            continue
+        result: dict[str, Any] = json.loads((gdir / "result.json").read_text(encoding="utf-8"))
+        if result["validity_status"] != "valid":
+            continue
+        games.append(
+            ["ming" if str(pid).startswith("court") else "fe" for pid in result["rankings"]]
+        )
+    return games
+
+
 def encode(games: list[Ranking], entities: list[str]) -> IntMatrix:
     """Encode entity rankings as a (games, players) integer matrix."""
     index = {e: i for i, e in enumerate(entities)}
@@ -109,6 +128,9 @@ def fit_pl(ranking_matrix: IntMatrix, n: int) -> FloatVector:
     theta = np.full(n, 1.0 / n)
     for _ in range(MM_MAX_ITERS):
         suffix = np.cumsum(theta[ranking_matrix][:, ::-1], axis=1)[:, ::-1]
+        # A winless entity's theta collapses to 0; a zero suffix tail belongs
+        # to that entity alone, so its inverse must contribute 0, not inf.
+        suffix[suffix == 0.0] = np.inf
         inv_cumsum = np.cumsum(1.0 / suffix, axis=1)
         denom = np.zeros(n)
         np.add.at(denom, ranking_matrix.ravel(), inv_cumsum.ravel())
@@ -122,10 +144,15 @@ def fit_pl(ranking_matrix: IntMatrix, n: int) -> FloatVector:
 
 
 def normalize(theta: FloatVector, entities: list[str], reference: str | None) -> FloatVector:
-    """Scale theta so the reference entity (or geometric mean if None) equals 1."""
+    """Scale theta so the reference entity (or geometric mean if None) equals 1.
+
+    Winless bootstrap resamples can yield theta = 0; the geometric-mean log
+    uses a tiny floor so those resamples still normalize (their p_win is 0).
+    """
     if reference is not None:
         return theta / theta[entities.index(reference)]
-    return theta / float(np.exp(np.mean(np.log(theta))))
+    safe = np.maximum(theta, 1e-300)
+    return theta / float(np.exp(np.mean(np.log(safe))))
 
 
 def win_probability(theta: FloatVector, entities: list[str], reference: str | None) -> FloatVector:
@@ -220,6 +247,7 @@ def main() -> None:
         rows,
     )
     analyse("4-courts-battle", load_melee(ROOT / "runs" / "4-courts-battle"), None, rows)
+    analyse("court-fe-battle", load_court_fe(ROOT / "runs" / "court-fe-battle"), "fe", rows)
 
     args.csv.parent.mkdir(parents=True, exist_ok=True)
     with args.csv.open("w", encoding="utf-8-sig", newline="") as handle:

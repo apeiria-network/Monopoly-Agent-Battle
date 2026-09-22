@@ -35,7 +35,8 @@ noise band / directional deviation) or "distinguishable". "Directional
 deviation" (1σ–2σ) is NOT a permitted "trend" claim.
 
 Library only — no main. Entry points: courts_analysis.py (experiment 1),
-cvb_analysis.py (experiment 2), fe_analysis.py (experiment 3).
+cvb_analysis.py (experiment 2), fe_analysis.py (experiment 3),
+cf_analysis.py (experiment 10, court faction vs FE).
 """
 
 from __future__ import annotations
@@ -120,6 +121,33 @@ def exact_pvalue(seats: list[int], total: int, seat_points: SeatPoints) -> float
         seat_pmf = np.bincount(values, minlength=4)[:4] / len(values)
         pmf = np.convolve(pmf, seat_pmf)
     return float(pmf[total:].sum())
+
+
+def pair_sum_pmf(seat_points: SeatPoints, seat_a: int, seat_b: int) -> np.ndarray:
+    """Empirical PMF of a seat PAIR's combined points (support 0..6).
+
+    load_floor appends exactly one value per seat per valid game in directory
+    order, so index k of each seat list is the same floor game; pairing by
+    index preserves the within-game dependence between the two seats.
+    """
+    values_a = seat_points[seat_a]
+    values_b = seat_points[seat_b]
+    assert len(values_a) == len(values_b)
+    sums = [a + b for a, b in zip(values_a, values_b, strict=True)]
+    return np.bincount(sums, minlength=7)[:7] / len(sums)
+
+
+def convolve_pmfs(pmfs: list[np.ndarray]) -> np.ndarray:
+    """Convolve a list of PMFs (arbitrary supports) into the total's PMF."""
+    total_pmf = np.array([1.0])
+    for pmf in pmfs:
+        total_pmf = np.convolve(total_pmf, pmf)
+    return total_pmf
+
+
+def exact_tails(pmf: np.ndarray, total: int) -> tuple[float, float]:
+    """Exact lower/upper one-sided tails P(T <= total) and P(T >= total)."""
+    return float(pmf[: total + 1].sum()), float(pmf[total:].sum())
 
 
 def verdict(excess: float, sd: float) -> str:
