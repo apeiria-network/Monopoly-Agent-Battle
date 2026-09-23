@@ -1,0 +1,40 @@
+# baseline-vs-greedy BVG02 (game 2 of 16); seed 102
+# seats: baseline@2 (model B=deepseek-v4-flash), greedy_script fills the other 3 seats
+# floor reference for judgment: runs/greedy_script (section 8 800-game floor),
+# per floor_test.py's per-seat empirical point distribution
+game_id: BVG02
+experiment_id: baseline-vs-greedy
+seed: 102
+prompt_profile: full-v2
+players:
+- player_id: greedy-1
+  seat: 1
+  controller_type: greedy_script
+- player_id: baseline
+  seat: 2
+  controller_type: llm_baseline
+  model_profile: baseline-model
+- player_id: greedy-3
+  seat: 3
+  controller_type: greedy_script
+- player_id: greedy-4
+  seat: 4
+  controller_type: greedy_script
+model_profiles:
+  baseline-model:
+    provider: deepseek
+    base_url_env: DEEPSEEK_URL
+    api_key_env: DEEPSEEK_API_KEY1
+    model: deepseek-v4-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+initial_cash: 1500
+initial_chance_cards: 2
+max_complete_rounds: 50
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs

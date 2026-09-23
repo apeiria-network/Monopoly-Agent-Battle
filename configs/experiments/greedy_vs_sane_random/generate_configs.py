@@ -30,7 +30,7 @@ Design:
 Every generated YAML is validated with load_game_config at generation time.
 
 Usage (from repo root):
-    .venv/Scripts/python.exe configs/experiments/scripted_benchmarks/greedy_vs_sane_random/generate_configs.py
+    .venv/Scripts/python.exe configs/experiments/greedy_vs_sane_random/generate_configs.py
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ def write_batch_manifest(batch_dir: Path, batch: int, entries: list[str]) -> Non
     first_seed = FIRST_SEED + first_global - 1
     last_seed = FIRST_SEED + last_global - 1
     rel_manifest = (
-        f"configs/experiments/scripted_benchmarks/greedy_vs_sane_random/"
+        f"configs/experiments/greedy_vs_sane_random/"
         f"batch{batch}/batch.yaml"
     )
     lines = [

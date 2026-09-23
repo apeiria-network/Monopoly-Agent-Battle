@@ -1,6 +1,6 @@
 # greedy_vs_sane_random batch 7 of 8: game_721 (seed 20721) .. game_840 (seed 20840)
 # Run from the repository root with:
-#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/scripted_benchmarks/greedy_vs_sane_random/batch7/batch.yaml
+#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/greedy_vs_sane_random/batch7/batch.yaml
 # tasks.jsonl is written next to this manifest.
 games:
   - game_721.yaml

@@ -1,0 +1,40 @@
+# baseline-vs-greedy BVG14 (game 14 of 16); seed 114
+# seats: baseline@2 (model A=qwen3.8-flash), greedy_script fills the other 3 seats
+# floor reference for judgment: runs/greedy_script (section 8 800-game floor),
+# per floor_test.py's per-seat empirical point distribution
+game_id: BVG14
+experiment_id: baseline-vs-greedy
+seed: 114
+prompt_profile: full-v2
+players:
+- player_id: greedy-1
+  seat: 1
+  controller_type: greedy_script
+- player_id: baseline
+  seat: 2
+  controller_type: llm_baseline
+  model_profile: baseline-model
+- player_id: greedy-3
+  seat: 3
+  controller_type: greedy_script
+- player_id: greedy-4
+  seat: 4
+  controller_type: greedy_script
+model_profiles:
+  baseline-model:
+    provider: qwen
+    base_url_env: QWEN_URL
+    api_key_env: QWEN_API_KEY4
+    model: qwen3.8-flash
+    seed: 42
+    max_tokens: 4096
+    thinking: true
+    timeout_seconds: 120
+initial_cash: 1500
+initial_chance_cards: 2
+max_complete_rounds: 50
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs
