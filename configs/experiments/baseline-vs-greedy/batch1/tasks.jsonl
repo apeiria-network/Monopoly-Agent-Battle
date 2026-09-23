@@ -1,0 +1,4 @@
+{"game_id":"BVG01","experiment_id":"baseline-vs-greedy","config_path":"configs\\experiments\\baseline-vs-greedy\\batch1\\game_01.yaml","status":"completed","reason":null,"run_directory":"runs\\baseline-vs-greedy\\BVG01"}
+{"game_id":"BVG02","experiment_id":"baseline-vs-greedy","config_path":"configs\\experiments\\baseline-vs-greedy\\batch1\\game_02.yaml","status":"completed","reason":null,"run_directory":"runs\\baseline-vs-greedy\\BVG02"}
+{"game_id":"BVG03","experiment_id":"baseline-vs-greedy","config_path":"configs\\experiments\\baseline-vs-greedy\\batch1\\game_03.yaml","status":"completed","reason":null,"run_directory":"runs\\baseline-vs-greedy\\BVG03"}
+{"game_id":"BVG04","experiment_id":"baseline-vs-greedy","config_path":"configs\\experiments\\baseline-vs-greedy\\batch1\\game_04.yaml","status":"completed","reason":null,"run_directory":"runs\\baseline-vs-greedy\\BVG04"}
