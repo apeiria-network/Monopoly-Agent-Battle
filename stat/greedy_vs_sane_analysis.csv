@@ -1,0 +1,5 @@
+﻿group,games,observed_total,null_mean,excess,excess_per_game,sample_sd_per_game,z,p_two_sided_normal,verdict
+greedy_vs_sane_primary,960,3061,2880.0,181.0,0.1885,1.2676,4.6086,4e-06,distinguishable (beyond 95% threshold)
+greedy_vs_sane_floor_crosscheck_sane_random,960,3061,2880.0,181.0,0.1885,1.2861,,,p_exact_stronger=0.0000 p_exact_weaker=1.0000
+greedy_vs_sane_floor_crosscheck_greedy_script,960,3061,2880.0,181.0,0.1885,1.2889,,,p_exact_stronger=0.0000 p_exact_weaker=1.0000
+greedy_vs_sane_paired_cliff,960,3061,,,,,,,"delta=+0.1313 CI95=[+0.0823,+0.1823] CI90=[+0.0896,+0.1740] => greedy_script stronger"
