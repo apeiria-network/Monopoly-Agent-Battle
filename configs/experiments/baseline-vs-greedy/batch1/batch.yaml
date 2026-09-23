@@ -1,0 +1,9 @@
+# baseline-vs-greedy batch 1 of 4: game_01..game_04; API KEY1
+# Run from the repository root with:
+#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/baseline-vs-greedy/batch1/batch.yaml
+# tasks.jsonl is written next to this manifest.
+games:
+  - game_01.yaml
+  - game_02.yaml
+  - game_03.yaml
+  - game_04.yaml

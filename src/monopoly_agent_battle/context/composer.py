@@ -141,7 +141,7 @@ def compose_prompt(
 
 def _render_internal_decision(entry: InternalDecisionEntry) -> str:
     """Render a trusted private Court-AI message as a user context chunk."""
-    if entry.content_type == "vote_result":
+    if entry.content_type in {"vote_result", "cabinet_opinions"}:
         return entry.raw_content
     try:
         decoded = json.loads(entry.raw_content)

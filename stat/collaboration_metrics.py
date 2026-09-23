@@ -101,9 +101,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 
 # Applicability: metrics not meaningful for a controller are left empty.
-P005_OK = {"ming_court", "flat_ensemble"}  # need >=3 proposers for a majority
-P001_OK = {"ming_court", "qin_court", "shang2_court", "flat_ensemble"}
+P005_OK = {"ming_court", "ming_ablation_court", "flat_ensemble"}  # >=3 proposers
+P001_OK = {"ming_court", "ming_ablation_court", "qin_court", "shang2_court", "flat_ensemble"}
 P010_OK = P001_OK
+# Ming and its ablation share draft/redraft semantics (ablation has no summary).
+MING_LIKE = {"ming_court", "ming_ablation_court"}
 
 COURT_SPEC: dict[str, dict[str, Any]] = {
     "ming_court": {
@@ -137,6 +139,14 @@ COURT_SPEC: dict[str, dict[str, Any]] = {
         "reviewer": "menxia",
         "redraft": True,
         "family": "tang",
+    },
+    "ming_ablation_court": {
+        "proposers": ["chief_grand_secretary", "grand_secretary_1", "grand_secretary_2"],
+        "proposal_ct": {"draft"},
+        "decider": "emperor",
+        "reviewer": None,
+        "redraft": True,
+        "family": "ming_ablation",
     },
     "flat_ensemble": {
         "proposers": ["member_1", "member_2", "member_3"],
@@ -300,14 +310,14 @@ def accumulate(acc: dict[str, Any], record: DecisionRecord, controller: str) -> 
         acc["p001_den"] += 1
         acc["p001_num"] += int(split)
     if COURT_SPEC[controller]["redraft"]:
-        if controller == "ming_court":
+        if controller in MING_LIKE:
             for role in record.redraft_roles:
                 acc["p002_den"] += 1
                 acc["p002_num"] += int(record.redraft_changed.get(role, False))
         elif record.redraft_roles:  # tang: single drafter, per decision
             acc["p002_den"] += 1
             acc["p002_num"] += int(any(record.redraft_changed.values()))
-    if controller == "ming_court" and split:
+    if controller in MING_LIKE and split:
         acc["p003_den"] += 1
         acc["p003_num"] += int(record.final_unanimous() is True)
     elif controller == "tang_court" and record.menxia_verdicts:

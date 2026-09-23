@@ -1,9 +1,9 @@
 ﻿group,games,observed_total,floor,p_normal_one_sided,p_exact_one_sided,verdict
-shang,16,27,sane_random,0.2503,0.2888,within noise band
-shang,16,27,greedy_script,0.2508,0.2893,within noise band
-qin,16,27,sane_random,0.2503,0.2888,within noise band
-qin,16,27,greedy_script,0.2508,0.2893,within noise band
-tang,16,23,sane_random,0.5888,0.6309,within noise band
-tang,16,23,greedy_script,0.5886,0.6306,within noise band
-ming,16,19,sane_random,0.8691,0.8907,"directional deviation (beyond 1sd, below 95% threshold)"
-ming,16,19,greedy_script,0.8686,0.8902,"directional deviation (beyond 1sd, below 95% threshold)"
+shang,16,26,sane_random,0.3267,0.3693,within noise band
+shang,16,26,greedy_script,0.3271,0.3696,within noise band
+qin,16,28,sane_random,0.1846,0.2176,within noise band
+qin,16,28,greedy_script,0.1852,0.2181,within noise band
+tang,16,26,sane_random,0.3267,0.3693,within noise band
+tang,16,26,greedy_script,0.3271,0.3696,within noise band
+ming,16,16,sane_random,0.9637,0.9723,"directional deviation (beyond 1sd, below 95% threshold)"
+ming,16,16,greedy_script,0.9634,0.972,"directional deviation (beyond 1sd, below 95% threshold)"

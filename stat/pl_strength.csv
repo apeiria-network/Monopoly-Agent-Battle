@@ -6,7 +6,9 @@ court-vs-baseline,shang,64,0.8312,0.4539,0.1616,0.7397,baseline
 court-vs-baseline,tang,64,1.0,0.5,0.1235,0.8451,baseline
 fe-vs-baseline,baseline,16,1.0,0.5,0.5,0.5,baseline
 fe-vs-baseline,fe,16,2.7101,0.7305,0.3539,0.9901,baseline
-4-courts-battle,ming,16,0.4314,0.3014,0.0,0.707,average opponent
-4-courts-battle,qin,16,1.4531,0.5924,0.2086,1.0,average opponent
-4-courts-battle,shang,16,1.6393,0.6211,0.4096,1.0,average opponent
-4-courts-battle,tang,16,0.9731,0.4932,0.1227,0.9999,average opponent
+4-courts-battle,ming,16,0.2115,0.1746,0.0,0.5542,average opponent
+4-courts-battle,qin,16,1.8622,0.6506,0.2449,1.0,average opponent
+4-courts-battle,shang,16,1.6101,0.6169,0.3832,1.0,average opponent
+4-courts-battle,tang,16,1.5768,0.6119,0.2908,1.0,average opponent
+court-fe-battle,fe,12,1.0,0.5,0.5,0.5,fe
+court-fe-battle,ming,12,0.6434,0.3915,0.0646,0.7802,fe

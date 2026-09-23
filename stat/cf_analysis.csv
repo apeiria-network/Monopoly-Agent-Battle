@@ -1,0 +1,4 @@
+﻿group,games,observed_total,floor,null_mean_exact,null_sd_exact,excess,p_normal_one_sided_weaker,p_exact_one_sided_weaker,p_exact_one_sided_stronger,verdict,apriori_band_verdict
+court_faction_vs_fe,12,33,sane_random,36.0,4.455,-3.0,0.2912,0.2886,0.7826,within noise band,within noise band (indistinguishable)
+court_faction_vs_fe,12,33,greedy_script,36.0,4.4648,-3.0,0.2916,0.2891,0.7821,within noise band,within noise band (indistinguishable)
+court_faction_vs_fe_paired_cliff,12,33,-,,,,,,,"delta=-0.250 CI95=[-0.667,+0.250] CI90=[-0.583,+0.167]",indistinguishable

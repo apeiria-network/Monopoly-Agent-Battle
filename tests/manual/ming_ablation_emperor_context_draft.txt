@@ -1,0 +1,229 @@
+﻿明代变体（ming_vote_revealed，去汇总）皇帝上下文 · 人工审阅稿（v2，已按裁定修订）
+本稿按 tests/manual/render_ming_decision_prompt_report.txt 的样式手写，
+展示变体皇帝在各场景下收到的完整消息列表。与现行版本完全一致的部分
+（段 2 游戏规则全文、棋盘布局参考等）以省略标记注明，不重复粘贴。
+
+改动点总览（仅两处）：
+1. 段 1 皇帝角色提示词最小改动："首辅形成的内阁汇总建议"→"内阁三位
+   官员的最终意见和加权投票结果"，"内阁建议"→"内阁意见"；其余措辞、
+   语气与现行完全一致。
+2. 段 3 用户消息中的内阁输入：由单行汇总 advice JSON 改为
+   "内阁意见与投票"块（意见原文在前、计票行在后）。历史中的过往决策
+   照常携带完整"内阁意见与投票"块（与现行旧 advice JSON 入历史一致）；
+   750-token 预算仅约束历史事件播报，与内阁意见块无关。
+
+========================================================================
+SCENARIO 1: emperor — 首次决策：内阁全体一致
+========================================================================
+--- Message 1 [system] ---
+## 明代角色——皇帝
+你是明代朝廷的皇帝，朝廷决策的最终裁决者，你的决策直接提交游戏引擎执行，目标是扩大当前玩家的收益。
+*职责*
+- 参考内阁三位官员的最终意见和加权投票结果，结合完整游戏局面，从合法候选项中选定一个并写明理由。
+- 可以采纳或不采纳内阁意见，以己方收益、现金安全和长期资产为依据独立裁决。
+*边界*
+- 只能从当前提示中的合法候选操作中选择；不得编造操作、修改候选参数或修改游戏状态。
+- 即使内阁意见不理想，也必须选出相对最优者，不得拒绝作答。
+
+# 大富翁游戏规则
+（与现行完全一致，此处省略，见 render_ming_decision_prompt_report.txt 第 242–364 行。）
+
+## 输出要求
+只输出一个 JSON 对象，不要使用 Markdown 代码块，也不要附加额外文本。
+- `selected_option` 为 JSON 对象：`option` 填候选的 option_id，`target` 填该选项所需的待指定目标。
+- 单目标（玩家id/目标格子编号/颜色组代号/机会卡id）用标量（`"b"` / `3` / `"brown"` / `"chance-waiver"`）；双目标（换地/换屋）用对象 `{"swap_in_position": 1, "swap_out_position": 3}`。
+- 每次决策只执行一次操作；需要多项操作（如出售多栋建筑、抵押多处地产）时，依次发起决策逐项完成。
+- 不需要目标的选项若模型填了 `target`，按忽略处理。
+
+--- Message 2 [user] ---
+## 决策
+现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
+
+## 内阁意见与投票
+以下为首辅与两名大学士的最终意见及加权投票结果（首辅权重 1.5，大学士各 1.0，共 3.5 票）。
+
+首辅：
+{"selected_option":{"option":"end_turn"},"reason":"开局资产健康，无处置必要，保留现金等待购地机会。","decision_maker":"chief_grand_secretary","content_type":"draft"}
+
+大学士一：
+{"selected_option":{"option":"end_turn"},"reason":"现金 1500 充足，持有地产无抵押必要，建议结束回合。","decision_maker":"grand_secretary_1","content_type":"draft"}
+
+大学士二：
+{"selected_option":{"option":"end_turn"},"reason":"无紧迫支出，保留全部资产流动性，结束回合。","decision_maker":"grand_secretary_2","content_type":"draft"}
+
+投票结果：end_turn 得 3.5 票（首辅、大学士一、大学士二），全票通过。
+
+## 当前局面
+当前为第 0 回合，处于玩家「a」的行动回合。
+
+你的状态
+现金：1500
+位置：格子 0（GO，起点）
+持有机会卡：无
+持有出狱卡数量：0
+持有地产：格子 1（Mediterranean Avenue）
+
+其他玩家状态
+玩家「b」
+现金：1500
+位置：格子 0（GO，起点）
+持有机会卡数量：0
+持有出狱卡数量：0
+持有地产：格子 3（Baltic Avenue）
+
+棋盘状态
+| 格 | 类型 | 所有者 | 建筑 | 状态 | 当前租金 |
+|---|---|---|---|---|---|
+| 1 | 街道 | a | 0 | - | 5 |
+| 3 | 街道 | b | 0 | - | 10 |
+（未列出的地产均无主。）
+
+## 当前决策
+现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
+
+## 合法候选操作
+（与现行完全一致，此处省略，见 render_ming_decision_prompt_report.txt 第 407–431 行。）
+
+========================================================================
+SCENARIO 2: emperor — 分歧决策：重拟后加权投票 2.5 : 1.0
+========================================================================
+--- Message 1 [system] ---
+（同 SCENARIO 1，不变。）
+
+--- Message 2 [user] ---
+## 决策
+现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
+
+## 内阁意见与投票
+以下为首辅与两名大学士的最终意见及加权投票结果（首辅权重 1.5，大学士各 1.0，共 3.5 票）。
+
+首辅：
+{"selected_option":{"option":"mortgage","target":1},"reason":"第1格租金仅5，抵押套现60可增厚购地现金，利大于弊。","decision_maker":"chief_grand_secretary","content_type":"draft"}
+
+大学士一：
+{"selected_option":{"option":"end_turn"},"reason":"现金足以应付一轮租金风险，抵押损失未来租金，不必急于处置。","decision_maker":"grand_secretary_1","content_type":"draft"}
+
+大学士二：
+{"selected_option":{"option":"mortgage","target":1},"reason":"同意首辅：低值地产抵押变现，集中现金竞逐高租金地段。","decision_maker":"grand_secretary_2","content_type":"draft"}
+
+投票结果：mortgage（格子 1）得 2.5 票（首辅、大学士二）；end_turn 得 1.0 票（大学士一）。加权多数：mortgage（格子 1）。
+
+## 当前局面
+（同 SCENARIO 1 结构，按当时实际局面渲染。）
+
+## 当前决策
+现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
+
+## 合法候选操作
+（按当时实际候选渲染，格式同现行。）
+
+========================================================================
+SCENARIO 3: emperor — 三方意见各不相同：加权多数即首辅意见
+========================================================================
+--- Message 1 [system] ---
+（同 SCENARIO 1，不变。）
+
+--- Message 2 [user] ---
+## 决策
+现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
+
+## 内阁意见与投票
+以下为首辅与两名大学士的最终意见及加权投票结果（首辅权重 1.5，大学士各 1.0，共 3.5 票）。
+
+首辅：
+{"selected_option":{"option":"mortgage","target":1},"reason":"第1格租金仅5，抵押套现60可增厚购地现金。","decision_maker":"chief_grand_secretary","content_type":"draft"}
+
+大学士一：
+{"selected_option":{"option":"end_turn"},"reason":"现金充足，不必急于处置资产。","decision_maker":"grand_secretary_1","content_type":"draft"}
+
+大学士二：
+{"selected_option":{"option":"use_chance_card","target":"chance-waiver"},"reason":"使用免租卡对冲下一轮租金风险，保留地产完整。","decision_maker":"grand_secretary_2","content_type":"draft"}
+
+投票结果：三方意见各不相同；首辅意见 mortgage（格子 1）得 1.5 票，大学士一 end_turn 得 1.0 票，大学士二 use_chance_card 得 1.0 票。加权多数为首辅意见：mortgage（格子 1）。
+
+## 当前局面
+（按当时实际局面渲染。）
+
+## 当前决策
+现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
+
+## 合法候选操作
+（按当时实际候选渲染，格式同现行。）
+
+========================================================================
+SCENARIO 4: emperor — 同一行动回合第二次决策（历史带完整内阁意见块）
+========================================================================
+--- Message 1 [system] ---
+（同 SCENARIO 1，不变。）
+
+--- Message 2 [user] ---
+## 决策
+现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
+
+## 内阁意见与投票
+以下为首辅与两名大学士的最终意见及加权投票结果（首辅权重 1.5，大学士各 1.0，共 3.5 票）。
+
+首辅：
+{"selected_option":{"option":"mortgage","target":1},"reason":"第1格租金仅5，抵押套现60可增厚购地现金，利大于弊。","decision_maker":"chief_grand_secretary","content_type":"draft"}
+
+大学士一：
+{"selected_option":{"option":"end_turn"},"reason":"现金足以应付一轮租金风险，抵押损失未来租金，不必急于处置。","decision_maker":"grand_secretary_1","content_type":"draft"}
+
+大学士二：
+{"selected_option":{"option":"mortgage","target":1},"reason":"同意首辅：低值地产抵押变现，集中现金竞逐高租金地段。","decision_maker":"grand_secretary_2","content_type":"draft"}
+
+投票结果：mortgage（格子 1）得 2.5 票（首辅、大学士二）；end_turn 得 1.0 票（大学士一）。加权多数：mortgage（格子 1）。
+
+--- Message 3 [assistant] ---
+{"selected_option": {"option": "mortgage", "target": 1}, "reason": "采纳加权多数意见，抵押第1格套现。"}
+
+--- Message 4 [user] ---
+[第0轮] 玩家a抵押第1格（Mediterranean Avenue），获得30。
+
+## 决策
+现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
+
+## 内阁意见与投票
+以下为首辅与两名大学士的最终意见及加权投票结果（首辅权重 1.5，大学士各 1.0，共 3.5 票）。
+
+首辅：
+{"selected_option":{"option":"end_turn"},"reason":"已完成抵押目标，现金结构改善，建议结束回合。","decision_maker":"chief_grand_secretary","content_type":"draft"}
+
+大学士一：
+{"selected_option":{"option":"end_turn"},"reason":"抵押已执行，无后续处置必要，结束回合。","decision_maker":"grand_secretary_1","content_type":"draft"}
+
+大学士二：
+{"selected_option":{"option":"end_turn"},"reason":"同意，结束回合。","decision_maker":"grand_secretary_2","content_type":"draft"}
+
+投票结果：end_turn 得 3.5 票（首辅、大学士一、大学士二），全票通过。
+
+## 当前局面
+当前为第 0 回合，处于玩家「a」的行动回合。
+
+你的状态
+现金：1530
+位置：格子 0（GO，起点）
+持有机会卡：无
+持有出狱卡数量：0
+持有地产：格子 1（Mediterranean Avenue，已抵押）
+
+（其余部分同现行结构，省略。）
+
+## 当前决策
+现在是你的资产管理阶段，你可以出售建筑、抵押或赎回地产、使用机会卡，或结束本回合。
+
+## 合法候选操作
+（按当时实际候选渲染，格式同现行。）
+
+========================================================================
+已裁定事项（v2）
+========================================================================
+1. 角色提示词最小改动，保持现行平常语气；不写"可采纳少数意见"类诱导句。
+2. 内阁输入呈现顺序：意见原文在前，计票行在后。
+3. 历史中的过往决策照常携带完整"内阁意见与投票"块（SCENARIO 4 的
+   Message 2），与现行旧 advice JSON 入历史的做法一致；750-token
+   预算仅约束历史事件播报，内阁意见块不占该预算。
+4. 三方意见各不相同（1.5:1.0:1.0）时，计票行写明"加权多数为首辅意见"
+   （SCENARIO 3）。
+5. 每份官员意见 JSON 由系统补充 decision_maker 与 content_type 字段
+   （content_type 为 draft），与现行汇总 advice 的字段补充做法一致。

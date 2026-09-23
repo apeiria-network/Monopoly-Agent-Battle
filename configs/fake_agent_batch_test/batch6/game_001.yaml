@@ -1,0 +1,109 @@
+game_id: b6-game-001
+experiment_id: fake-batch-6
+seed: 601
+players:
+- player_id: ming-abl-1
+  seat: 1
+  controller_type: ming_ablation_court
+  court_role_profiles:
+    chief_grand_secretary: ming-abl-1-chief_grand_secretary
+    grand_secretary_1: ming-abl-1-grand_secretary_1
+    grand_secretary_2: ming-abl-1-grand_secretary_2
+    emperor: ming-abl-1-emperor
+- player_id: ming-abl-2
+  seat: 2
+  controller_type: ming_ablation_court
+  court_role_profiles:
+    chief_grand_secretary: ming-abl-2-chief_grand_secretary
+    grand_secretary_1: ming-abl-2-grand_secretary_1
+    grand_secretary_2: ming-abl-2-grand_secretary_2
+    emperor: ming-abl-2-emperor
+- player_id: ming-abl-3
+  seat: 3
+  controller_type: ming_ablation_court
+  court_role_profiles:
+    chief_grand_secretary: ming-abl-3-chief_grand_secretary
+    grand_secretary_1: ming-abl-3-grand_secretary_1
+    grand_secretary_2: ming-abl-3-grand_secretary_2
+    emperor: ming-abl-3-emperor
+- player_id: ming-abl-4
+  seat: 4
+  controller_type: ming_ablation_court
+  court_role_profiles:
+    chief_grand_secretary: ming-abl-4-chief_grand_secretary
+    grand_secretary_1: ming-abl-4-grand_secretary_1
+    grand_secretary_2: ming-abl-4-grand_secretary_2
+    emperor: ming-abl-4-emperor
+model_profiles:
+  ming-abl-1-chief_grand_secretary:
+    provider: fake
+    model: fake-random-v1
+    seed: 60101
+  ming-abl-1-grand_secretary_1:
+    provider: fake
+    model: fake-random-v1
+    seed: 60102
+  ming-abl-1-grand_secretary_2:
+    provider: fake
+    model: fake-random-v1
+    seed: 60103
+  ming-abl-1-emperor:
+    provider: fake
+    model: fake-random-v1
+    seed: 60104
+  ming-abl-2-chief_grand_secretary:
+    provider: fake
+    model: fake-random-v1
+    seed: 60105
+  ming-abl-2-grand_secretary_1:
+    provider: fake
+    model: fake-random-v1
+    seed: 60106
+  ming-abl-2-grand_secretary_2:
+    provider: fake
+    model: fake-random-v1
+    seed: 60107
+  ming-abl-2-emperor:
+    provider: fake
+    model: fake-random-v1
+    seed: 60108
+  ming-abl-3-chief_grand_secretary:
+    provider: fake
+    model: fake-random-v1
+    seed: 60109
+  ming-abl-3-grand_secretary_1:
+    provider: fake
+    model: fake-random-v1
+    seed: 60110
+  ming-abl-3-grand_secretary_2:
+    provider: fake
+    model: fake-random-v1
+    seed: 60111
+  ming-abl-3-emperor:
+    provider: fake
+    model: fake-random-v1
+    seed: 60112
+  ming-abl-4-chief_grand_secretary:
+    provider: fake
+    model: fake-random-v1
+    seed: 60113
+  ming-abl-4-grand_secretary_1:
+    provider: fake
+    model: fake-random-v1
+    seed: 60114
+  ming-abl-4-grand_secretary_2:
+    provider: fake
+    model: fake-random-v1
+    seed: 60115
+  ming-abl-4-emperor:
+    provider: fake
+    model: fake-random-v1
+    seed: 60116
+initial_cash: 1500
+initial_chance_cards: 3
+max_complete_rounds: 50
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs/fake_agent_batch_test

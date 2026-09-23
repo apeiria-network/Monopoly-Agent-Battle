@@ -1,0 +1,24 @@
+game_id: greedy_vs_sane-272
+experiment_id: greedy_vs_sane_random
+seed: 20272
+players:
+- player_id: greedy-1
+  seat: 1
+  controller_type: greedy_script
+- player_id: sane-2
+  seat: 2
+  controller_type: sane_random
+- player_id: greedy-3
+  seat: 3
+  controller_type: greedy_script
+- player_id: sane-4
+  seat: 4
+  controller_type: sane_random
+initial_cash: 1500
+initial_chance_cards: 2
+max_complete_rounds: 50
+rules_version: classic-level0-v1
+rules_level: 0
+board_data_version: classic-us-40-v1
+card_data_version: classic-cards-v1
+output_directory: runs
