@@ -178,6 +178,22 @@
 | `stat/plot_net_worth.py` | 同上，绘制各玩家逐轮净资产曲线。 | 同上（换成 `plot_net_worth.py`）。 |
 | `stat/plot_net_worth_and_cash.py` | 同时绘制逐轮净资产（实线）与现金（虚线、同色）。 | 同上（换成 `plot_net_worth_and_cash.py`）。 |
 
+## §6 决策质量评分（`stat/judge/`）
+
+逐决策价值评估与四项验证（§6.2–§6.9）。中间产物（npz 评分表、分片、落点缓存）在 `stat/judge/data/`；成品表（`ranking.csv`、`policy.csv`、`predictive.csv`、`scores.csv`、`scores_summary.csv`、`validation_results.csv`）直接放 `stat/judge/`。
+
+| 路径 | 用途 | 使用方式 |
+|---|---|---|
+| `stat/judge/landing.py` | 40×40 有序双骰（36 种）落点转移矩阵：含 30→10 监狱位移与 1/216 三连双近似；`chain(k)` 求 k 步落点。 | 由 `value.py` 调用；直接运行可重建缓存并打印平稳分布诊断。 |
+| `stat/judge/value.py` | §6.2 价值函数：`evaluate(state, player_id)` 返回 V 及四项分解（净资产、短/长期期望租金、垄断进度）；`passes_pruning` 双筛剪枝；租金口径与引擎对齐（同盟付款方全额、产权方半收、浪涌先于分账）。 | 被评分与分析脚本调用，不直接产出。 |
+| `stat/judge/replay_tools.py` | 重放运行产物：`iter_decision_points(directory)` 逐决策点重建引擎状态、执行命令、阶段与已完成轮数。 | 被各分析脚本调用。 |
+| `stat/judge/evaluate.py` | §6.3 逐决策评分：枚举候选、固定骰子 36 种结果算 ΔV，输出悔值、ΔM_assets、两级抽选律运气百分位 L_d 等 18 列；支持 `--limit/--skip/--shard K/N/--merge N/--tag`。 | `.venv/Scripts/python.exe stat/judge/evaluate.py <实验> --skip 100 --shard 0/4`；合并用 `--merge 4`。 |
+| `stat/judge/calibrate.py` | 口径对拍与计时：`--check` 四项交叉验证（含逐租金双视角比对）；`--calibrate` 实测评分耗时。 | 改动 `value.py` 后必跑 `--check`。 |
+| `stat/judge/ranking.py` | §6.6③ 排序检验（闸门）：利用 sane_random 均匀抽选做日志内随机化，L_d−0.5 对终局积分/名次/净资产的局内固定效应回归，按局 cluster bootstrap；前置精确零分布平衡检验 + ΔM_assets 阳性对照，按预注册判据判 PASS/FAIL。 | `python stat/judge/ranking.py`；产出 `stat/judge/ranking.csv`、追加 `validation_results.csv`。 |
+| `stat/judge/policy.py` | §6.6② 政策分辨 + §6.3 分档阈值：320 局样本上贪心席对理智随机席的平均执行 ΔV 对比（2v2 配对 + 跨实验非配对），并按决策类型输出悔值 P50/P90。 | `python stat/judge/policy.py`；需先以 `evaluate.py --limit N --tag policyNNN` 打 C 块评分。 |
+| `stat/judge/predictive.py` | §6.6① 预测力 + 安慰剂：每 5 轮检查点取各玩家 V 与 M_assets，对终局净资产做面板 Spearman；安慰剂打乱标签须归零；V−M_assets 配对对比按局 bootstrap；支持 `--shard/--combine`。 | `python stat/judge/predictive.py [--shard 0/4 ｜ --combine 4]`。 |
+| `stat/judge/score.py` | §6.9④ LLM 打分：按地板阈值把每个有效决策分档（合理/中间/欠佳），按局宏平均 + cluster bootstrap CI 汇总四个 LLM 实验。 | `python stat/judge/score.py`；产出 `stat/judge/scores.csv`、`scores_summary.csv`。 |
+
 ## 自动化测试（`tests/`）
 
 | 路径 | 覆盖范围 | 使用方式 |
