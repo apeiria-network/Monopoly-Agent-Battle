@@ -401,49 +401,126 @@ def _sane_seats(directory: Path) -> set[str]:
     }
 
 
-def run_experiment(experiment: str, limit: int | None) -> int:
-    """Score every game of one experiment and write the .npz table."""
+def experiment_directories(experiment: str) -> list[Path]:
+    """The sorted game-directory list of an experiment -- the game_index space.
+
+    ``game_index`` in every scored row is the position in THIS list. Analysis
+    scripts must rebuild the same list from the filesystem instead of
+    positional lookups into the npz ``games`` array: shard merges concatenate
+    that array in shard order, so its position does NOT match game_index.
+    """
+    root = RUNS / experiment
+    if not root.exists():
+        return []
+    return sorted(d for d in root.iterdir() if d.is_dir() and (d / "events.jsonl").exists())
+
+
+def run_experiment(
+    experiment: str,
+    limit: int | None,
+    skip: int = 0,
+    shard: tuple[int, int] | None = None,
+    tag: str | None = None,
+) -> int:
+    """Score games of one experiment and write a .npz table.
+
+    ``skip`` drops the first ``skip`` games of the sorted list (section 6.6:
+    the first 100 sane_random games are reserved for the policy/threshold
+    sample, so the ranking test scores the remaining 700). ``shard=(k, n)``
+    scores only every n-th game starting at k, so n processes can run in
+    parallel; shards are merged afterwards with ``--merge``. ``game_index`` in
+    every row is the index in the FULL sorted experiment list, so it is stable
+    across shards and merge boundaries. ``tag`` writes the output under a
+    separate name (decisions_<experiment>__<tag>.npz) so a subset -- e.g. the
+    100 policy games of the same experiment -- never overwrites the main table.
+    """
     root = RUNS / experiment
     if not root.exists():
         print(f"no such experiment: {root}")
         return 1
-    directories = sorted(d for d in root.iterdir() if d.is_dir() and (d / "events.jsonl").exists())
+    all_directories = experiment_directories(experiment)
+    selected = [
+        (index, directory) for index, directory in enumerate(all_directories) if index >= skip
+    ]
     if limit is not None:
-        directories = directories[:limit]
-    if not directories:
-        print(f"no games under {root}")
+        selected = selected[:limit]
+    if shard is not None:
+        shard_index, shard_count = shard
+        selected = [
+            (index, directory)
+            for position, (index, directory) in enumerate(selected)
+            if position % shard_count == shard_index
+        ]
+    if not selected:
+        print(f"no games selected under {root}")
         return 1
 
     rows: list[tuple[float, ...]] = []
     skipped: list[str] = []
     started = time.perf_counter()
-    for game_index, directory in enumerate(directories):
+    for done, (game_index, directory) in enumerate(selected, start=1):
         try:
             rows.extend(score_game(directory, game_index, _sane_seats(directory)))
         except (ReplayDivergence, AssertionError) as error:
             skipped.append(f"{directory.name}: {error}")
-        done = game_index + 1
-        if done % 25 == 0 or done == len(directories):
+        if done % 25 == 0 or done == len(selected):
             elapsed = time.perf_counter() - started
             print(
-                f"  {done}/{len(directories)} games, {len(rows)} decisions, "
-                f"{elapsed:.1f}s ({elapsed / done:.2f}s/game)"
+                f"  {done}/{len(selected)} games, {len(rows)} decisions, "
+                f"{elapsed:.1f}s ({elapsed / done:.2f}s/game)",
+                flush=True,
             )
 
     table = np.array(rows, dtype=np.float64) if rows else np.empty((0, len(COLUMNS)))
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    output = DATA_DIR / f"decisions_{experiment}.npz"
+    suffix = f"__shard{shard[0]}of{shard[1]}" if shard is not None else ""
+    if tag is not None:
+        suffix = f"__{tag}"
+    output = DATA_DIR / f"decisions_{experiment}{suffix}.npz"
     np.savez_compressed(
         output,
         table=table,
         columns=np.array(COLUMNS),
-        games=np.array([d.name for d in directories]),
+        games=np.array([d.name for _, d in selected]),
     )
-    print(f"wrote {output} -- {table.shape[0]} decisions from {len(directories)} games")
+    print(f"wrote {output} -- {table.shape[0]} decisions from {len(selected)} games")
     if skipped:
         print(f"SKIPPED {len(skipped)} games:")
         for line in skipped[:10]:
             print(f"  {line}")
+    return 0
+
+
+def merge_shards(experiment: str, shard_count: int) -> int:
+    """Concatenate shard tables into the experiment's single .npz table."""
+    tables: list[np.ndarray] = []
+    games: list[np.ndarray] = []
+    seen_games: set[int] = set()
+    for shard_index in range(shard_count):
+        path = DATA_DIR / f"decisions_{experiment}__shard{shard_index}of{shard_count}.npz"
+        if not path.exists():
+            print(f"missing shard: {path}")
+            return 1
+        with np.load(path, allow_pickle=False) as archive:
+            table = archive["table"]
+            if list(map(str, archive["columns"])) != list(COLUMNS):
+                print(f"column mismatch in {path}")
+                return 1
+            tables.append(table)
+            games.append(archive["games"])
+            for game_index in np.unique(table[:, 0]):
+                if int(game_index) in seen_games:
+                    print(f"game_index {int(game_index)} appears in two shards")
+                    return 1
+                seen_games.add(int(game_index))
+    merged_table = np.concatenate(tables) if tables else np.empty((0, len(COLUMNS)))
+    merged_games = np.concatenate(games)
+    output = DATA_DIR / f"decisions_{experiment}.npz"
+    np.savez_compressed(output, table=merged_table, columns=np.array(COLUMNS), games=merged_games)
+    print(
+        f"merged {shard_count} shards -> {output} -- "
+        f"{merged_table.shape[0]} decisions, {len(seen_games)} games"
+    )
     return 0
 
 
@@ -459,8 +536,49 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("experiments", nargs="*", help="run-directory names under runs/")
     parser.add_argument("--limit", type=int, default=None, help="only the first N games")
+    parser.add_argument(
+        "--skip",
+        type=int,
+        default=0,
+        help="skip the first N games of the sorted list (e.g. the 100 policy games)",
+    )
+    parser.add_argument(
+        "--shard",
+        type=str,
+        default=None,
+        metavar="K/N",
+        help="score only shard K of N parallel shards (0-based)",
+    )
+    parser.add_argument(
+        "--merge",
+        type=int,
+        default=None,
+        metavar="N",
+        help="merge shard tables 0..N-1 into the experiment table",
+    )
+    parser.add_argument(
+        "--tag",
+        type=str,
+        default=None,
+        help="write output as decisions_<experiment>__<tag>.npz (subset runs)",
+    )
     parser.add_argument("--all", action="store_true", help="all floor + LLM experiments")
     args = parser.parse_args()
+
+    if args.merge is not None:
+        if len(args.experiments) != 1:
+            parser.error("--merge takes exactly one experiment")
+        return merge_shards(args.experiments[0], args.merge)
+
+    shard: tuple[int, int] | None = None
+    if args.shard is not None:
+        try:
+            shard_index, shard_count = (int(part) for part in args.shard.split("/"))
+        except ValueError:
+            parser.error("--shard must look like 0/4")
+        if not (0 <= shard_index < shard_count):
+            parser.error("--shard requires 0 <= K < N")
+        shard = (shard_index, shard_count)
 
     experiments = list(args.experiments)
     if args.all:
@@ -478,8 +596,8 @@ def main() -> int:
 
     status = 0
     for experiment in experiments:
-        print(f"\n=== {experiment} ===")
-        status |= run_experiment(experiment, args.limit)
+        print(f"\n=== {experiment} ===", flush=True)
+        status |= run_experiment(experiment, args.limit, skip=args.skip, shard=shard, tag=args.tag)
     return status
 
 
