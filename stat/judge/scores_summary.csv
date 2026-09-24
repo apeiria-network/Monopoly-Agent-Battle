@@ -1,0 +1,5 @@
+run,games,decisions,mean_regret_macro,mean_regret_weighted,ci_low,ci_high,share_high
+4-courts-battle,16,4255,60.2502,60.739,51.8671,69.0314,0.1283
+court-vs-baseline,64,17338,75.759,77.5191,67.7143,85.3396,0.1521
+fe-vs-baseline,16,4210,91.1516,91.8632,69.4843,114.7615,0.1515
+court-fe-battle,12,3248,60.9811,61.7012,51.6947,71.3817,0.1228

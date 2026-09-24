@@ -1,4 +1,4 @@
-﻿"""Section 6.6 tests 1 (+placebo): does V(s) predict final net worth?
+"""Section 6.6 tests 1 (+placebo): does V(s) predict final net worth?
 
 WHAT THIS COMPUTES
 ------------------
@@ -242,26 +242,63 @@ def evaluate_arms(
     return out
 
 
+def _pearson(x: np.ndarray, y: np.ndarray) -> float:
+    sx = x - x.mean()
+    sy = y - y.mean()
+    denom = float(np.sqrt(sx @ sx) * np.sqrt(sy @ sy))
+    return float(sx @ sy / denom) if denom > 0 else float("nan")
+
+
 def _paired_contrast(
     rows: list[tuple[str, int, str, float, float, float]], resamples: int
 ) -> tuple[float, float, float]:
-    """Game-cluster bootstrap of mean_r rho_V(r) - rho_assets(r)."""
+    """Game-cluster bootstrap of mean_r rho_V(r) - rho_assets(r).
+
+    Speed note: ranks are computed ONCE per checkpoint on the full sample;
+    bootstrap resamples then correlate subsets of those fixed ranks instead of
+    re-ranking 91k rows 10,000 times (the naive version takes hours in pure
+    Python). The point estimate is the exact Spearman contrast; the bootstrap
+    distribution uses the standard fixed-rank approximation.
+    """
+    games_arr = np.array([row[0] for row in rows])
+    rounds = np.array([row[1] for row in rows])
+    v = np.array([row[3] for row in rows])
+    m = np.array([row[4] for row in rows])
+    w = np.array([row[5] for row in rows])
+
+    checkpoints: list[int] = []
+    rank_v: list[np.ndarray] = []
+    rank_m: list[np.ndarray] = []
+    rank_w: list[np.ndarray] = []
+    per_game_indices: list[dict[str, np.ndarray]] = []
+    for checkpoint in CHECKPOINT_ROUNDS:
+        mask = np.where(rounds == checkpoint)[0]
+        if len(mask) < 10:
+            continue
+        checkpoints.append(checkpoint)
+        rank_v.append(_average_ranks(v[mask]))
+        rank_m.append(_average_ranks(m[mask]))
+        rank_w.append(_average_ranks(w[mask]))
+        game_groups: dict[str, list[int]] = {}
+        for position, game in enumerate(games_arr[mask]):
+            game_groups.setdefault(game, []).append(position)
+        per_game_indices.append(
+            {game: np.array(positions) for game, positions in game_groups.items()}
+        )
+
     games = sorted({row[0] for row in rows})
-    by_game: dict[str, list[tuple[str, int, str, float, float, float]]] = {
-        game: [row for row in rows if row[0] == game] for game in games
-    }
 
     def contrast(sample: list[str]) -> float:
-        pooled = [row for game in sample for row in by_game[game]]
         diffs = []
-        for checkpoint in CHECKPOINT_ROUNDS:
-            subset = [row for row in pooled if row[1] == checkpoint]
-            if len(subset) < 10:
+        for c_index in range(len(checkpoints)):
+            groups = per_game_indices[c_index]
+            idx = np.concatenate([groups[game] for game in sample if game in groups])
+            if len(idx) < 10:
                 continue
-            v = np.array([row[3] for row in subset])
-            m = np.array([row[4] for row in subset])
-            w = np.array([row[5] for row in subset])
-            diffs.append(_spearman(v, w) - _spearman(m, w))
+            diffs.append(
+                _pearson(rank_v[c_index][idx], rank_w[c_index][idx])
+                - _pearson(rank_m[c_index][idx], rank_w[c_index][idx])
+            )
         return float(np.mean(diffs)) if diffs else float("nan")
 
     point = contrast(games)
