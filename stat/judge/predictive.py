@@ -1,4 +1,4 @@
-"""Section 6.6 tests 1 (+placebo): does V(s) predict final net worth?
+﻿"""Section 6.6 tests 1 (+placebo): does V(s) predict final net worth?
 
 WHAT THIS COMPUTES
 ------------------
@@ -308,7 +308,7 @@ def analyze(rows: list[tuple[str, int, str, float, float, float]]) -> int:
 
     validation_path = DATA_DIR / "validation_results.csv"
     write_header = not validation_path.exists()
-    with validation_path.open("a", newline="", encoding="utf-8") as handle:
+    with validation_path.open("a", newline="", encoding="utf-8-sig") as handle:
         writer = csv.writer(handle)
         if write_header:
             writer.writerow(

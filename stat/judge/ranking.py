@@ -1,4 +1,4 @@
-"""Section 6.6 test 3 -- the GATE: does delta-V order candidates correctly?
+﻿"""Section 6.6 test 3 -- the GATE: does delta-V order candidates correctly?
 
 WHAT THIS TESTS
 ---------------
@@ -380,7 +380,7 @@ def main() -> int:
 
     validation_path = DATA_DIR / "validation_results.csv"
     write_header = not validation_path.exists()
-    with validation_path.open("a", newline="", encoding="utf-8") as handle:
+    with validation_path.open("a", newline="", encoding="utf-8-sig") as handle:
         writer = csv.writer(handle)
         if write_header:
             writer.writerow(

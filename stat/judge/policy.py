@@ -1,4 +1,4 @@
-"""Section 6.6 test 2 -- policy separation -- plus the regret tier thresholds.
+﻿"""Section 6.6 test 2 -- policy separation -- plus the regret tier thresholds.
 
 WHAT THIS COMPUTES
 ------------------
@@ -58,6 +58,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import evaluate as evaluate_module
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 RUNS = ROOT / "runs"
@@ -123,8 +124,15 @@ def main() -> int:
     seat_rows: list[tuple[str, str, float, float, float, int]] = []
     regret_by_kind: dict[int, list[float]] = {}
     for experiment, tag in SAMPLES:
-        table, columns, games = _load_tagged(experiment, tag)
-        types = _controller_types(experiment, games)
+        table, columns, _games = _load_tagged(experiment, tag)
+        # game_index -> name comes from the filesystem listing (the same
+        # ordering evaluate.py scored against), NOT the npz games array:
+        # a game skipped mid-run would shift that array's positions.
+        index_to_name = {
+            index: d.name
+            for index, d in enumerate(evaluate_module.experiment_directories(experiment))
+        }
+        types = _controller_types(experiment, list(index_to_name.values()))
         game_index = table[:, columns["game_index"]].astype(int)
         seat = table[:, columns["seat"]].astype(int)
         kind = table[:, columns["kind_code"]].astype(int)
@@ -141,7 +149,7 @@ def main() -> int:
                 continue
             per_seat.setdefault((int(g), int(s)), []).append(float(dv))
         for (g, s), values in sorted(per_seat.items()):
-            name = games[g] if g < len(games) else None
+            name = index_to_name.get(g)
             if name is None:
                 continue
             controller = types.get((name, s), "unknown")
@@ -213,7 +221,7 @@ def main() -> int:
 
     validation_path = DATA_DIR / "validation_results.csv"
     write_header = not validation_path.exists()
-    with validation_path.open("a", newline="", encoding="utf-8") as handle:
+    with validation_path.open("a", newline="", encoding="utf-8-sig") as handle:
         writer = csv.writer(handle)
         if write_header:
             writer.writerow(

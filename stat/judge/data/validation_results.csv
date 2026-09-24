@@ -1,4 +1,4 @@
-analysis,arm_or_scope,checkpoint,estimate,ci_low,ci_high,n
+﻿analysis,arm_or_scope,checkpoint,estimate,ci_low,ci_high,n
 平衡检验,exact-null z,,1.852423302203973,,,792
 排序检验,main(dV) x points,,2.5198398985988137,1.610300297714963,3.4531282149915397,2800
 排序检验,main(dV) x rank,,2.5198398985988137,1.6073330284316336,3.435233020162206,2800
