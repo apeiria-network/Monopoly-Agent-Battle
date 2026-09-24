@@ -67,8 +67,8 @@ and Y2. Otherwise FAIL: regret may not be called correctness.
 HOW TO READ THE OUTPUT
 ----------------------
 Console prints each stage with its estimate, CI and verdict.
-stat/judge/data/ranking.csv: one row per (game, player) -- the analysis input.
-stat/judge/data/validation_results.csv: one row per reported number, keyed
+stat/judge/ranking.csv: one row per (game, player) -- the analysis input.
+stat/judge/validation_results.csv: one row per reported number, keyed
     analysis=排序检验 / 平衡检验 (this is the paper-facing numbers table).
 
 Usage from the repository root:
@@ -97,6 +97,7 @@ from monopoly_agent_battle.game.board_data.classic_us_40 import BOARD_BY_POSITIO
 ROOT = Path(__file__).resolve().parent.parent.parent
 RUNS = ROOT / "runs"
 DATA_DIR = Path(__file__).resolve().parent / "data"
+OUTPUT_DIR = Path(__file__).resolve().parent
 
 BOOT_RESAMPLES = 10_000
 BALANCE_SUBSAMPLE_GAMES = 10
@@ -362,7 +363,7 @@ def main() -> int:
 
     import csv
 
-    with (DATA_DIR / "ranking.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (OUTPUT_DIR / "ranking.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(
             [
@@ -378,7 +379,7 @@ def main() -> int:
         )
         writer.writerows(player_rows)
 
-    validation_path = DATA_DIR / "validation_results.csv"
+    validation_path = OUTPUT_DIR / "validation_results.csv"
     write_header = not validation_path.exists()
     with validation_path.open("a", newline="", encoding="utf-8-sig") as handle:
         writer = csv.writer(handle)
@@ -389,7 +390,7 @@ def main() -> int:
         writer.writerow(["平衡检验", "exact-null z", "", z, "", "", checked])
         for key, (slope, low, high) in results.items():
             writer.writerow(["排序检验", key, "", slope, low, high, len(player_rows)])
-    print(f"wrote {DATA_DIR / 'ranking.csv'} and appended validation_results.csv")
+    print(f"wrote {OUTPUT_DIR / 'ranking.csv'} and appended validation_results.csv")
     return 0 if verdict == "PASS" else 2
 
 

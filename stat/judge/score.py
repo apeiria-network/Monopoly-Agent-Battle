@@ -31,10 +31,10 @@ INTERPRETATION (read before quoting any number)
 
 HOW TO READ THE OUTPUT
 ----------------------
-stat/judge/data/scores.csv: one row per decision (run, game_id, decision_index,
+stat/judge/scores.csv: one row per decision (run, game_id, decision_index,
     seat, kind, complete_rounds, candidate_count, delta_v_executed,
     delta_v_best, regret, tier, flag).
-stat/judge/data/scores_summary.csv: one row per experiment (run, games,
+stat/judge/scores_summary.csv: one row per experiment (run, games,
     decisions, mean_regret_macro, mean_regret_weighted, ci_low, ci_high,
     share_high).
 
@@ -59,6 +59,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = Path(__file__).resolve().parent / "data"
+OUTPUT_DIR = Path(__file__).resolve().parent
 
 LLM_EXPERIMENTS = ("4-courts-battle", "court-vs-baseline", "fe-vs-baseline", "court-fe-battle")
 BOOT_RESAMPLES = 10_000
@@ -75,11 +76,11 @@ ZERO_DELTA_KINDS = {3, 4}  # V has no hand term: these deltas are identically 0
 
 
 def _load_thresholds() -> dict[str, tuple[float, float]]:
-    path = DATA_DIR / "validation_results.csv"
+    path = OUTPUT_DIR / "validation_results.csv"
     if not path.exists():
         raise SystemExit("missing validation_results.csv -- run policy.py first")
     thresholds: dict[str, dict[str, float]] = {}
-    with path.open(encoding="utf-8") as handle:
+    with path.open(encoding="utf-8-sig") as handle:
         for row in csv.DictReader(handle):
             if row["analysis"] != "分档阈值":
                 continue
@@ -216,7 +217,7 @@ def main() -> int:
             f"macro regret {summary[3]}, share_high {summary[7]}"
         )
 
-    with (DATA_DIR / "scores.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (OUTPUT_DIR / "scores.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(
             [
@@ -235,7 +236,7 @@ def main() -> int:
             ]
         )
         writer.writerows(all_rows)
-    with (DATA_DIR / "scores_summary.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (OUTPUT_DIR / "scores_summary.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(
             [
@@ -250,7 +251,7 @@ def main() -> int:
             ]
         )
         writer.writerows(summaries)
-    print(f"\nwrote {DATA_DIR / 'scores.csv'} and {DATA_DIR / 'scores_summary.csv'}")
+    print(f"\nwrote {OUTPUT_DIR / 'scores.csv'} and {OUTPUT_DIR / 'scores_summary.csv'}")
     return 0
 
 

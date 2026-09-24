@@ -31,9 +31,9 @@ HOW TO READ THE OUTPUT
 ----------------------
 Console prints the paired and unpaired contrasts with CI95 and the verdict,
 then the per-kind thresholds.
-stat/judge/data/policy.csv: one row per (game, seat, kind-group collapsed) --
+stat/judge/policy.csv: one row per (game, seat, kind-group collapsed) --
     the analysis input.
-stat/judge/data/validation_results.csv: thresholds keyed analysis=分档阈值,
+stat/judge/validation_results.csv: thresholds keyed analysis=分档阈值,
     contrasts keyed analysis=政策分辨.
 
 Prerequisite: the C-block scoring pass must have produced
@@ -63,6 +63,7 @@ import evaluate as evaluate_module
 ROOT = Path(__file__).resolve().parent.parent.parent
 RUNS = ROOT / "runs"
 DATA_DIR = Path(__file__).resolve().parent / "data"
+OUTPUT_DIR = Path(__file__).resolve().parent
 
 BOOT_RESAMPLES = 10_000
 RNG_SEED = 20260924
@@ -205,7 +206,7 @@ def main() -> int:
         thresholds[name] = (p50, p90)
         print(f"  {name:20s}: P50={p50:8.2f}  P90={p90:8.2f}  (n={len(values)})")
 
-    with (DATA_DIR / "policy.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (OUTPUT_DIR / "policy.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(
             [
@@ -219,7 +220,7 @@ def main() -> int:
         )
         writer.writerows(seat_rows)
 
-    validation_path = DATA_DIR / "validation_results.csv"
+    validation_path = OUTPUT_DIR / "validation_results.csv"
     write_header = not validation_path.exists()
     with validation_path.open("a", newline="", encoding="utf-8-sig") as handle:
         writer = csv.writer(handle)
@@ -244,7 +245,7 @@ def main() -> int:
             p50, p90 = thresholds[name]
             writer.writerow(["分档阈值", name, "P50", p50, "", "", len(regret_by_kind[kind_code])])
             writer.writerow(["分档阈值", name, "P90", p90, "", "", len(regret_by_kind[kind_code])])
-    print(f"\nwrote {DATA_DIR / 'policy.csv'} and appended validation_results.csv")
+    print(f"\nwrote {OUTPUT_DIR / 'policy.csv'} and appended validation_results.csv")
     return 0 if verdict == "PASS" else 2
 
 

@@ -41,9 +41,9 @@ HOW TO READ THE OUTPUT
 ----------------------
 Console prints per-checkpoint rho for all arms plus the paired V-minus-assets
 contrast with CI95, and the verdict.
-stat/judge/data/predictive.csv: one row per (game, checkpoint, player) -- the
+stat/judge/predictive.csv: one row per (game, checkpoint, player) -- the
     analysis input, also reused by any later re-analysis.
-stat/judge/data/validation_results.csv: one row per reported number, keyed
+stat/judge/validation_results.csv: one row per reported number, keyed
     analysis=预测力 / 安慰剂.
 
 This script replays games but does NOT score decisions: the cost is ~2 s/game,
@@ -73,6 +73,7 @@ from monopoly_agent_battle.game.board_data.classic_us_40 import BOARD_BY_POSITIO
 ROOT = Path(__file__).resolve().parent.parent.parent
 RUNS = ROOT / "runs"
 DATA_DIR = Path(__file__).resolve().parent / "data"
+OUTPUT_DIR = Path(__file__).resolve().parent
 
 FLOOR_EXPERIMENTS = ("sane_random", "greedy_script", "greedy_vs_sane_random")
 CHECKPOINT_ROUNDS = tuple(range(5, 51, 5))
@@ -304,9 +305,9 @@ def analyze(rows: list[tuple[str, int, str, float, float, float]]) -> int:
     print(f"\nrho increasing in r: {increasing}; placebo |rho|max = {placebo_max:.3f}")
     print(f"VERDICT (section 6.6 test 1): {verdict}")
 
-    write_rows(rows, DATA_DIR / "predictive.csv")
+    write_rows(rows, OUTPUT_DIR / "predictive.csv")
 
-    validation_path = DATA_DIR / "validation_results.csv"
+    validation_path = OUTPUT_DIR / "validation_results.csv"
     write_header = not validation_path.exists()
     with validation_path.open("a", newline="", encoding="utf-8-sig") as handle:
         writer = csv.writer(handle)
@@ -323,7 +324,7 @@ def analyze(rows: list[tuple[str, int, str, float, float, float]]) -> int:
                 ["安慰剂", "V-shuffled", checkpoint, placebo_arm[checkpoint]["v"], "", "", ""]
             )
         writer.writerow(["预测力", "V-minus-assets", "mean", point, low, high, len(rows)])
-    print(f"wrote {DATA_DIR / 'predictive.csv'} and appended validation_results.csv")
+    print(f"wrote {OUTPUT_DIR / 'predictive.csv'} and appended validation_results.csv")
     return 0 if verdict == "PASS" else 2
 
 

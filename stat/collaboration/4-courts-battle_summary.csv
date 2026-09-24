@@ -1,0 +1,5 @@
+﻿entity,controller_type,games,decisions,llm_calls,advice_diversity,calls_per_decision,consensus_formation,emperor_adoption,error_rate,fallback_rate,initial_disagreement,minority_adoption,officer_decider_agreement,opinion_change,seconds_per_decision,tokens_per_decision,review_intervention
+ming,ming_court,16,1079,7176,1.2103,6.5602,0.4845,0.9353,0.082,0.0,0.344,0.1892,0.8884,0.4245,82.14,48752.4586,
+qin,qin_court,16,1032,4326,1.2015,4.1941,,0.9657,0.0482,0.0,0.2119,,0.8775,,44.5789,29587.9279,
+shang,shang2_court,16,1112,4793,1.4253,4.3027,,0.973,0.0659,0.0006,0.3639,,0.8164,,58.3759,30734.4026,
+tang,tang_court,16,1093,5019,,4.5599,0.8563,0.9399,0.0331,0.0007,,,0.9399,0.6556,48.342,33148.3404,0.1075
