@@ -27,9 +27,9 @@ B. TIMING CALIBRATION (``--calibrate``)
 
    * ``r``          : pure replay, commands only, no request construction.
    * ``r_request``  : replay WITH build_decision_request, for contrast.
-   * candidate cost : clone+execute per candidate, the section-6.7 52-104 ms.
+   * candidate cost : clone+execute per DECISION (all candidates enumerated).
    * jail cost      : the same, for jail nodes where roll_dice must be valued
-     over 21 unordered 2d6 outcomes.
+     over the 36 ordered 2d6 outcomes (section 6.4).
 
 HOW TO READ THE OUTPUT
 ----------------------
@@ -350,13 +350,16 @@ def run_calibration(games: int) -> int:
     jail_decisions = 13_000
     replay_hours = total_games * r_pure / 3600
     scoring_hours = (total_decisions - jail_decisions) * per_candidate / 3600
-    # Jail nodes value roll_dice over 21 unordered 2d6 outcomes.
-    jail_hours = jail_decisions * per_jail * 21 / 3600
+    # Jail nodes value roll_dice over the 36 ordered 2d6 outcomes (section 6.4).
+    # Ordered, not aggregated by total: the engine branches on whether the roll
+    # is a DOUBLE (jail release, third-doubles) as well as on the total, so
+    # (2,2) and (1,3) behave differently despite sharing a total.
+    jail_hours = jail_decisions * per_jail * 36 / 3600
     single = replay_hours + scoring_hours + jail_hours
     print("\n--- section 6.7 projection (measured) ---")
     print(f"replay 2,668 games      : {replay_hours:.2f} h single-core")
     print(f"scoring 264k decisions  : {scoring_hours:.2f} h single-core")
-    print(f"jail 13k decisions x21  : {jail_hours:.2f} h single-core")
+    print(f"jail 13k decisions x36  : {jail_hours:.2f} h single-core")
     print(f"TOTAL                   : {single:.2f} h single / {single / 4:.2f} h at 4 cores")
     print(
         "\nNOTE: measured on sane_random floor games. LLM games hold more cards,"
