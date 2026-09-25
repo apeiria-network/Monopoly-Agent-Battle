@@ -3,10 +3,12 @@
 Implements the §6.2 metric table of Courts-Battle-config-details.md (the 有效
 干预率 metric was deleted by project decision — it required counterfactual
 simulation and could not be measured credibly). Input: ONE experiment run
-directory; only that experiment is analysed. Output: a per-(entity x game)
-detail CSV (the §6.3 statistical unit) and a per-entity summary CSV (MEAN
-across games only). Both default to
-stat/collaboration_<experiment>_{detail,summary}.csv.
+directory; only that experiment is analysed. Output: one per-entity summary CSV
+(MEAN across games only) at stat/collaboration/<experiment>_summary.csv. The
+per-(entity x game) table (the §6.3 statistical unit) is an intermediate and is
+written only when --detail is given, to
+stat/collaboration/data/<experiment>_detail.csv. Directories are created on
+demand; --summary overrides the deliverable path.
 
 Data sources per game dir:
 - decisions.jsonl -> per-decision court_trace.calls (role, phase, content_type,
@@ -85,6 +87,7 @@ is unaffected by echoes and feeds the overhead metrics.
 
 Run from the repository root (one experiment per invocation):
     .venv/Scripts/python.exe stat/collaboration_metrics.py runs/court-vs-baseline
+    .venv/Scripts/python.exe stat/collaboration_metrics.py runs/court-vs-baseline --detail
 """
 
 from __future__ import annotations
@@ -524,15 +527,26 @@ def main() -> None:
         help="ONE experiment run dir (e.g. runs/court-vs-baseline); only this "
         "experiment is analysed",
     )
-    parser.add_argument("--detail", type=Path, default=None)
-    parser.add_argument("--summary", type=Path, default=None)
+    parser.add_argument(
+        "--detail",
+        action="store_true",
+        help="also write the per-(entity x game) intermediate table to "
+        "stat/collaboration/data/<experiment>_detail.csv",
+    )
+    parser.add_argument(
+        "--summary",
+        type=Path,
+        default=None,
+        help="override the summary CSV path (default stat/collaboration/)",
+    )
     args = parser.parse_args()
 
     run_dir: Path = args.run_dir
     if not run_dir.is_dir():
         raise SystemExit(f"run dir does not exist: {run_dir}")
-    detail = args.detail or ROOT / "stat" / f"collaboration_{run_dir.name}_detail.csv"
-    summary = args.summary or ROOT / "stat" / f"collaboration_{run_dir.name}_summary.csv"
+    collaboration_dir = ROOT / "stat" / "collaboration"
+    summary = args.summary or collaboration_dir / f"{run_dir.name}_summary.csv"
+    detail = collaboration_dir / "data" / f"{run_dir.name}_detail.csv"
 
     rows: list[dict[str, Any]] = []
     for gdir in sorted(run_dir.iterdir()):
@@ -541,7 +555,8 @@ def main() -> None:
         if (gdir / "result.json").exists() and (gdir / "config.json").exists():
             rows.extend(load_game(gdir))
     print(f"entity-game rows: {len(rows)}")
-    write_csv(rows, detail)
+    if args.detail:
+        write_csv(rows, detail)
     write_csv(summarize(rows), summary)
 
 

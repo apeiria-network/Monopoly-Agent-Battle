@@ -1,0 +1,3 @@
+﻿group,games,observed_total,floor,p_normal_one_sided,p_exact_one_sided,verdict
+baseline_vs_greedy,16,34,sane_random,0.0124,0.0158,distinguishable (beyond 95% threshold)
+baseline_vs_greedy,16,34,greedy_script,0.0126,0.0159,distinguishable (beyond 95% threshold)
