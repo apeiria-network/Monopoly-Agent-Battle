@@ -165,15 +165,93 @@ def _boot_mean_ci(values: np.ndarray, rng: np.random.Generator) -> tuple[float, 
     return point, float(np.percentile(boot, 2.5)), float(np.percentile(boot, 97.5))
 
 
+def _pairwise_contrasts(
+    experiment: str,
+    per_controller_games: dict[str, dict[int, list[tuple[float, float]]]],
+    rng: np.random.Generator,
+) -> list[tuple]:
+    """Architecture-vs-architecture contrasts within one experiment.
+
+    Paired when the two controllers share games (same table, same dice and
+    deck): per-game difference of seat means, game-cluster bootstrap. Unpaired
+    when they appear in disjoint games (e.g. different courts in
+    court-vs-baseline): independent game-cluster bootstrap of the two means.
+    """
+    rows: list[tuple] = []
+    controllers = sorted(per_controller_games)
+    for i, ctrl_a in enumerate(controllers):
+        for ctrl_b in controllers[i + 1 :]:
+            games_a = per_controller_games[ctrl_a]
+            games_b = per_controller_games[ctrl_b]
+            common = sorted(set(games_a) & set(games_b))
+            for metric, index in (("dv", 0), ("regret", 1)):
+                if len(common) >= 3:
+                    diffs = np.array(
+                        [
+                            float(np.mean([v[index] for v in games_a[g]]))
+                            - float(np.mean([v[index] for v in games_b[g]]))
+                            for g in common
+                        ]
+                    )
+                    point, low, high = _boot_mean_ci(diffs, rng)
+                    rows.append(
+                        (
+                            "架构间对照",
+                            f"{experiment} {ctrl_a}-minus-{ctrl_b} {metric} (paired)",
+                            "",
+                            round(point, 4),
+                            round(low, 4),
+                            round(high, 4),
+                            len(common),
+                        )
+                    )
+                else:
+                    means_a = np.array(
+                        [
+                            float(np.mean([v[index] for v in seat_means]))
+                            for seat_means in games_a.values()
+                        ]
+                    )
+                    means_b = np.array(
+                        [
+                            float(np.mean([v[index] for v in seat_means]))
+                            for seat_means in games_b.values()
+                        ]
+                    )
+                    if len(means_a) < 3 or len(means_b) < 3:
+                        continue
+                    point = float(means_a.mean() - means_b.mean())
+                    boot = [
+                        float(
+                            means_a[rng.integers(0, len(means_a), size=len(means_a))].mean()
+                            - means_b[rng.integers(0, len(means_b), size=len(means_b))].mean()
+                        )
+                        for _ in range(BOOT_RESAMPLES)
+                    ]
+                    rows.append(
+                        (
+                            "架构间对照",
+                            f"{experiment} {ctrl_a}-minus-{ctrl_b} {metric} (unpaired)",
+                            "",
+                            round(point, 4),
+                            round(float(np.percentile(boot, 2.5)), 4),
+                            round(float(np.percentile(boot, 97.5)), 4),
+                            len(means_a) + len(means_b),
+                        )
+                    )
+    return rows
+
+
 def score_experiment(
     experiment: str,
     thresholds: dict[str, tuple[float, float]],
     floors: dict[str, dict[str, tuple[float, float]]],
     rng: np.random.Generator,
-) -> tuple[list[tuple], tuple, list[tuple], list[tuple]]:
+) -> tuple[list[tuple], tuple, list[tuple], list[tuple], list[tuple]]:
     """Score one experiment.
 
-    Returns (decision rows, summary row, floor-deviation rows, contrast rows).
+    Returns (decision rows, summary row, floor-deviation rows, contrast rows,
+    pairwise architecture-contrast rows).
     """
     path = DATA_DIR / f"decisions_{experiment}.npz"
     if not path.exists():
@@ -355,7 +433,9 @@ def score_experiment(
                 )
             )
 
-    return rows, summary, deviation_rows, contrast_rows
+    pairwise_rows = _pairwise_contrasts(experiment, per_controller_games, rng)
+
+    return rows, summary, deviation_rows, contrast_rows, pairwise_rows
 
 
 def main() -> int:
@@ -372,11 +452,14 @@ def main() -> int:
     validation_rows: list[tuple] = []
     for experiment in args.experiments:
         print(f"=== {experiment} ===", flush=True)
-        rows, summary, deviations, contrasts = score_experiment(experiment, thresholds, floors, rng)
+        rows, summary, deviations, contrasts, pairwise = score_experiment(
+            experiment, thresholds, floors, rng
+        )
         all_rows.extend(rows)
         summaries.append(summary)
         validation_rows.extend(deviations)
         validation_rows.extend(contrasts)
+        validation_rows.extend(pairwise)
         print(
             f"  {summary[1]} games, {summary[2]} valid decisions, "
             f"macro regret {summary[3]}, share_high {summary[7]}"
@@ -389,6 +472,8 @@ def main() -> int:
             print(
                 f"  in-game contrast: {row[1]} = {row[3]:+.2f} CI95 [{row[4]:+.2f}, {row[5]:+.2f}]"
             )
+        for row in pairwise:
+            print(f"  pairwise: {row[1]} = {row[3]:+.2f} CI95 [{row[4]:+.2f}, {row[5]:+.2f}]")
 
     with (OUTPUT_DIR / "scores.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
@@ -426,16 +511,23 @@ def main() -> int:
         writer.writerows(summaries)
 
     validation_path = OUTPUT_DIR / "validation_results.csv"
-    write_header = not validation_path.exists()
-    with validation_path.open("a", newline="", encoding="utf-8-sig") as handle:
+    # score.py owns these analysis keys: drop any rows it previously wrote so
+    # re-running never duplicates them. Other scripts' rows are untouched.
+    own_keys = {"地板偏离", "局内对照", "架构间对照"}
+    header = ["analysis", "arm_or_scope", "checkpoint", "estimate", "ci_low", "ci_high", "n"]
+    body: list[list[str]] = []
+    if validation_path.exists():
+        with validation_path.open(encoding="utf-8-sig") as handle:
+            existing = list(csv.reader(handle))
+        header = existing[0]
+        body = [row for row in existing[1:] if row[0] not in own_keys]
+    with validation_path.open("w", newline="", encoding="utf-8-sig") as handle:
         writer = csv.writer(handle)
-        if write_header:
-            writer.writerow(
-                ["analysis", "arm_or_scope", "checkpoint", "estimate", "ci_low", "ci_high", "n"]
-            )
+        writer.writerow(header)
+        writer.writerows(body)
         writer.writerows(validation_rows)
     print(f"\nwrote {OUTPUT_DIR / 'scores.csv'} and {OUTPUT_DIR / 'scores_summary.csv'}")
-    print(f"appended {len(validation_rows)} rows to validation_results.csv")
+    print(f"wrote {len(validation_rows)} rows to validation_results.csv")
     return 0
 
 

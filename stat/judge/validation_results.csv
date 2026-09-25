@@ -24,62 +24,6 @@
 分档阈值,forced_discard,P90,0.0,,,4
 分档阈值,theft_card_selection,P50,0.0,,,259
 分档阈值,theft_card_selection,P90,0.0,,,259
-地板偏离,4-courts-battle ming_court vs greedy_script mean_dv,,5.0389,-18.9965,29.0743,16
-地板偏离,4-courts-battle ming_court vs sane_random mean_dv,,14.3508,-9.692,38.3936,16
-地板偏离,4-courts-battle ming_court vs greedy_script mean_regret,,13.4477,-9.3715,36.267,16
-地板偏离,4-courts-battle ming_court vs sane_random mean_regret,,-23.861,-46.8937,-0.8284,16
-地板偏离,4-courts-battle qin_court vs greedy_script mean_dv,,7.1871,-18.0078,32.3819,16
-地板偏离,4-courts-battle qin_court vs sane_random mean_dv,,16.499,-8.7029,41.701,16
-地板偏离,4-courts-battle qin_court vs greedy_script mean_regret,,10.3409,-4.8327,25.5145,16
-地板偏离,4-courts-battle qin_court vs sane_random mean_regret,,-26.9679,-42.4606,-11.4752,16
-地板偏离,4-courts-battle shang2_court vs greedy_script mean_dv,,9.3594,-8.2465,26.9654,16
-地板偏离,4-courts-battle shang2_court vs sane_random mean_dv,,18.6714,1.0553,36.2874,16
-地板偏离,4-courts-battle shang2_court vs greedy_script mean_regret,,8.5484,-6.7161,23.8128,16
-地板偏离,4-courts-battle shang2_court vs sane_random mean_regret,,-28.7604,-44.342,-13.1787,16
-地板偏离,4-courts-battle tang_court vs greedy_script mean_dv,,10.3305,-14.4047,35.0658,16
-地板偏离,4-courts-battle tang_court vs sane_random mean_dv,,19.6425,-5.1,44.3849,16
-地板偏离,4-courts-battle tang_court vs greedy_script mean_regret,,29.5663,10.1125,49.0201,16
-地板偏离,4-courts-battle tang_court vs sane_random mean_regret,,-7.7425,-27.4461,11.9612,16
-地板偏离,court-vs-baseline llm_baseline vs greedy_script mean_dv,,-4.2502,-10.5413,2.0409,64
-地板偏离,court-vs-baseline llm_baseline vs sane_random mean_dv,,5.0617,-1.2576,11.3811,64
-地板偏离,court-vs-baseline llm_baseline vs greedy_script mean_regret,,31.0892,20.8139,41.3646,64
-地板偏离,court-vs-baseline llm_baseline vs sane_random mean_regret,,-6.2195,-16.9605,4.5214,64
-地板偏离,court-vs-baseline ming_court vs greedy_script mean_dv,,-0.9144,-21.1509,19.3221,16
-地板偏离,court-vs-baseline ming_court vs sane_random mean_dv,,8.3976,-11.8477,28.6429,16
-地板偏离,court-vs-baseline ming_court vs greedy_script mean_regret,,25.9708,4.1847,47.757,16
-地板偏离,court-vs-baseline ming_court vs sane_random mean_regret,,-11.3379,-33.3475,10.6716,16
-地板偏离,court-vs-baseline qin_court vs greedy_script mean_dv,,-4.949,-22.6024,12.7043,16
-地板偏离,court-vs-baseline qin_court vs sane_random mean_dv,,4.3629,-13.3006,22.0264,16
-地板偏离,court-vs-baseline qin_court vs greedy_script mean_regret,,21.5789,3.9966,39.1613,16
-地板偏离,court-vs-baseline qin_court vs sane_random mean_regret,,-15.7298,-33.5883,2.1286,16
-地板偏离,court-vs-baseline shang2_court vs greedy_script mean_dv,,13.3861,-17.3089,44.0811,16
-地板偏离,court-vs-baseline shang2_court vs sane_random mean_dv,,22.6981,-8.0027,53.3989,16
-地板偏离,court-vs-baseline shang2_court vs greedy_script mean_regret,,22.1087,1.0201,43.1973,16
-地板偏离,court-vs-baseline shang2_court vs sane_random mean_regret,,-15.2001,-36.5194,6.1192,16
-地板偏离,court-vs-baseline tang_court vs greedy_script mean_dv,,10.3236,-15.2771,35.9244,16
-地板偏离,court-vs-baseline tang_court vs sane_random mean_dv,,19.6356,-5.9721,45.2433,16
-地板偏离,court-vs-baseline tang_court vs greedy_script mean_regret,,22.4567,-5.9285,50.8419,16
-地板偏离,court-vs-baseline tang_court vs sane_random mean_regret,,-14.852,-43.4091,13.705,16
-局内对照,court-vs-baseline arch-minus-baseline dv,,8.7118,-4.4482,23.7644,64
-局内对照,court-vs-baseline arch-minus-baseline regret,,-8.0604,-23.6311,7.829,64
-地板偏离,fe-vs-baseline flat_ensemble vs greedy_script mean_dv,,7.1131,-9.6322,23.8583,16
-地板偏离,fe-vs-baseline flat_ensemble vs sane_random mean_dv,,16.425,-0.3309,33.1809,16
-地板偏离,fe-vs-baseline flat_ensemble vs greedy_script mean_regret,,4.1414,-12.6819,20.9647,16
-地板偏离,fe-vs-baseline flat_ensemble vs sane_random mean_regret,,-33.1674,-50.279,-16.0557,16
-地板偏离,fe-vs-baseline llm_baseline vs greedy_script mean_dv,,-10.1175,-21.2349,0.9999,16
-地板偏离,fe-vs-baseline llm_baseline vs sane_random mean_dv,,-0.8055,-11.9389,10.3279,16
-地板偏离,fe-vs-baseline llm_baseline vs greedy_script mean_regret,,60.1794,30.379,89.9799,16
-地板偏离,fe-vs-baseline llm_baseline vs sane_random mean_regret,,22.8707,-7.0935,52.8349,16
-局内对照,fe-vs-baseline arch-minus-baseline dv,,17.2305,-6.8597,42.42,16
-局内对照,fe-vs-baseline arch-minus-baseline regret,,-56.038,-97.3338,-20.5788,16
-地板偏离,court-fe-battle flat_ensemble vs greedy_script mean_dv,,-0.0061,-11.8956,11.8833,12
-地板偏离,court-fe-battle flat_ensemble vs sane_random mean_dv,,9.3059,-2.5986,21.2103,12
-地板偏离,court-fe-battle flat_ensemble vs greedy_script mean_regret,,14.1926,-2.226,30.6113,12
-地板偏离,court-fe-battle flat_ensemble vs sane_random mean_regret,,-23.1161,-39.8301,-6.4021,12
-地板偏离,court-fe-battle ming_court vs greedy_script mean_dv,,-3.1803,-21.787,15.4263,12
-地板偏离,court-fe-battle ming_court vs sane_random mean_dv,,6.1316,-12.4846,24.7479,12
-地板偏离,court-fe-battle ming_court vs greedy_script mean_regret,,15.6426,1.3941,29.8911,12
-地板偏离,court-fe-battle ming_court vs sane_random mean_regret,,-21.6662,-36.254,-7.0783,12
 预测力,V,5,0.3238251193433987,,,
 预测力,M_assets,5,0.27099000516618227,,,
 安慰剂,V-shuffled,5,-0.014627783497174513,,,
@@ -108,3 +52,95 @@
 预测力,M_assets,45,0.9303163351348311,,,
 安慰剂,V-shuffled,45,-0.014205717520518756,,,
 预测力,V-minus-assets,mean,-0.007852104691874282,-0.012435011448162118,-0.0032254639201005084,91082
+地板偏离,4-courts-battle ming_court vs greedy_script mean_dv,,5.0389,-18.9965,29.0743,16
+地板偏离,4-courts-battle ming_court vs sane_random mean_dv,,14.3508,-9.692,38.3936,16
+地板偏离,4-courts-battle ming_court vs greedy_script mean_regret,,13.4477,-9.3715,36.267,16
+地板偏离,4-courts-battle ming_court vs sane_random mean_regret,,-23.861,-46.8937,-0.8284,16
+地板偏离,4-courts-battle qin_court vs greedy_script mean_dv,,7.1871,-18.0078,32.3819,16
+地板偏离,4-courts-battle qin_court vs sane_random mean_dv,,16.499,-8.7029,41.701,16
+地板偏离,4-courts-battle qin_court vs greedy_script mean_regret,,10.3409,-4.8327,25.5145,16
+地板偏离,4-courts-battle qin_court vs sane_random mean_regret,,-26.9679,-42.4606,-11.4752,16
+地板偏离,4-courts-battle shang2_court vs greedy_script mean_dv,,9.3594,-8.2465,26.9654,16
+地板偏离,4-courts-battle shang2_court vs sane_random mean_dv,,18.6714,1.0553,36.2874,16
+地板偏离,4-courts-battle shang2_court vs greedy_script mean_regret,,8.5484,-6.7161,23.8128,16
+地板偏离,4-courts-battle shang2_court vs sane_random mean_regret,,-28.7604,-44.342,-13.1787,16
+地板偏离,4-courts-battle tang_court vs greedy_script mean_dv,,10.3305,-14.4047,35.0658,16
+地板偏离,4-courts-battle tang_court vs sane_random mean_dv,,19.6425,-5.1,44.3849,16
+地板偏离,4-courts-battle tang_court vs greedy_script mean_regret,,29.5663,10.1125,49.0201,16
+地板偏离,4-courts-battle tang_court vs sane_random mean_regret,,-7.7425,-27.4461,11.9612,16
+架构间对照,4-courts-battle ming_court-minus-qin_court dv (paired),,-2.1482,-42.0777,38.2454,16
+架构间对照,4-courts-battle ming_court-minus-qin_court regret (paired),,3.1069,-23.7753,34.8491,16
+架构间对照,4-courts-battle ming_court-minus-shang2_court dv (paired),,-4.3206,-32.6525,26.1184,16
+架构间对照,4-courts-battle ming_court-minus-shang2_court regret (paired),,4.8993,-21.5491,36.98,16
+架构间对照,4-courts-battle ming_court-minus-tang_court dv (paired),,-5.2917,-39.0784,29.6624,16
+架构间对照,4-courts-battle ming_court-minus-tang_court regret (paired),,-16.1186,-45.5558,14.7765,16
+架构间对照,4-courts-battle qin_court-minus-shang2_court dv (paired),,-2.1724,-38.5477,35.6036,16
+架构间对照,4-courts-battle qin_court-minus-shang2_court regret (paired),,1.7925,-19.5825,22.7147,16
+架构间对照,4-courts-battle qin_court-minus-tang_court dv (paired),,-3.1434,-38.7708,28.6198,16
+架构间对照,4-courts-battle qin_court-minus-tang_court regret (paired),,-19.2254,-44.6062,5.0826,16
+架构间对照,4-courts-battle shang2_court-minus-tang_court dv (paired),,-0.9711,-35.927,34.6486,16
+架构间对照,4-courts-battle shang2_court-minus-tang_court regret (paired),,-21.0179,-50.5096,7.6267,16
+地板偏离,court-vs-baseline llm_baseline vs greedy_script mean_dv,,-4.2502,-10.4799,1.9795,64
+地板偏离,court-vs-baseline llm_baseline vs sane_random mean_dv,,5.0617,-1.1965,11.32,64
+地板偏离,court-vs-baseline llm_baseline vs greedy_script mean_regret,,31.0892,20.9333,41.2452,64
+地板偏离,court-vs-baseline llm_baseline vs sane_random mean_regret,,-6.2195,-16.8463,4.4072,64
+地板偏离,court-vs-baseline ming_court vs greedy_script mean_dv,,-0.9144,-21.5924,19.7636,16
+地板偏离,court-vs-baseline ming_court vs sane_random mean_dv,,8.3976,-12.2891,29.0842,16
+地板偏离,court-vs-baseline ming_court vs greedy_script mean_regret,,25.9708,4.4205,47.5212,16
+地板偏离,court-vs-baseline ming_court vs sane_random mean_regret,,-11.3379,-33.1141,10.4383,16
+地板偏离,court-vs-baseline qin_court vs greedy_script mean_dv,,-4.949,-22.2947,12.3967,16
+地板偏离,court-vs-baseline qin_court vs sane_random mean_dv,,4.3629,-12.9931,21.7189,16
+地板偏离,court-vs-baseline qin_court vs greedy_script mean_regret,,21.5789,4.2563,38.9015,16
+地板偏离,court-vs-baseline qin_court vs sane_random mean_regret,,-15.7298,-33.3326,1.8729,16
+地板偏离,court-vs-baseline shang2_court vs greedy_script mean_dv,,13.3861,-17.5332,44.3054,16
+地板偏离,court-vs-baseline shang2_court vs sane_random mean_dv,,22.6981,-8.227,53.6232,16
+地板偏离,court-vs-baseline shang2_court vs greedy_script mean_regret,,22.1087,1.0758,43.1416,16
+地板偏离,court-vs-baseline shang2_court vs sane_random mean_regret,,-15.2001,-36.4643,6.0642,16
+地板偏离,court-vs-baseline tang_court vs greedy_script mean_dv,,10.3236,-15.2624,35.9097,16
+地板偏离,court-vs-baseline tang_court vs sane_random mean_dv,,19.6356,-5.9574,45.2286,16
+地板偏离,court-vs-baseline tang_court vs greedy_script mean_regret,,22.4567,-6.0776,50.991,16
+地板偏离,court-vs-baseline tang_court vs sane_random mean_regret,,-14.852,-43.5573,13.8532,16
+局内对照,court-vs-baseline arch-minus-baseline dv,,8.7118,-5.1436,23.6575,64
+局内对照,court-vs-baseline arch-minus-baseline regret,,-8.0604,-24.004,7.1335,64
+架构间对照,court-vs-baseline llm_baseline-minus-ming_court dv (paired),,-1.8132,-26.7609,21.266,16
+架构间对照,court-vs-baseline llm_baseline-minus-ming_court regret (paired),,0.1002,-35.9424,39.6965,16
+架构间对照,court-vs-baseline llm_baseline-minus-qin_court dv (paired),,4.4486,-21.202,24.3707,16
+架构间对照,court-vs-baseline llm_baseline-minus-qin_court regret (paired),,16.9198,-9.6748,44.0988,16
+架构间对照,court-vs-baseline llm_baseline-minus-shang2_court dv (paired),,-16.8451,-53.5386,16.356,16
+架构间对照,court-vs-baseline llm_baseline-minus-shang2_court regret (paired),,11.8773,-12.2703,38.1993,16
+架构间对照,court-vs-baseline llm_baseline-minus-tang_court dv (paired),,-20.6374,-53.5325,3.3286,16
+架构间对照,court-vs-baseline llm_baseline-minus-tang_court regret (paired),,3.3445,-31.248,33.9994,16
+架构间对照,court-vs-baseline ming_court-minus-qin_court dv (unpaired),,4.0347,-23.2229,29.8903,32
+架构间对照,court-vs-baseline ming_court-minus-qin_court regret (unpaired),,4.3919,-24.0375,32.0323,32
+架构间对照,court-vs-baseline ming_court-minus-shang2_court dv (unpaired),,-14.3005,-53.4069,22.1064,32
+架构间对照,court-vs-baseline ming_court-minus-shang2_court regret (unpaired),,3.8621,-26.5097,34.4257,32
+架构间对照,court-vs-baseline ming_court-minus-tang_court dv (unpaired),,-11.238,-45.1962,20.06,32
+架构间对照,court-vs-baseline ming_court-minus-tang_court regret (unpaired),,3.5141,-33.8418,38.7171,32
+架构间对照,court-vs-baseline qin_court-minus-shang2_court dv (unpaired),,-18.3352,-54.6727,16.0948,32
+架构间对照,court-vs-baseline qin_court-minus-shang2_court regret (unpaired),,-0.5298,-27.2006,25.8807,32
+架构间对照,court-vs-baseline qin_court-minus-tang_court dv (unpaired),,-15.2727,-48.5802,14.5004,32
+架构间对照,court-vs-baseline qin_court-minus-tang_court regret (unpaired),,-0.8778,-34.9376,31.3708,32
+架构间对照,court-vs-baseline shang2_court-minus-tang_court dv (unpaired),,3.0625,-37.2785,43.4182,32
+架构间对照,court-vs-baseline shang2_court-minus-tang_court regret (unpaired),,-0.348,-36.2452,33.6038,32
+地板偏离,fe-vs-baseline flat_ensemble vs greedy_script mean_dv,,7.1131,-9.9428,24.1689,16
+地板偏离,fe-vs-baseline flat_ensemble vs sane_random mean_dv,,16.425,-0.6413,33.4913,16
+地板偏离,fe-vs-baseline flat_ensemble vs greedy_script mean_regret,,4.1414,-12.9306,21.2134,16
+地板偏离,fe-vs-baseline flat_ensemble vs sane_random mean_regret,,-33.1674,-50.5236,-15.8111,16
+地板偏离,fe-vs-baseline llm_baseline vs greedy_script mean_dv,,-10.1175,-21.4738,1.2389,16
+地板偏离,fe-vs-baseline llm_baseline vs sane_random mean_dv,,-0.8055,-12.1775,10.5665,16
+地板偏离,fe-vs-baseline llm_baseline vs greedy_script mean_regret,,60.1794,29.9626,90.3963,16
+地板偏离,fe-vs-baseline llm_baseline vs sane_random mean_regret,,22.8707,-7.5077,53.249,16
+局内对照,fe-vs-baseline arch-minus-baseline dv,,17.2305,-7.0031,42.087,16
+局内对照,fe-vs-baseline arch-minus-baseline regret,,-56.038,-96.6878,-20.5143,16
+架构间对照,fe-vs-baseline flat_ensemble-minus-llm_baseline dv (paired),,17.2305,-7.0884,42.4186,16
+架构间对照,fe-vs-baseline flat_ensemble-minus-llm_baseline regret (paired),,-56.038,-95.3398,-20.2212,16
+地板偏离,court-fe-battle flat_ensemble vs greedy_script mean_dv,,-0.0061,-11.4457,11.4335,12
+地板偏离,court-fe-battle flat_ensemble vs sane_random mean_dv,,9.3059,-2.1493,20.761,12
+地板偏离,court-fe-battle flat_ensemble vs greedy_script mean_regret,,14.1926,-2.6335,31.0188,12
+地板偏离,court-fe-battle flat_ensemble vs sane_random mean_regret,,-23.1161,-40.2306,-6.0017,12
+地板偏离,court-fe-battle ming_court vs greedy_script mean_dv,,-3.1803,-22.061,15.7003,12
+地板偏离,court-fe-battle ming_court vs sane_random mean_dv,,6.1316,-12.7585,25.0217,12
+地板偏离,court-fe-battle ming_court vs greedy_script mean_regret,,15.6426,1.5833,29.7019,12
+地板偏离,court-fe-battle ming_court vs sane_random mean_regret,,-21.6662,-36.0693,-7.2631,12
+架构间对照,court-fe-battle flat_ensemble-minus-ming_court dv (paired),,3.1742,-25.9065,29.0222,12
+架构间对照,court-fe-battle flat_ensemble-minus-ming_court regret (paired),,-1.45,-26.425,23.9364,12
