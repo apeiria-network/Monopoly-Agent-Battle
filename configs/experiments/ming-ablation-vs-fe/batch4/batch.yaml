@@ -1,0 +1,7 @@
+# ming-ablation-vs-fe batch 4 of 6: game_007.yaml (MAB07), game_008.yaml (MAB08); every profile in this batch uses API KEY4
+# Run from the repository root with:
+#   .venv/Scripts/monopoly-agent-battle.exe experiment run --batch configs/experiments/ming-ablation-vs-fe/batch4/batch.yaml
+# tasks.jsonl is written next to this manifest.
+games:
+- game_007.yaml
+- game_008.yaml
