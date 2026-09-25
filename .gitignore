@@ -42,3 +42,7 @@ Desktop.ini
 # Game run artifacts (never committed)
 /runs/
 /artifacts/
+
+# Statistical pipeline data products (regenerable from runs/)
+/stat/judge/data/
+/stat/card/data/

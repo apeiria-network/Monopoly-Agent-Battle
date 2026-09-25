@@ -32,7 +32,7 @@
 
 输出怎么解读
 ------------
-每行一段持卡段，列：
+stat/card/data/card_instances.csv（中间文件），每行一段持卡段，列：
   experiment / game_index / game_name / seat / player_id / controller
       局与玩家身份；game_index 经 evaluate_module.experiment_directories
       按文件系统重建，与 §6 各表同键

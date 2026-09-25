@@ -32,6 +32,10 @@
 
 输出怎么解读
 ------------
+目录约定（§5.4 冻结）：结果表放 stat/card/ 顶层，中间文件放 stat/card/data/。
+本脚本：--out → stat/card/card_type_calibration.csv（顶层结果表）；
+--backfill-out → stat/card/data/card_plays.csv（中间文件，覆盖式更新）。
+
 card_type_calibration.csv（长表，每行 = 卡型 × 人群）：
   card_id / population —— 17 类卡 × greedy / sane
   n_plays —— 该人群打出次数（w 与分档的样本量；<30 时参考意义有限）
@@ -50,7 +54,7 @@ card_type_calibration.csv（长表，每行 = 卡型 × 人群）：
 用法（小样本自测；正式全量需负责人批准）：
     .venv/Scripts/python.exe stat/card/calibrate.py --games 5 \
         --plays stat/card/data/_dev_plays.csv \
-        --out stat/card/data/_dev_calibration.csv \
+        --out stat/card/_dev_calibration.csv \
         --backfill-out stat/card/data/_dev_plays_backfilled.csv
 
 多核（与 §6 evaluate.py 同模式的外部分片，N 个进程各扫 1/N 局后合并）：
@@ -60,7 +64,8 @@ card_type_calibration.csv（长表，每行 = 卡型 × 人群）：
     # 合并聚合（单进程，读全部中间产物）：
     .venv/Scripts/python.exe stat/card/calibrate.py \
         --scan-in <part_0.json> <part_1.json> ... --plays <plays.csv> \
-        --out <calibration.csv> --backfill-out <plays_backfilled.csv>
+        --out stat/card/card_type_calibration.csv \
+        --backfill-out stat/card/data/card_plays.csv
     score.py / targets.py 的 --skip/--shard 输出为互斥行集，CSV 去重表头后
     直接拼接即可。analysis1 纯统计、analysis2 扫描仅 LLM 108 局，无需分片。
 """

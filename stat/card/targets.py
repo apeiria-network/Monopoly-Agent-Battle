@@ -30,7 +30,7 @@
 
 输出怎么解读
 ------------
-每行 = 一次打出 × 一个受影响对手：
+stat/card/data/card_targets.csv（中间文件），每行 = 一次打出 × 一个受影响对手：
   experiment / game_index / decision_index —— 关联键（与 card_plays.csv 同
       decision_index）
   player_id —— 打出者；card_id —— 卡型

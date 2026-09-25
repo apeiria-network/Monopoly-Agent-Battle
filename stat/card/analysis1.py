@@ -33,16 +33,19 @@ Other_analysis_field.md §5.2 的两个检验，回答「108 个 LLM 对局胜�
 
 输出怎么解读
 ------------
-data/analysis1_draw_quality.csv（检验 1 输入，每行 = 一局中一座位）：
+data/analysis1_draw_quality.csv（中间文件，检验 1 输入，每行 = 一局中一座位）：
   population —— llm / greedy / sane；n_chance_acquired —— 非抢夺获得卡数；
   q_total —— 抽卡质量（货币量，越大手气越好）；points / rank /
   net_worth_final —— 结局三口径。
-analysis1_results.csv（每行 = 论文要报的一个数）：
+stat/card/analysis1_results.csv（顶层结果表，每行 = 论文要报的一个数）：
   test —— 检验名:人群（如 test1_slope:llm、test1_slope_diff:llm-greedy、
       test2_capture_rate:sane）；outcome —— points / net_worth / executed_dv；
   estimate + ci_lo/ci_hi —— 点估与 95% CI；n_units —— 局数（检验 1）或
       打出数（检验 2）；min_detectable_effect —— MDE；verdict —— 行级判读。
   test1_verdict / test2_verdict 两行给出冻结判定逻辑的最终结论。
+
+目录约定（§5.4 冻结）：结果表放 stat/card/ 顶层（--out-results），
+中间文件放 stat/card/data/（--out-quality）。
 
 用法（小样本自测；正式全量需负责人批准）：
     .venv/Scripts/python.exe stat/card/analysis1.py \
@@ -50,7 +53,7 @@ analysis1_results.csv（每行 = 论文要报的一个数）：
         --calibration stat/card/data/_dev_calibration.csv \
         --plays stat/card/data/_dev_plays_backfilled.csv \
         --out-quality stat/card/data/_dev_draw_quality.csv \
-        --out-results stat/card/data/_dev_analysis1.csv
+        --out-results stat/card/_dev_analysis1.csv
 """
 
 from __future__ import annotations

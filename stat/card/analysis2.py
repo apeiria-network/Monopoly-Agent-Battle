@@ -41,15 +41,18 @@ Other_analysis_field.md §5.3：把出牌行为建成架构/供应商比较的�
 
 输出怎么解读
 ------------
-data/analysis2_seat_game_metrics.csv：每行 = 一局一座位的全部指标
+data/analysis2_seat_game_metrics.csv（中间文件）：每行 = 一局一座位的全部指标
   （配对检验的输入；vendor 列供供应商分组描述）。
-analysis2_card_type_summary.csv：每行 = 实验 × 控制器 × 卡型的画像
-  （含 greedy_script / sane_random 地板参照行）；loss_share_above_p90 高 =
-  该群体在此卡型上经常打出地板最差 10% 级别的目标。
-analysis2_pairwise.csv：每行 = 一个 实验 × 指标 × 对比 的数值：
-  formal=1 仅 court-vs-baseline；holm_significant 只对 formal 族有意义；
-  null_band_width / balance_q_delta 为自检列，分别只出现在 4-courts 行 /
-  court-vs-baseline 行。
+stat/card/analysis2_card_type_summary.csv（顶层结果表）：每行 = 实验 × 控制器
+  × 卡型的画像（含 greedy_script / sane_random 地板参照行）；
+  loss_share_above_p90 高 = 该群体在此卡型上经常打出地板最差 10% 级别的目标。
+stat/card/analysis2_pairwise.csv（顶层结果表）：每行 = 一个 实验 × 指标 ×
+  对比 的数值：formal=1 仅 court-vs-baseline；holm_significant 只对 formal
+  族有意义；null_band_width / balance_q_delta 为自检列，分别只出现在
+  4-courts 行 / court-vs-baseline 行。
+
+目录约定（§5.4 冻结）：结果表放 stat/card/ 顶层（--out-summary /
+--out-pairwise），中间文件放 stat/card/data/（--out-seat）。
 
 用法（小样本自测；正式全量需负责人批准）：
     .venv/Scripts/python.exe stat/card/analysis2.py --games 5 \
@@ -59,8 +62,8 @@ analysis2_pairwise.csv：每行 = 一个 实验 × 指标 × 对比 的数值：
         --calibration stat/card/data/_dev_calibration.csv \
         --quality stat/card/data/_dev_draw_quality.csv \
         --out-seat stat/card/data/_dev_seat_game_metrics.csv \
-        --out-summary stat/card/data/_dev_card_type_summary.csv \
-        --out-pairwise stat/card/data/_dev_pairwise.csv
+        --out-summary stat/card/_dev_card_type_summary.csv \
+        --out-pairwise stat/card/_dev_pairwise.csv
 """
 
 from __future__ import annotations

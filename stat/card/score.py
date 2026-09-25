@@ -36,7 +36,7 @@ UseCommunityGetOutOfJailCard），重放到该决策点，枚举合法候选并�
 
 输出怎么解读
 ------------
-每行一次打出，关键列（全列清单见 §5.4）：
+stat/card/data/card_plays.csv（中间文件），每行一次打出，关键列（全列清单见 §5.4）：
   executed_dv —— 这次打出实际兑现的 V（正=赚到）
   max_target_dv —— 这张卡当时能兑现的最优值（卡本身的潜力）
   target_loss —— max − executed，目标选择损耗（货币量，跨卡型比较须按
