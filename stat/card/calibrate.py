@@ -52,16 +52,28 @@ card_type_calibration.csv（长表，每行 = 卡型 × 人群）：
         --plays stat/card/data/_dev_plays.csv \
         --out stat/card/data/_dev_calibration.csv \
         --backfill-out stat/card/data/_dev_plays_backfilled.csv
+
+多核（与 §6 evaluate.py 同模式的外部分片，N 个进程各扫 1/N 局后合并）：
+    # 分片扫描（i = 0..N-1，各进程独立，落盘中间产物）：
+    .venv/Scripts/python.exe stat/card/calibrate.py --skip i --shard N \
+        --plays <plays.csv> --scan-out <part_i.json>
+    # 合并聚合（单进程，读全部中间产物）：
+    .venv/Scripts/python.exe stat/card/calibrate.py \
+        --scan-in <part_0.json> <part_1.json> ... --plays <plays.csv> \
+        --out <calibration.csv> --backfill-out <plays_backfilled.csv>
+    score.py / targets.py 的 --skip/--shard 输出为互斥行集，CSV 去重表头后
+    直接拼接即可。analysis1 纯统计、analysis2 扫描仅 LLM 108 局，无需分片。
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from collections import defaultdict
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -123,6 +135,42 @@ class TheftSelection:
     selected_card: str
     victim_hand: list[str] = field(default_factory=list)
     all_hands: dict[str, list[str]] = field(default_factory=dict)
+
+
+def _dump_scan(
+    path: Path,
+    playable: dict[tuple[str, str], int],
+    jailfree_playable: dict[str, int],
+    selections: list[TheftSelection],
+) -> None:
+    """Persist scan intermediates so sharded scans can be merged later."""
+    payload = {
+        "playable": {
+            f"{population}|{card_id}": count for (population, card_id), count in playable.items()
+        },
+        "jailfree_playable": dict(jailfree_playable),
+        "selections": [asdict(selection) for selection in selections],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _load_scans(
+    paths: list[str],
+) -> tuple[dict[tuple[str, str], int], dict[str, int], list[TheftSelection]]:
+    """Merge sharded scan intermediates (counts summed, selections concatenated)."""
+    playable: dict[tuple[str, str], int] = defaultdict(int)
+    jailfree_playable: dict[str, int] = defaultdict(int)
+    selections: list[TheftSelection] = []
+    for raw_path in paths:
+        payload = json.loads(Path(raw_path).read_text(encoding="utf-8"))
+        for key, count in payload["playable"].items():
+            population, card_id = key.split("|", 1)
+            playable[(population, card_id)] += count
+        for population, count in payload["jailfree_playable"].items():
+            jailfree_playable[population] += count
+        selections.extend(TheftSelection(**item) for item in payload["selections"])
+    return playable, jailfree_playable, selections
 
 
 def _playable_cards(engine, player_id: str) -> set[str]:
@@ -223,14 +271,26 @@ def main() -> None:
         "--games", type=int, default=None, help="每实验最多处理局数（小样本自测用）"
     )
     parser.add_argument("--plays", required=True, help="card_plays.csv 路径（输入）")
-    parser.add_argument("--out", required=True, help="card_type_calibration.csv 输出路径")
-    parser.add_argument("--backfill-out", required=True, help="回填后的 card_plays.csv 输出路径")
+    parser.add_argument("--out", default=None, help="card_type_calibration.csv 输出路径")
+    parser.add_argument("--backfill-out", default=None, help="回填后的 card_plays.csv 输出路径")
+    parser.add_argument("--skip", type=int, default=0, help="分片跳过（正式跑批并行用）")
+    parser.add_argument("--shard", type=int, default=1, help="分片数（正式跑批并行用）")
+    parser.add_argument(
+        "--scan-out",
+        default=None,
+        help="扫描中间产物落盘路径（分片扫描模式：落盘后退出，不聚合）",
+    )
+    parser.add_argument(
+        "--scan-in",
+        nargs="*",
+        default=None,
+        help="读取各分片扫描产物并聚合（跳过扫描，需搭配 --plays）",
+    )
     args = parser.parse_args()
+    if not args.scan_out and not (args.out and args.backfill_out):
+        parser.error("--out 与 --backfill-out 在非 --scan-out 模式下必填")
 
     anomalies: dict[str, int] = defaultdict(int)
-    playable: dict[str, int] = defaultdict(int)
-    jailfree_playable: dict[str, int] = defaultdict(int)
-    selections: list[TheftSelection] = []
 
     play_rows: list[dict[str, str]] = []
     with Path(args.plays).open(encoding="utf-8-sig") as handle:
@@ -238,21 +298,34 @@ def main() -> None:
         play_columns = reader.fieldnames or []
         play_rows = list(reader)
 
-    for experiment in args.experiments:
-        directories = evaluate_module.experiment_directories(experiment)
-        if args.games is not None:
-            directories = directories[: args.games]
-        for game_index, directory in enumerate(directories):
-            scan_game(
-                directory,
-                experiment,
-                game_index,
-                playable,
-                jailfree_playable,
-                selections,
-                anomalies,
-            )
-        print(f"{experiment}: {len(directories)} games scanned", file=sys.stderr)
+    if args.scan_in:
+        playable, jailfree_playable, selections = _load_scans(args.scan_in)
+        print(f"loaded {len(args.scan_in)} scan shards", file=sys.stderr)
+    else:
+        playable: dict[tuple[str, str], int] = defaultdict(int)
+        jailfree_playable: dict[str, int] = defaultdict(int)
+        selections: list[TheftSelection] = []
+        for experiment in args.experiments:
+            directories = evaluate_module.experiment_directories(experiment)
+            if args.games is not None:
+                directories = directories[: args.games]
+            for game_index, directory in enumerate(directories):
+                if game_index % args.shard != args.skip:
+                    continue
+                scan_game(
+                    directory,
+                    experiment,
+                    game_index,
+                    playable,
+                    jailfree_playable,
+                    selections,
+                    anomalies,
+                )
+            print(f"{experiment}: {len(directories)} games scanned", file=sys.stderr)
+        if args.scan_out:
+            _dump_scan(Path(args.scan_out), playable, jailfree_playable, selections)
+            print(f"scan shard -> {args.scan_out}", file=sys.stderr)
+            return
 
     # ---- 聚合：w / 分档（地板两个人群）----
     by_type_pop: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
